@@ -1,19 +1,13 @@
 #!/bin/bash
 
-# Exit on error
-set -e
-
-echo "🚀 Starting build process..."
+echo "🚀 Starting Render build..."
 
 # Create virtual environment
 python -m venv .venv
 source .venv/bin/activate
 
-# Upgrade pip
-pip install --upgrade pip
-
-# Install build dependencies
-pip install setuptools wheel maturin
+# Upgrade pip and install setuptools
+pip install --upgrade pip setuptools wheel
 
 # Install requirements
 pip install -r requirements.txt
