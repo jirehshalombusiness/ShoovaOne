@@ -12,7 +12,7 @@ export interface Person {
 
 export const peopleService = {
   async getAll(params?: { search?: string; type?: string; skip?: number; limit?: number }) {
-    const response = await api.get<Person[]>('/people', { params });
+    const response = await api.get<Person[]>('/people/', { params });
     return response.data;
   },
 
@@ -22,7 +22,7 @@ export const peopleService = {
   },
 
   async create(data: Partial<Person>) {
-    const response = await api.post<Person>('/people', data);
+    const response = await api.post<Person>('/people/', data);
     return response.data;
   },
 

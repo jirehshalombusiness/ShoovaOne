@@ -10,7 +10,7 @@ export interface PeopleFilters {
 
 export const peopleService = {
   async getAll(params?: PeopleFilters): Promise<Person[]> {
-    const response = await api.get<Person[]>('/people', { params });
+    const response = await api.get<Person[]>('/people/', { params });
     return response.data;
   },
 
@@ -20,7 +20,7 @@ export const peopleService = {
   },
 
   async create(data: Partial<Person>): Promise<Person> {
-    const response = await api.post<Person>('/people', data);
+    const response = await api.post<Person>('/people/', data);
     return response.data;
   },
 

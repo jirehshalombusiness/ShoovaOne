@@ -12,6 +12,45 @@ ON CONFLICT (name) DO UPDATE
 SET description = EXCLUDED.description,
     is_system = true;
 
+INSERT INTO permissions (id, resource, action, description)
+VALUES
+    (gen_random_uuid(), 'people', 'view', 'View people directory'),
+    (gen_random_uuid(), 'people', 'create', 'Create new people'),
+    (gen_random_uuid(), 'people', 'edit', 'Edit people'),
+    (gen_random_uuid(), 'people', 'delete', 'Delete people'),
+    (gen_random_uuid(), 'hr', 'view_sensitive', 'View sensitive HR data'),
+    (gen_random_uuid(), 'hr', 'edit_sensitive', 'Edit sensitive HR data'),
+    (gen_random_uuid(), 'timesheets', 'view', 'View timesheets'),
+    (gen_random_uuid(), 'timesheets', 'submit', 'Submit timesheets'),
+    (gen_random_uuid(), 'timesheets', 'approve', 'Approve timesheets'),
+    (gen_random_uuid(), 'projects', 'view', 'View projects'),
+    (gen_random_uuid(), 'projects', 'create', 'Create projects'),
+    (gen_random_uuid(), 'projects', 'edit', 'Edit projects'),
+    (gen_random_uuid(), 'projects', 'delete', 'Delete projects'),
+    (gen_random_uuid(), 'tasks', 'view', 'View tasks'),
+    (gen_random_uuid(), 'tasks', 'create', 'Create tasks'),
+    (gen_random_uuid(), 'tasks', 'edit', 'Edit tasks'),
+    (gen_random_uuid(), 'tasks', 'delete', 'Delete tasks'),
+    (gen_random_uuid(), 'crm', 'view', 'View CRM data'),
+    (gen_random_uuid(), 'crm', 'create', 'Create CRM records'),
+    (gen_random_uuid(), 'crm', 'edit', 'Edit CRM records'),
+    (gen_random_uuid(), 'crm', 'delete', 'Delete CRM records'),
+    (gen_random_uuid(), 'finance', 'view', 'View finance data'),
+    (gen_random_uuid(), 'finance', 'approve', 'Approve finance records'),
+    (gen_random_uuid(), 'users', 'manage', 'Manage users'),
+    (gen_random_uuid(), 'roles', 'manage', 'Manage roles and permissions'),
+    (gen_random_uuid(), 'events', 'view', 'View events'),
+    (gen_random_uuid(), 'events', 'create', 'Create events'),
+    (gen_random_uuid(), 'events', 'edit', 'Edit events'),
+    (gen_random_uuid(), 'attendance', 'view', 'View attendance records'),
+    (gen_random_uuid(), 'attendance', 'checkin', 'Check in/out'),
+    (gen_random_uuid(), 'programmes', 'view', 'View programmes'),
+    (gen_random_uuid(), 'programmes', 'create', 'Create programmes'),
+    (gen_random_uuid(), 'programmes', 'edit', 'Edit programmes'),
+    (gen_random_uuid(), 'documents', 'view', 'View documents'),
+    (gen_random_uuid(), 'documents', 'upload', 'Upload documents')
+ON CONFLICT (resource, action) DO NOTHING;
+
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r

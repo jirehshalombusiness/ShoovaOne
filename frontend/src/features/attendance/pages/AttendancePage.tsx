@@ -21,7 +21,7 @@ export function AttendancePage() {
   // Get all people for the attendance list
   const { data: people } = useQuery({
     queryKey: ['people'],
-    queryFn: peopleService.getAll,
+    queryFn: () => peopleService.getAll(),
   });
 
   // Check-in mutation
