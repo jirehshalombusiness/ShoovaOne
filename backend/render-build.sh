@@ -12,4 +12,8 @@ pip install --upgrade pip setuptools wheel
 # Install requirements
 pip install -r requirements.txt
 
+if [ -n "$SUPERADMIN_PASSWORD" ]; then
+  python bootstrap_superadmin.py
+fi
+
 echo "✅ Build complete!"
