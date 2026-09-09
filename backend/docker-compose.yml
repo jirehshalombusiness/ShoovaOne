@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shoova_one_db
+    environment:
+      POSTGRES_USER: shoova
+      POSTGRES_PASSWORD: shoova_password
+      POSTGRES_DB: shoova_one
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shoova"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shoova_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: shoova_one_backend
+    environment:
+      - DATABASE_URL=postgresql://shoova:shoova_password@postgres:5432/shoova_one
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev_secret_key_change_in_production}
+      - SECRET_KEY=${SEC

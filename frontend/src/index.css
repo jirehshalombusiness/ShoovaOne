@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --green: #176b4d;
+    --green-dark: #0f513a;
+    --green-soft: #eaf5ef;
+    --gold: #c79a35;
+    --bg: #f6f7f8;
+    --card: #ffffff;
+    --text: #17201c;
+    --muted: #718078;
+    --border: #e5e9e6;
+    --danger: #b84b4b;
+    --warning: #9a721d;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  button, input {
+    font: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white border border-border rounded-xl shadow-card;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 mx-0.5 rounded-lg text-sm text-[#59655f] transition-colors duration-150;
+  }
+
+  .nav-item:hover {
+    @apply bg-[#f3f6f4] text-primary;
+  }
+
+  .nav-item.active {
+    @apply bg-primary-soft text-primary font-bold;
+  }
+
+  .nav-section {
+    @apply text-[10px] font-extrabold uppercase tracking-[0.11em] text-[#98a29d] px-3 py-2 mt-4;
+  }
+
+  .badge {
+    @apply ml-auto bg-[#f0f2f1] text-[#66716b] rounded-full px-2 py-0.5 text-[10px] font-bold;
+  }
+
+  .active .badge {
+    @apply bg-[#d7ecdf] text-primary;
+  }
+
+  .kpi-icon {
+    @apply w-8 h-8 rounded-lg bg-[#f0f5f2] flex items-center justify-center text-primary text-sm;
+  }
+
+  .status {
+    @apply px-2 py-1 rounded-full text-[9px] font-extrabold inline-block;
+  }
+
+  .status.green {
+    @apply bg-[#e7f4ec] text-[#26704e];
+  }
+
+  .status.yellow {
+    @apply bg-[#fbf2db] text-[#86631b];
+  }
+
+  .status.gray {
+    @apply bg-[#eef0ef] text-[#69736e];
+  }
+
+  .status.red {
+    @apply bg-[#f9e9e9] text-[#9c4545];
+  }
+
+  .avatar {
+    @apply w-8 h-8 rounded-full flex items-center justify-center bg-[#dcebe3] text-primary-dark text-[11px] font-extrabold flex-shrink-0;
+  }
+}
