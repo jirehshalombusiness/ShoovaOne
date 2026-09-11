@@ -58,6 +58,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'People & HR',
     items: [
       { icon: Users, label: 'People', path: '/people' },
+      { icon: Network, label: 'Org Chart', path: '/people/org-chart' },
       { icon: Shield, label: 'HR', path: '/hr', permission: 'hr.view_sensitive' },
     ],
   },
@@ -75,28 +76,10 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { icon: BarChart3, label: 'Reports', path: '/reports' },
       { icon: Settings, label: 'Settings', path: '/settings' },
+      { icon: UserCog, label: 'User Management', path: '/users', permission: 'users.manage' },
+      { icon: ShieldCheck, label: 'Roles & Permissions', path: '/roles', permission: 'roles.manage' },
     ],
   },
-
-{
-  label: 'People & HR',
-  items: [
-    { icon: Users, label: 'People', path: '/people' },
-    { icon: Network, label: 'Org Chart', path: '/people/org-chart' },
-    { icon: Shield, label: 'HR', path: '/hr', permission: 'hr.view_sensitive' },
-  ],
-},
-{
-  label: 'System',
-  items: [
-    { icon: BarChart3, label: 'Reports', path: '/reports' },
-    { icon: Settings, label: 'Settings', path: '/settings' },
-    { icon: UserCog, label: 'User Management', path: '/users', permission: 'users.manage' },
-    { icon: ShieldCheck, label: 'Roles & Permissions', path: '/roles', permission: 'roles.manage' },
-  ],
-},
-
-
 ];
 
 
