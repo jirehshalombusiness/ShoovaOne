@@ -155,70 +155,17 @@ def require_all_permissions(permissions: List[str]):
 
 # Common permission constants for easy reference
 class Permissions:
-    # People
+    # ============================================
+    # PEOPLE
+    # ============================================
     PEOPLE_VIEW = "people.view"
     PEOPLE_CREATE = "people.create"
     PEOPLE_EDIT = "people.edit"
     PEOPLE_DELETE = "people.delete"
     
-    # HR
-    HR_VIEW_SENSITIVE = "hr.view_sensitive"
-    HR_EDIT_SENSITIVE = "hr.edit_sensitive"
-    
-    # Timesheets
-    TIMESHEETS_VIEW = "timesheets.view"
-    TIMESHEETS_SUBMIT = "timesheets.submit"
-    TIMESHEETS_APPROVE = "timesheets.approve"
-    
-    # Projects
-    PROJECTS_VIEW = "projects.view"
-    PROJECTS_CREATE = "projects.create"
-    PROJECTS_EDIT = "projects.edit"
-    PROJECTS_DELETE = "projects.delete"
-    
-    # Tasks
-    TASKS_VIEW = "tasks.view"
-    TASKS_CREATE = "tasks.create"
-    TASKS_EDIT = "tasks.edit"
-    TASKS_DELETE = "tasks.delete"
-    
-    # CRM
-    CRM_VIEW = "crm.view"
-    CRM_CREATE = "crm.create"
-    CRM_EDIT = "crm.edit"
-    CRM_DELETE = "crm.delete"
-    
-    # Finance
-    FINANCE_VIEW = "finance.view"
-    FINANCE_APPROVE = "finance.approve"
-    
-    # Users
-    USERS_MANAGE = "users.manage"
-    ROLES_MANAGE = "roles.manage"
-    
-    # Events
-    EVENTS_VIEW = "events.view"
-    EVENTS_CREATE = "events.create"
-    EVENTS_EDIT = "events.edit"
-
-    # Attendance
-    ATTENDANCE_VIEW = "attendance.view"
-    ATTENDANCE_CHECKIN = "attendance.checkin"
-    ATTENDANCE_EDIT = "attendance.edit"
-    
-    # Programmes
-    PROGRAMMES_VIEW = "programmes.view"
-    PROGRAMMES_CREATE = "programmes.create"
-    PROGRAMMES_EDIT = "programmes.edit"
-    
-    # Documents
-    DOCUMENTS_VIEW = "documents.view"
-    DOCUMENTS_UPLOAD = "documents.upload"
-    # Timesheets
-    TIMESHEETS_VIEW = "timesheets.view"
-    TIMESHEETS_SUBMIT = "timesheets.submit"
-    TIMESHEETS_APPROVE = "timesheets.approve"
-        # HR
+    # ============================================
+    # HR (Sensitive)
+    # ============================================
     HR_VIEW_SENSITIVE = "hr.view_sensitive"
     HR_EDIT_SENSITIVE = "hr.edit_sensitive"
     HR_VIEW_EMPLOYMENT = "hr.view_employment"
@@ -229,3 +176,73 @@ class Permissions:
     HR_EDIT_LEAVE = "hr.edit_leave"
     HR_VIEW_PERFORMANCE = "hr.view_performance"
     HR_EDIT_PERFORMANCE = "hr.edit_performance"
+    
+    # ============================================
+    # TIMESHEETS
+    # ============================================
+    TIMESHEETS_VIEW = "timesheets.view"
+    TIMESHEETS_SUBMIT = "timesheets.submit"
+    TIMESHEETS_APPROVE = "timesheets.approve"
+    
+    # ============================================
+    # PROJECTS
+    # ============================================
+    PROJECTS_VIEW = "projects.view"
+    PROJECTS_CREATE = "projects.create"
+    PROJECTS_EDIT = "projects.edit"
+    PROJECTS_DELETE = "projects.delete"
+    
+    # ============================================
+    # TASKS
+    # ============================================
+    TASKS_VIEW = "tasks.view"
+    TASKS_CREATE = "tasks.create"
+    TASKS_EDIT = "tasks.edit"
+    TASKS_DELETE = "tasks.delete"
+    
+    # ============================================
+    # CRM
+    # ============================================
+    CRM_VIEW = "crm.view"
+    CRM_CREATE = "crm.create"
+    CRM_EDIT = "crm.edit"
+    CRM_DELETE = "crm.delete"
+    
+    # ============================================
+    # FINANCE
+    # ============================================
+    FINANCE_VIEW = "finance.view"
+    FINANCE_APPROVE = "finance.approve"
+    
+    # ============================================
+    # USERS & ROLES
+    # ============================================
+    USERS_MANAGE = "users.manage"
+    ROLES_MANAGE = "roles.manage"
+    
+    # ============================================
+    # EVENTS
+    # ============================================
+    EVENTS_VIEW = "events.view"
+    EVENTS_CREATE = "events.create"
+    EVENTS_EDIT = "events.edit"
+    
+    # ============================================
+    # ATTENDANCE
+    # ============================================
+    ATTENDANCE_VIEW = "attendance.view"
+    ATTENDANCE_CHECKIN = "attendance.checkin"
+    ATTENDANCE_EDIT = "attendance.edit"
+    
+    # ============================================
+    # PROGRAMMES
+    # ============================================
+    PROGRAMMES_VIEW = "programmes.view"
+    PROGRAMMES_CREATE = "programmes.create"
+    PROGRAMMES_EDIT = "programmes.edit"
+    
+    # ============================================
+    # DOCUMENTS
+    # ============================================
+    DOCUMENTS_VIEW = "documents.view"
+    DOCUMENTS_UPLOAD = "documents.upload"

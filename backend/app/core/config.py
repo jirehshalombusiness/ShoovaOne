@@ -1,7 +1,6 @@
 from typing import List
 from pydantic_settings import BaseSettings
 from pydantic import ConfigDict
-import os
 
 
 class Settings(BaseSettings):
@@ -12,7 +11,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     SECRET_KEY: str = "dev-secret-key-change-in-production-123456789"
 
-    # Database - Use SQLite for development
+    # Database - Will be overridden by DATABASE_URL environment variable
     DATABASE_URL: str = "sqlite:///./shoova_one.db"
 
     # JWT
@@ -20,7 +19,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_MINUTES: int = 43200
 
-    # CORS - Simple string, will be split
+    # CORS
     BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
 
     # Organization

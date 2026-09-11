@@ -1,8 +1,11 @@
 from pydantic import BaseModel, field_validator
 from datetime import datetime
 from typing import Optional
-from uuid import UUID
 
+
+# =============================================
+# BASE
+# =============================================
 
 class NotificationBase(BaseModel):
     title: str
@@ -12,22 +15,29 @@ class NotificationBase(BaseModel):
     extra_data: Optional[str] = None
 
 
-class NotificationCreate(NotificationBase):
-    user_id: UUID
+# =============================================
+# CREATE
+# =============================================
 
+class NotificationCreate(NotificationBase):
+    user_id: str
+
+
+# =============================================
+# RESPONSE
+# =============================================
 
 class NotificationResponse(NotificationBase):
-    id: UUID
-    user_id: UUID
+    id: str
+    user_id: str
     is_read: bool
     created_at: datetime
     read_at: Optional[datetime] = None
 
     @field_validator('id', 'user_id', mode='before')
     @classmethod
-    def convert_uuid_to_str(cls, v):
+    def convert_to_str(cls, v):
         return str(v) if v else v
 
     class Config:
         from_attributes = True
-        json_encoders = {UUID: str}

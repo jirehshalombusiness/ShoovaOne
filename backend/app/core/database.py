@@ -15,7 +15,10 @@ is_sqlite = database_url.startswith("sqlite://")
 
 if is_sqlite:
     database_url = database_url.replace("sqlite://", "sqlite+aiosqlite://")
-else:
+elif database_url.startswith("postgres://"):
+    # Render uses postgres:// but SQLAlchemy needs postgresql://
+    database_url = database_url.replace("postgres://", "postgresql+asyncpg://")
+elif database_url.startswith("postgresql://"):
     database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
 
 # Create async engine with appropriate parameters
@@ -30,9 +33,11 @@ else:
     engine: AsyncEngine = create_async_engine(
         database_url,
         echo=settings.DEBUG,
-        pool_size=10,
-        max_overflow=20,
+        pool_size=5,
+        max_overflow=10,
         pool_timeout=30,
+        pool_pre_ping=True,
+        pool_recycle=300,
     )
 
 # Async session factory
@@ -44,9 +49,21 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
-# Shared declarative base used by all SQLAlchemy models.
-# Importing the model modules registers the tables against this metadata.
-from app.models.sql import User, Person, Role, Permission, Attendance, Notification  # noqa: F401
+
+# =============================================
+# IMPORT ALL MODELS TO REGISTER WITH SQLALCHEMY
+# =============================================
+# This is CRITICAL — without importing all models, SQLAlchemy
+# won't know about their tables when creating them, and foreign
+# keys will fail with NoReferencedTableError.
+# =============================================
+
+from app.models.sql.user import User, Person  # noqa: F401
+from app.models.sql.role import Role, Permission, user_roles, role_permissions  # noqa: F401
+from app.models.sql.attendance import Attendance  # noqa: F401
+from app.models.sql.notification import Notification  # noqa: F401
+from app.models.sql.project import Project, Task  # noqa: F401
+from app.models.sql.timesheet import Timesheet, TimesheetEntry, TimesheetApprovalHistory  # noqa: F401
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

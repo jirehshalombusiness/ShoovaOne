@@ -1,25 +1,27 @@
-from sqlalchemy import Column, DateTime, func, String, TypeDecorator
+from sqlalchemy import Column, DateTime, func, String, TypeDecorator, CHAR
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import declarative_base
-from app.core.config import settings
 import uuid
 
 
 class GUID(TypeDecorator):
-    """Platform-independent GUID type that always returns strings."""
-    impl = String(36)
+    """
+    Platform-independent GUID type.
+    - Uses PostgreSQL's native UUID when available.
+    - Falls back to CHAR(36) on other databases.
+    - Always returns strings to the application.
+    """
+    impl = CHAR(36)
     cache_ok = True
 
     def load_dialect_impl(self, dialect):
         if dialect.name == 'postgresql':
-            return dialect.type_descriptor(PG_UUID(as_uuid=False))  # Return as string
-        else:
-            return dialect.type_descriptor(String(36))
+            return dialect.type_descriptor(PG_UUID(as_uuid=False))
+        return dialect.type_descriptor(CHAR(36))
 
     def process_bind_param(self, value, dialect):
         if value is None:
             return value
-        # Always store as string
         if isinstance(value, uuid.UUID):
             return str(value)
         return str(value)
@@ -27,7 +29,6 @@ class GUID(TypeDecorator):
     def process_result_value(self, value, dialect):
         if value is None:
             return value
-        # Always return as string
         return str(value)
 
 

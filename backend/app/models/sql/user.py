@@ -1,23 +1,14 @@
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-import uuid
 
-from app.models.sql.base import BaseModel, Base
+from app.models.sql.base import BaseModel, GUID
 from app.models.sql.role import user_roles
-from app.core.config import settings
-
-# Determine column type based on database
-if settings.DATABASE_URL.startswith("sqlite://"):
-    FK_TYPE = String(36)
-else:
-    FK_TYPE = UUID(as_uuid=True)
 
 
 class User(BaseModel):
     __tablename__ = "users"
 
-    person_id = Column(FK_TYPE, ForeignKey("people.id", ondelete="CASCADE"), nullable=False)
+    person_id = Column(GUID, ForeignKey("people.id", ondelete="CASCADE"), nullable=False)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255))
     is_active = Column(Boolean, default=True)
@@ -39,6 +30,7 @@ class Person(BaseModel):
     date_of_birth = Column(DateTime)
     gender = Column(String(20))
     type = Column(String(50), nullable=False, default="staff")
+    status = Column(String(50), default="active")  # active, inactive, archived
     profile_image_url = Column(String)
     address = Column(String)
     city = Column(String(100))

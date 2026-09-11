@@ -1,8 +1,11 @@
 from pydantic import BaseModel, EmailStr, field_validator
 from datetime import datetime
-from typing import Optional
-from uuid import UUID
+from typing import Optional, List
 
+
+# =============================================
+# AUTH MODELS
+# =============================================
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -15,12 +18,12 @@ class UserCreate(UserBase):
 
 
 class UserResponse(BaseModel):
-    id: UUID
+    id: str
     email: EmailStr
     first_name: str
     last_name: str
     is_active: bool
-    last_login_at: Optional[datetime]
+    last_login_at: Optional[datetime] = None
     created_at: datetime
 
     @field_validator('id', mode='before')
@@ -30,10 +33,50 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
-        json_encoders = {UUID: str}
 
 
 class Token(BaseModel):
     access_token: str
     token_type: str
-    user: dict  # Changed to dict for flexibility
+    user: dict
+
+
+# =============================================
+# MANAGED USER MODELS (Admin operations)
+# =============================================
+
+class ManagedUserBase(BaseModel):
+    email: EmailStr
+    first_name: str
+    last_name: str
+    is_active: bool = True
+    roles: Optional[List[str]] = []
+
+
+class ManagedUserCreate(ManagedUserBase):
+    password: str
+
+
+class ManagedUserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    is_active: Optional[bool] = None
+    roles: Optional[List[str]] = None
+    password: Optional[str] = None
+
+
+class ManagedUserResponse(ManagedUserBase):
+    id: str
+    person_id: str
+    last_login_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    @field_validator('id', 'person_id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        return str(v) if v else v
+
+    class Config:
+        from_attributes = True
