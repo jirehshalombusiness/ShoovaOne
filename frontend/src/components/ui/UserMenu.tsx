@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { Avatar } from './Avatar';
 
 export function UserMenu() {
   const { user, logout } = useAuth();
@@ -18,7 +19,6 @@ export function UserMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
@@ -29,7 +29,6 @@ export function UserMenu() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Close on Escape
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
@@ -37,10 +36,6 @@ export function UserMenu() {
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
   }, []);
-
-  const initials = user
-    ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() || '?'
-    : '?';
 
   const handleLogout = async () => {
     setOpen(false);
@@ -65,9 +60,12 @@ export function UserMenu() {
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-white text-[11px] font-semibold flex-shrink-0">
-          {initials}
-        </div>
+        <Avatar
+          firstName={user?.first_name}
+          lastName={user?.last_name}
+          imageUrl={user?.profile_image_url}
+          size="sm"
+        />
         <ChevronDown
           className={cn(
             'w-3 h-3 text-gray-500 transition-transform duration-200',
@@ -85,9 +83,12 @@ export function UserMenu() {
           {/* User info header */}
           <div className="px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
-                {initials}
-              </div>
+              <Avatar
+                firstName={user?.first_name}
+                lastName={user?.last_name}
+                imageUrl={user?.profile_image_url}
+                size="lg"
+              />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-gray-900 truncate">
                   {user?.first_name} {user?.last_name}
@@ -133,7 +134,6 @@ export function UserMenu() {
               Settings
             </button>
 
-            {/* Only for admins */}
             {user?.permissions?.includes('users.manage') && (
               <button
                 onClick={() => go('/users')}
@@ -155,7 +155,6 @@ export function UserMenu() {
             </button>
           </div>
 
-          {/* Keyboard shortcut hint */}
           <div className="px-4 py-2 border-t border-gray-100 hidden lg:block">
             <div className="flex items-center justify-between text-[11px] text-gray-500">
               <span className="flex items-center gap-1.5">
@@ -168,7 +167,6 @@ export function UserMenu() {
             </div>
           </div>
 
-          {/* Logout */}
           <div className="border-t border-gray-100 py-1">
             <button
               onClick={handleLogout}

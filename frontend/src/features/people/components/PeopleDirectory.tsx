@@ -6,6 +6,7 @@ import { Search, Filter, Plus, User, Mail, Phone, Building2, ChevronRight } from
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useAuth } from '@/lib/auth';
+import { Avatar } from '@/components/ui/Avatar';
 
 interface PeopleDirectoryProps {
   onSelectPerson?: (person: Person) => void;
@@ -175,11 +176,12 @@ export function PeopleDirectory({ onSelectPerson, onAddPerson }: PeopleDirectory
                 className="p-4 hover:bg-gray-50 transition-colors cursor-pointer flex items-center justify-between group"
               >
                 <div className="flex items-center gap-4 min-w-0 flex-1">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm font-semibold text-primary">
-                      {person.first_name?.[0]}{person.last_name?.[0]}
-                    </span>
-                  </div>
+                <Avatar
+                  firstName={person.first_name}
+                  lastName={person.last_name}
+                  imageUrl={person.profile_image_url}
+                  size="md"
+                />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-gray-900 truncate">

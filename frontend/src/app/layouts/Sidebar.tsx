@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { usePermissions } from '@/hooks/usePermissions';
+import { Avatar } from '@/components/ui/Avatar';
 
 interface NavItem {
   icon: React.ElementType;
@@ -82,8 +83,6 @@ const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-
-
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
@@ -100,12 +99,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       (item) => !item.permission || hasPermission(item.permission)
     ),
   })).filter((section) => section.items.length > 0);
-
-  const initials =
-    user
-      ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() ||
-        '?'
-      : '?';
 
   const handleLogout = async () => {
     await logout();
@@ -171,7 +164,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       >
         {filtered.map((section) => (
           <div key={section.label} className={cn('mb-4', collapsed && 'mb-2')}>
-            {/* Section label */}
             {!collapsed ? (
               <div className="px-3 mb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                 {section.label}
@@ -206,7 +198,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     <span className="truncate">{item.label}</span>
                   )}
 
-                  {/* Tooltip when collapsed */}
                   {collapsed && (
                     <span className="pointer-events-none absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-[11px] font-medium rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
                       {item.label}
@@ -227,9 +218,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             collapsed ? 'justify-center p-1.5' : 'gap-2.5 px-3 py-2'
           )}
         >
-          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-gray-700 text-[11px] font-semibold flex-shrink-0">
-            {initials}
-          </div>
+          <Avatar
+            firstName={user?.first_name}
+            lastName={user?.last_name}
+            imageUrl={user?.profile_image_url}
+            size="sm"
+          />
 
           {!collapsed && (
             <>
@@ -251,7 +245,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </>
           )}
 
-          {/* Collapsed: tooltip + click logs out */}
           {collapsed && (
             <span className="pointer-events-none absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-[11px] font-medium rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
               {user?.first_name} {user?.last_name}

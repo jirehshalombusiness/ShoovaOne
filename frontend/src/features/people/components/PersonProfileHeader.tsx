@@ -1,15 +1,12 @@
 import { Person } from '@/types/person.types';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  Building2, 
-  Calendar, 
-  Edit, 
+import { Avatar } from '@/components/ui/Avatar';
+import {
+  Mail,
+  Phone,
+  Building2,
+  Calendar,
+  Edit,
   MoreVertical,
-  CheckCircle,
-  Clock,
-  Archive
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -28,56 +25,47 @@ export function PersonProfileHeader({ person, onEdit }: PersonProfileHeaderProps
     }
   };
 
-  const getInitials = () => {
-    return `${person.first_name?.[0] || ''}${person.last_name?.[0] || ''}`.toUpperCase();
-  };
-
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
       <div className="flex items-start gap-6">
         {/* Avatar */}
-        <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-          {person.profile_image_url ? (
-            <img src={person.profile_image_url} alt="" className="h-20 w-20 rounded-full object-cover" />
-          ) : (
-            <span className="text-2xl font-bold text-primary">
-              {getInitials()}
-            </span>
-          )}
-        </div>
+        <Avatar
+          firstName={person.first_name}
+          lastName={person.last_name}
+          imageUrl={person.profile_image_url}
+          size="2xl"
+          className="ring-2 ring-gray-100"
+        />
 
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <h2 className="text-2xl font-bold text-gray-900">
-                  {person.first_name} {person.middle_name} {person.last_name}
+                  {person.first_name} {person.last_name}
                 </h2>
                 <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getStatusColor(person.status || 'active')}`}>
                   {person.status || 'Active'}
                 </span>
               </div>
-              {person.preferred_name && (
-                <p className="text-sm text-gray-500">Known as {person.preferred_name}</p>
-              )}
+
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-gray-600">
-                <span className="flex items-center gap-1.5">
-                  <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded capitalize">
-                    {person.type || 'Staff'}
-                  </span>
+                <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded capitalize">
+                  {person.type || 'Staff'}
                 </span>
-                {person.role && (
-                  <span>{person.role}</span>
+                {person.job_title && (
+                  <span className="font-medium text-gray-700">{person.job_title}</span>
                 )}
-                {person.organization && (
+                {person.location && (
                   <span className="flex items-center gap-1">
                     <Building2 className="h-4 w-4 text-gray-400" />
-                    {person.organization}
+                    {person.location}
                   </span>
                 )}
               </div>
             </div>
+
             <div className="flex items-center gap-2 flex-shrink-0">
               {onEdit && (
                 <button
@@ -110,17 +98,6 @@ export function PersonProfileHeader({ person, onEdit }: PersonProfileHeaderProps
                 <a href={`tel:${person.phone}`} className="hover:text-primary transition-colors">
                   {person.phone}
                 </a>
-              </span>
-            )}
-            {person.alternate_phone && (
-              <span className="flex items-center gap-1.5 text-gray-500 text-xs">
-                <Phone className="h-3 w-3 text-gray-400" />
-                {person.alternate_phone}
-              </span>
-            )}
-            {person.city && person.country && (
-              <span className="flex items-center gap-1.5 text-gray-500 text-xs">
-                {person.city}, {person.country}
               </span>
             )}
             {person.created_at && (

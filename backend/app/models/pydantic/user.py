@@ -22,13 +22,15 @@ class UserResponse(BaseModel):
     email: EmailStr
     first_name: str
     last_name: str
+    profile_image_url: Optional[str] = None   # ← ADD
+    job_title: Optional[str] = None           # ← ADD
     is_active: bool
     last_login_at: Optional[datetime] = None
     created_at: datetime
 
     @field_validator('id', mode='before')
     @classmethod
-    def convert_uuid_to_str(cls, v):
+    def convert_to_str(cls, v):
         return str(v) if v else v
 
     class Config:
