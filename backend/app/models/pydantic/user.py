@@ -1,6 +1,6 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 from uuid import UUID
 
 
@@ -14,35 +14,26 @@ class UserCreate(UserBase):
     last_name: str
 
 
-class ManagedUserCreate(BaseModel):
-    person_id: str
-    password: str
-    role_names: List[str] = []
-
-
-class ManagedUserUpdate(BaseModel):
-    is_active: Optional[bool] = None
-    password: Optional[str] = None
-    role_names: Optional[List[str]] = None
-
-
 class UserResponse(BaseModel):
-    id: str
+    id: UUID
     email: EmailStr
     first_name: str
     last_name: str
     is_active: bool
     last_login_at: Optional[datetime]
     created_at: datetime
-    roles: List[str] = []
-    permissions: List[str] = []
-    person_id: Optional[str] = None
+
+    @field_validator('id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        return str(v) if v else v
 
     class Config:
         from_attributes = True
+        json_encoders = {UUID: str}
 
 
 class Token(BaseModel):
     access_token: str
     token_type: str
-    user: UserResponse
+    user: dict  # Changed to dict for flexibility

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from datetime import datetime, date
 from typing import Optional
 from uuid import UUID
@@ -30,5 +30,11 @@ class AttendanceResponse(AttendanceBase):
     created_at: datetime
     updated_at: datetime
 
+    @field_validator('id', 'person_id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        return str(v) if v else v
+
     class Config:
         from_attributes = True
+        json_encoders = {UUID: str}

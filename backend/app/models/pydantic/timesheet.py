@@ -1,12 +1,12 @@
-from pydantic import BaseModel
-from datetime import datetime, date as date_type, time
+from pydantic import BaseModel, field_validator
+from datetime import datetime, date, time
 from typing import Optional, List
 from decimal import Decimal
 from uuid import UUID
 
 
 class TimesheetEntryBase(BaseModel):
-    date: date_type
+    date: date
     project_id: Optional[UUID] = None
     task_id: Optional[UUID] = None
     start_time: Optional[time] = None
@@ -22,7 +22,7 @@ class TimesheetEntryCreate(TimesheetEntryBase):
 
 
 class TimesheetEntryUpdate(BaseModel):
-    date: Optional[date_type] = None
+    date: Optional[date] = None
     project_id: Optional[UUID] = None
     task_id: Optional[UUID] = None
     start_time: Optional[time] = None
@@ -39,13 +39,19 @@ class TimesheetEntryResponse(TimesheetEntryBase):
     created_at: datetime
     updated_at: datetime
 
+    @field_validator('id', 'timesheet_id', 'project_id', 'task_id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        return str(v) if v else v
+
     class Config:
         from_attributes = True
+        json_encoders = {UUID: str}
 
 
 class TimesheetBase(BaseModel):
-    week_start_date: date_type
-    week_end_date: date_type
+    week_start_date: date
+    week_end_date: date
     expected_hours: Decimal = 40
     notes: Optional[str] = None
 
@@ -72,8 +78,14 @@ class TimesheetResponse(TimesheetBase):
     updated_at: datetime
     entries: List[TimesheetEntryResponse] = []
 
+    @field_validator('id', 'person_id', 'submitted_by', 'approved_by', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        return str(v) if v else v
+
     class Config:
         from_attributes = True
+        json_encoders = {UUID: str}
 
 
 class TimesheetApprovalHistoryResponse(BaseModel):
@@ -84,8 +96,14 @@ class TimesheetApprovalHistoryResponse(BaseModel):
     comment: Optional[str]
     created_at: datetime
 
+    @field_validator('id', 'timesheet_id', 'performed_by', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        return str(v) if v else v
+
     class Config:
         from_attributes = True
+        json_encoders = {UUID: str}
 
 
 class TimesheetSubmit(BaseModel):
