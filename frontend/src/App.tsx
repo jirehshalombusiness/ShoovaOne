@@ -12,34 +12,66 @@ import { TasksPage } from '@/features/tasks/pages/TasksPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
 import { HRPage } from '@/features/hr/pages/HRPage';
 
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-500">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader />;
 
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
+  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
-function PermissionRoute({ permission, children }: { permission: string; children: React.ReactNode }) {
-  const { user } = useAuth();
-  return user?.permissions.includes(permission) ? <>{children}</> : <Navigate to="/dashboard" replace />;
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) return <PageLoader />;
+
+  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <>{children}</>;
+}
+
+function PermissionRoute({
+  permission,
+  children,
+}: {
+  permission: string;
+  children: React.ReactNode;
+}) {
+  const { user, loading } = useAuth();
+
+  if (loading) return <PageLoader />;
+
+  // ✅ Safe array access
+  const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
+
+  return permissions.includes(permission) ? (
+    <>{children}</>
+  ) : (
+    <Navigate to="/dashboard" replace />
+  );
 }
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        {/* Public route */}
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <LoginPage />
+            </PublicRoute>
+          }
+        />
+
+        {/* Protected routes */}
         <Route
           path="/"
           element={
@@ -56,9 +88,37 @@ function App() {
           <Route path="timesheets" element={<TimesheetsPage />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="tasks" element={<TasksPage />} />
-          <Route path="users" element={<PermissionRoute permission="users.manage"><UsersPage /></PermissionRoute>} />
-          <Route path="hr" element={<PermissionRoute permission="hr.view_sensitive"><HRPage /></PermissionRoute>} />
+
+          {/* Permission-gated routes */}
+          <Route
+            path="users"
+            element={
+              <PermissionRoute permission="users.manage">
+                <UsersPage />
+              </PermissionRoute>
+            }
+          />
+          <Route
+            path="hr"
+            element={
+              <PermissionRoute permission="hr.view_sensitive">
+                <HRPage />
+              </PermissionRoute>
+            }
+          />
+
+          {/* Placeholders */}
+          <Route path="my-work" element={<div className="p-6 text-gray-500">My Work</div>} />
+          <Route path="organisations" element={<div className="p-6 text-gray-500">Organisations</div>} />
+          <Route path="programmes" element={<div className="p-6 text-gray-500">Programmes</div>} />
+          <Route path="events" element={<div className="p-6 text-gray-500">Events</div>} />
+          <Route path="finance" element={<div className="p-6 text-gray-500">Finance</div>} />
+          <Route path="reports" element={<div className="p-6 text-gray-500">Reports</div>} />
+          <Route path="settings" element={<div className="p-6 text-gray-500">Settings</div>} />
         </Route>
+
+        {/* ✅ Catch-all — unknown URLs go to dashboard */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
   );

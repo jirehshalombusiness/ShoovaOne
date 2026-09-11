@@ -12,44 +12,77 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Normalize user object — ensures `roles` and `permissions`
+ * are ALWAYS arrays, even when the API omits them.
+ */
+function normalizeUser(raw: any): User | null {
+  if (!raw) return null;
+  return {
+    id: raw.id,
+    email: raw.email,
+    first_name: raw.first_name ?? '',
+    last_name: raw.last_name ?? '',
+    is_active: raw.is_active ?? true,
+    created_at: raw.created_at ?? new Date().toISOString(),
+    last_login_at: raw.last_login_at ?? null,
+    roles: Array.isArray(raw.roles) ? raw.roles : [],
+    permissions: Array.isArray(raw.permissions) ? raw.permissions : [],
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadUser = async () => {
-      // First check if we have a token
       const token = localStorage.getItem('access_token');
-      
-      if (token) {
+
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      // 1. Try cached user first (fast render)
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
         try {
-          // Try to get user from storage first
-          const storedUser = localStorage.getItem('user');
-          if (storedUser) {
-            setUser(JSON.parse(storedUser));
-          }
-          
-          // Then refresh from API
-          const freshUser = await authService.getCurrentUser();
-          setUser(freshUser);
-          localStorage.setItem('user', JSON.stringify(freshUser));
-        } catch (error) {
-          console.error('Failed to load user:', error);
-          localStorage.removeItem('access_token');
+          const parsed = JSON.parse(storedUser);
+          setUser(normalizeUser(parsed));
+        } catch {
           localStorage.removeItem('user');
-          setUser(null);
         }
       }
+
+      // 2. Refresh from API (authoritative)
+      try {
+        const fresh = await authService.getCurrentUser();
+        const normalized = normalizeUser(fresh);
+        setUser(normalized);
+        if (normalized) {
+          localStorage.setItem('user', JSON.stringify(normalized));
+        }
+      } catch (error) {
+        console.error('Failed to refresh user:', error);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user');
+        setUser(null);
+      }
+
       setLoading(false);
     };
+
     loadUser();
   }, []);
 
   const login = async (email: string, password: string) => {
     const response = await authService.login(email, password);
-    setUser(response.user);
-    // Store user in localStorage
-    localStorage.setItem('user', JSON.stringify(response.user));
+    const normalized = normalizeUser(response.user);
+    setUser(normalized);
+    if (normalized) {
+      localStorage.setItem('user', JSON.stringify(normalized));
+    }
   };
 
   const logout = async () => {

@@ -1,45 +1,24 @@
 import { useAuth } from '@/lib/auth';
-import { useMemo } from 'react';
 
 export function usePermissions() {
   const { user } = useAuth();
 
-  const hasPermission = (permission: string): boolean => {
-    if (!user) return false;
-    return user.permissions?.includes(permission) || false;
-  };
+  const userPermissions: string[] = Array.isArray(user?.permissions)
+    ? user!.permissions
+    : [];
 
-  const hasAnyPermission = (permissions: string[]): boolean => {
-    if (!user) return false;
-    return permissions.some(p => user.permissions?.includes(p) || false);
-  };
-
-  const hasAllPermissions = (permissions: string[]): boolean => {
-    if (!user) return false;
-    return permissions.every(p => user.permissions?.includes(p) || false);
-  };
-
-  const hasRole = (role: string): boolean => {
-    if (!user) return false;
-    return user.roles?.includes(role) || false;
-  };
-
-  const hasAnyRole = (roles: string[]): boolean => {
-    if (!user) return false;
-    return roles.some(r => user.roles?.includes(r) || false);
-  };
-
-  const hasAllRoles = (roles: string[]): boolean => {
-    if (!user) return false;
-    return roles.every(r => user.roles?.includes(r) || false);
-  };
+  const userRoles: string[] = Array.isArray(user?.roles)
+    ? user!.roles
+    : [];
 
   return {
-    hasPermission,
-    hasAnyPermission,
-    hasAllPermissions,
-    hasRole,
-    hasAnyRole,
-    hasAllRoles,
+    hasPermission: (permission: string) => userPermissions.includes(permission),
+    hasAnyPermission: (permissions: string[]) =>
+      permissions.some((p) => userPermissions.includes(p)),
+    hasAllPermissions: (permissions: string[]) =>
+      permissions.every((p) => userPermissions.includes(p)),
+    hasRole: (role: string) => userRoles.includes(role),
+    hasAnyRole: (roles: string[]) => roles.some((r) => userRoles.includes(r)),
+    hasAllRoles: (roles: string[]) => roles.every((r) => userRoles.includes(r)),
   };
 }
