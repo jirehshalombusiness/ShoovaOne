@@ -17,6 +17,9 @@ import {
   FolderKanban,
   PanelLeftClose,
   PanelLeftOpen,
+  ShieldCheck,
+  UserCog,
+  Network,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -74,7 +77,29 @@ const NAV_SECTIONS: NavSection[] = [
       { icon: Settings, label: 'Settings', path: '/settings' },
     ],
   },
+
+{
+  label: 'People & HR',
+  items: [
+    { icon: Users, label: 'People', path: '/people' },
+    { icon: Network, label: 'Org Chart', path: '/people/org-chart' },
+    { icon: Shield, label: 'HR', path: '/hr', permission: 'hr.view_sensitive' },
+  ],
+},
+{
+  label: 'System',
+  items: [
+    { icon: BarChart3, label: 'Reports', path: '/reports' },
+    { icon: Settings, label: 'Settings', path: '/settings' },
+    { icon: UserCog, label: 'User Management', path: '/users', permission: 'users.manage' },
+    { icon: ShieldCheck, label: 'Roles & Permissions', path: '/roles', permission: 'roles.manage' },
+  ],
+},
+
+
 ];
+
+
 
 interface SidebarProps {
   collapsed: boolean;

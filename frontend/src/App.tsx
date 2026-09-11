@@ -11,6 +11,7 @@ import { ProjectsPage } from '@/features/projects/pages/ProjectsPage';
 import { TasksPage } from '@/features/tasks/pages/TasksPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
 import { HRPage } from '@/features/hr/pages/HRPage';
+import { OrgChartPage } from '@/features/people/pages/OrgChartPage';
 
 function PageLoader() {
   return (
@@ -88,6 +89,8 @@ function App() {
           <Route path="timesheets" element={<TimesheetsPage />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="tasks" element={<TasksPage />} />
+          <Route path="people/org-chart" element={<OrgChartPage />} />
+          <Route path="people/:id" element={<PersonDetailPage />} />
 
           {/* Permission-gated routes */}
           <Route

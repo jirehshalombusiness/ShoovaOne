@@ -1,26 +1,36 @@
-import { Menu, Search, Bell, Plus, ChevronDown } from 'lucide-react';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Menu, Search } from 'lucide-react';
 import { NotificationBell } from '@/components/ui/NotificationBell';
-import { useAuth } from '@/lib/auth';
+import { UserMenu } from '@/components/ui/UserMenu';
+import { CreateMenu } from '@/components/ui/CreateMenu';
+import { cn } from '@/lib/utils';
 
 interface TopBarProps {
   onMenuClick: () => void;
 }
 
 export function TopBar({ onMenuClick }: TopBarProps) {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
-  const initials = user
-    ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase()
-    : '?';
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (!main) return;
+
+    const handleScroll = () => setScrolled(main.scrollTop > 0);
+
+    main.addEventListener('scroll', handleScroll);
+    return () => main.removeEventListener('scroll', handleScroll);
+  }, []);
 
   return (
-    <header className="h-14 bg-white border-b border-gray-200 flex items-center px-3 lg:px-5 gap-2 lg:gap-4 flex-shrink-0 sticky top-0 z-20">
-      {/* Mobile menu button */}
+    <header
+      className={cn(
+        'h-14 bg-white flex items-center px-3 lg:px-5 gap-2 lg:gap-3 flex-shrink-0 sticky top-0 z-20',
+        'border-b transition-shadow duration-200',
+        scrolled ? 'shadow-sm border-gray-200' : 'border-gray-100'
+      )}
+    >
+      {/* Mobile menu */}
       <button
         onClick={onMenuClick}
         className="lg:hidden p-2 -ml-1 rounded-md hover:bg-gray-100 transition-colors"
@@ -29,7 +39,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
         <Menu className="w-5 h-5 text-gray-700" strokeWidth={1.75} />
       </button>
 
-      {/* Brand (mobile only) */}
+      {/* Mobile brand */}
       <div className="lg:hidden flex items-center gap-2">
         <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center">
           <span className="text-white font-bold text-sm">S</span>
@@ -51,41 +61,19 @@ export function TopBar({ onMenuClick }: TopBarProps) {
         </div>
       </div>
 
-      {/* Mobile search icon */}
-      <button
-        onClick={() => setSearchOpen(!searchOpen)}
-        className="lg:hidden ml-auto p-2 rounded-md hover:bg-gray-100 transition-colors"
-        aria-label="Search"
-      >
-        <Search className="w-5 h-5 text-gray-700" strokeWidth={1.75} />
-      </button>
-
-      {/* Right actions */}
+      {/* Desktop right actions */}
       <div className="hidden lg:flex items-center gap-1 ml-auto">
-        <button className="flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors">
-          <Plus className="w-4 h-4" />
-          Create
-          <ChevronDown className="w-3 h-3 ml-0.5" />
-        </button>
-
+        <CreateMenu />
         <NotificationBell />
-
-        <div className="relative ml-1">
-          <button
-            onClick={() => setUserMenuOpen(!userMenuOpen)}
-            className="flex items-center gap-2 p-1 rounded-md hover:bg-gray-100 transition-colors"
-          >
-            <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-white text-[11px] font-semibold">
-              {initials}
-            </div>
-            <ChevronDown className="w-3 h-3 text-gray-500" />
-          </button>
+        <div className="ml-1">
+          <UserMenu />
         </div>
       </div>
 
-      {/* Mobile: notifications only */}
-      <div className="lg:hidden flex items-center gap-1 ml-1">
+      {/* Mobile: notification + user */}
+      <div className="lg:hidden flex items-center gap-1 ml-auto">
         <NotificationBell />
+        <UserMenu />
       </div>
     </header>
   );

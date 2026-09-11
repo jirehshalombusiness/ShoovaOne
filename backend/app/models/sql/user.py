@@ -47,3 +47,46 @@ class Person(BaseModel):
     # Relationships
     user = relationship("User", back_populates="person", uselist=False, lazy="selectin")
     attendance = relationship("Attendance", back_populates="person", lazy="selectin")
+
+    class Person(BaseModel):
+        __tablename__ = "people"
+
+    first_name = Column(String(100), nullable=False)
+    last_name = Column(String(100), nullable=False)
+    email = Column(String(255), unique=True, index=True)
+    phone = Column(String(50))
+    date_of_birth = Column(DateTime)
+    gender = Column(String(20))
+    type = Column(String(50), nullable=False, default="staff")
+    status = Column(String(50), default="active")
+    
+    # NEW: Job/Org fields
+    job_title = Column(String(200))                    # "Co-Founder & President"
+    location = Column(String(100))                     # "USA", "Ghana"
+    employment_type = Column(String(50))               # "full_time", "volunteer"
+    reports_to_id = Column(GUID, ForeignKey("people.id", ondelete="SET NULL"), nullable=True)
+    
+    profile_image_url = Column(String)
+    address = Column(String)
+    city = Column(String(100))
+    state = Column(String(100))
+    country = Column(String(100))
+    postal_code = Column(String(20))
+    emergency_contact_name = Column(String(200))
+    emergency_contact_phone = Column(String(50))
+    emergency_contact_relationship = Column(String(100))
+    bio = Column(String)
+    skills = Column(String)
+    deleted_at = Column(DateTime(timezone=True))
+
+    # Relationships
+    user = relationship("User", back_populates="person", uselist=False, lazy="selectin")
+    attendance = relationship("Attendance", back_populates="person", lazy="selectin")
+    
+    # NEW: Self-referential for org chart
+    reports_to = relationship(
+        "Person",
+        remote_side="Person.id",
+        foreign_keys=[reports_to_id],
+        backref="direct_reports",
+    )
