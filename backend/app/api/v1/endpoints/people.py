@@ -2,15 +2,24 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from typing import List, Optional
-from app.models.pydantic.person import OrgChartResponse, OrgNode
 
 from app.core.database import get_db
 from app.core.security import require_permission, Permissions
 from app.models.sql.user import Person
-from app.models.pydantic.person import PersonResponse, PersonCreate, PersonUpdate
+from app.models.pydantic.person import (
+    PersonResponse,
+    PersonCreate,
+    PersonUpdate,
+    OrgNode,
+    OrgChartResponse,
+)
 
 router = APIRouter()
 
+
+# ============================================
+# LIST + ORG CHART (specific routes first!)
+# ============================================
 
 @router.get("/", response_model=List[PersonResponse])
 async def get_people(
@@ -23,76 +32,67 @@ async def get_people(
     current_user = Depends(require_permission(Permissions.PEOPLE_VIEW)),
 ):
     """Get list of people. Requires: people.view permission"""
-    try:
-        query = select(Person).where(Person.deleted_at.is_(None))
+    query = select(Person).where(Person.deleted_at.is_(None))
 
-        if search:
-            query = query.where(
-                or_(
-                    Person.first_name.ilike(f"%{search}%"),
-                    Person.last_name.ilike(f"%{search}%"),
-                    Person.email.ilike(f"%{search}%"),
-                )
+    if search:
+        query = query.where(
+            or_(
+                Person.first_name.ilike(f"%{search}%"),
+                Person.last_name.ilike(f"%{search}%"),
+                Person.email.ilike(f"%{search}%"),
             )
+        )
 
-        if type:
-            query = query.where(Person.type == type)
-        
-        if status:
-            query = query.where(Person.status == status)
+    if type:
+        query = query.where(Person.type == type)
 
-        query = query.offset(skip).limit(limit).order_by(Person.created_at.desc())
-        result = await db.execute(query)
-        people = result.scalars().all()
-        
-        # Explicitly convert to response objects with string IDs
-        return [
-            PersonResponse(
-                id=str(person.id),
-                first_name=person.first_name,
-                last_name=person.last_name,
-                email=person.email,
-                phone=person.phone,
-                date_of_birth=person.date_of_birth,
-                gender=person.gender,
-                type=person.type,
-                status=getattr(person, 'status', 'active'),
-                profile_image_url=person.profile_image_url,
-                address=person.address,
-                city=person.city,
-                state=person.state,
-                country=person.country,
-                postal_code=person.postal_code,
-                emergency_contact_name=person.emergency_contact_name,
-                emergency_contact_phone=person.emergency_contact_phone,
-                emergency_contact_relationship=person.emergency_contact_relationship,
-                bio=person.bio,
-                skills=person.skills,
-                created_at=person.created_at,
-                updated_at=person.updated_at,
-            )
-            for person in people
-        ]
-    except Exception as e:
-        print(f"❌ Error getting people: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    if status:
+        query = query.where(Person.status == status)
 
-    # ============================================
-# ORG CHART ENDPOINTS
-# ========================================
+    query = query.offset(skip).limit(limit).order_by(Person.created_at.desc())
+    result = await db.execute(query)
+    people = result.scalars().all()
+
+    return [
+        PersonResponse(
+            id=str(p.id),
+            first_name=p.first_name,
+            last_name=p.last_name,
+            email=p.email,
+            phone=p.phone,
+            date_of_birth=p.date_of_birth,
+            gender=p.gender,
+            type=p.type,
+            status=getattr(p, "status", "active"),
+            job_title=getattr(p, "job_title", None),
+            location=getattr(p, "location", None),
+            employment_type=getattr(p, "employment_type", None),
+            reports_to_id=str(p.reports_to_id) if p.reports_to_id else None,
+            profile_image_url=p.profile_image_url,
+            address=p.address,
+            city=p.city,
+            state=p.state,
+            country=p.country,
+            postal_code=p.postal_code,
+            emergency_contact_name=p.emergency_contact_name,
+            emergency_contact_phone=p.emergency_contact_phone,
+            emergency_contact_relationship=p.emergency_contact_relationship,
+            bio=p.bio,
+            skills=p.skills,
+            created_at=p.created_at,
+            updated_at=p.updated_at,
+        )
+        for p in people
+    ]
 
 
-
-
+# ⚠️ IMPORTANT: This route MUST come BEFORE /{person_id}
 @router.get("/org-chart", response_model=OrgChartResponse)
 async def get_org_chart(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(require_permission(Permissions.PEOPLE_VIEW)),
 ):
-    """
-    Get organizational chart: all active people with their reporting lines.
-    """
-    # Get all active people
+    """Get organisational chart: all active people with their reporting lines."""
     result = await db.execute(
         select(Person)
         .where(
@@ -103,48 +103,96 @@ async def get_org_chart(
     )
     people = result.scalars().all()
 
-    # Build response nodes
-    nodes: List[OrgNode] = []
+    # Count direct reports per manager
     direct_report_counts: dict[str, int] = {}
+    for p in people:
+        if p.reports_to_id:
+            rid = str(p.reports_to_id)
+            direct_report_counts[rid] = direct_report_counts.get(rid, 0) + 1
 
-    for person in people:
-        # Count direct reports for this person
-        if person.reports_to_id:
-            direct_report_counts[person.reports_to_id] = (
-                direct_report_counts.get(person.reports_to_id, 0) + 1
-            )
+    nodes: List[OrgNode] = []
+    roots: List[str] = []
 
-    for person in people:
+    for p in people:
+        pid = str(p.id)
+        rid = str(p.reports_to_id) if p.reports_to_id else None
         nodes.append(
             OrgNode(
-                id=str(person.id),
-                first_name=person.first_name,
-                last_name=person.last_name,
-                job_title=getattr(person, "job_title", None),
-                location=getattr(person, "location", None),
-                profile_image_url=person.profile_image_url,
-                reports_to_id=str(person.reports_to_id) if person.reports_to_id else None,
-                direct_reports_count=direct_report_counts.get(str(person.id), 0),
+                id=pid,
+                first_name=p.first_name,
+                last_name=p.last_name,
+                job_title=getattr(p, "job_title", None),
+                location=getattr(p, "location", None),
+                profile_image_url=p.profile_image_url,
+                reports_to_id=rid,
+                direct_reports_count=direct_report_counts.get(pid, 0),
             )
         )
-
-    # Roots = people with no manager
-    roots = [str(p.id) for p in people if not p.reports_to_id]
+        if not rid:
+            roots.append(pid)
 
     return OrgChartResponse(nodes=nodes, roots=roots)
 
 
-@router.put("/{person_id}/reports-to", response_model=PersonResponse)
-async def update_reports_to(
+# ============================================
+# CREATE / DETAIL / UPDATE / DELETE
+# ============================================
+
+@router.post("/", response_model=PersonResponse, status_code=status.HTTP_201_CREATED)
+async def create_person(
+    person_data: PersonCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_permission(Permissions.PEOPLE_CREATE)),
+):
+    """Create a new person."""
+    if person_data.email:
+        existing = await db.execute(
+            select(Person).where(
+                Person.email == person_data.email,
+                Person.deleted_at.is_(None),
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Email already exists")
+
+    import uuid
+    person = Person(
+        id=str(uuid.uuid4()),
+        **person_data.model_dump(),
+    )
+    db.add(person)
+    await db.commit()
+    await db.refresh(person)
+    return person
+
+
+@router.get("/{person_id}", response_model=PersonResponse)
+async def get_person(
     person_id: str,
-    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_permission(Permissions.PEOPLE_VIEW)),
+):
+    """Get person by ID."""
+    result = await db.execute(
+        select(Person).where(
+            Person.id == person_id,
+            Person.deleted_at.is_(None),
+        )
+    )
+    person = result.scalar_one_or_none()
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return person
+
+
+@router.put("/{person_id}", response_model=PersonResponse)
+async def update_person(
+    person_id: str,
+    person_data: PersonUpdate,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(require_permission(Permissions.PEOPLE_EDIT)),
 ):
-    """
-    Update who a person reports to.
-    Body: { "reports_to_id": "uuid-or-null" }
-    """
+    """Update a person."""
     result = await db.execute(
         select(Person).where(
             Person.id == person_id,
@@ -155,42 +203,31 @@ async def update_reports_to(
     if not person:
         raise HTTPException(status_code=404, detail="Person not found")
 
-    reports_to_id = payload.get("reports_to_id")
+    for key, value in person_data.model_dump(exclude_unset=True).items():
+        setattr(person, key, value)
 
-    # Prevent self-reporting
-    if reports_to_id == person_id:
-        raise HTTPException(status_code=400, detail="A person cannot report to themselves")
-
-    # If setting a manager, verify they exist
-    if reports_to_id:
-        manager_result = await db.execute(
-            select(Person).where(
-                Person.id == reports_to_id,
-                Person.deleted_at.is_(None),
-            )
-        )
-        manager = manager_result.scalar_one_or_none()
-        if not manager:
-            raise HTTPException(status_code=404, detail="Manager not found")
-
-        # Prevent circular reporting
-        # Walk up the chain to check if person_id appears
-        current_id = reports_to_id
-        visited = set()
-        while current_id and current_id not in visited:
-            visited.add(current_id)
-            check = await db.execute(
-                select(Person.reports_to_id).where(Person.id == current_id)
-            )
-            row = check.first()
-            current_id = str(row[0]) if row and row[0] else None
-            if current_id == person_id:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Circular reporting relationship detected",
-                )
-
-    person.reports_to_id = reports_to_id
     await db.commit()
     await db.refresh(person)
     return person
+
+
+@router.delete("/{person_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_person(
+    person_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_permission(Permissions.PEOPLE_DELETE)),
+):
+    """Soft-delete a person."""
+    result = await db.execute(
+        select(Person).where(
+            Person.id == person_id,
+            Person.deleted_at.is_(None),
+        )
+    )
+    person = result.scalar_one_or_none()
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+    from sqlalchemy.sql import func
+    person.deleted_at = func.now()
+    await db.commit()
