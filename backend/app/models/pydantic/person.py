@@ -1,7 +1,6 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional
-from uuid import UUID
 
 
 class PersonBase(BaseModel):
@@ -35,18 +34,9 @@ class PersonUpdate(PersonBase):
 
 
 class PersonResponse(PersonBase):
-    id: UUID  # Accept UUID from database
+    id: str
     created_at: datetime
     updated_at: datetime
 
-    @field_validator('id', mode='before')
-    @classmethod
-    def convert_uuid_to_str(cls, v):
-        """Convert UUID to string."""
-        return str(v) if v else v
-
     class Config:
         from_attributes = True
-        json_encoders = {
-            UUID: str,
-        }
