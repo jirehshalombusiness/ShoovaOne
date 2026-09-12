@@ -113,11 +113,11 @@ async def get_current_user_info(
         "email": user.email,
         "first_name": person.first_name,
         "last_name": person.last_name,
+        "profile_image_url": person.profile_image_url if person else None,
+        "job_title": person.job_title if person else None,
         "is_active": user.is_active,
         "created_at": user.created_at,
         "last_login_at": user.last_login_at,
-        "profile_image_url": user.profile_image_url,
-        "job_title": person.job_title if person else None,
         "roles": roles,
         "permissions": permissions,
     }

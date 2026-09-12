@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from app.core.database import get_db
 from app.core.security import require_permission, Permissions
@@ -61,25 +61,24 @@ async def check_in(
 ):
     """Check in for today."""
     today = date.today()
-    
-    # Check if already checked in today
+
     result = await db.execute(
         select(Attendance).where(
             Attendance.person_id == current_user.person_id,
-            Attendance.date == today
+            Attendance.date == today,
         )
     )
     existing = result.scalar_one_or_none()
-    
+
     if existing:
         raise HTTPException(status_code=400, detail="Already checked in today")
-    
+
     import uuid
     attendance = Attendance(
         id=str(uuid.uuid4()),
         person_id=current_user.person_id,
         date=today,
-        check_in=datetime.now(),
+        check_in=datetime.now(timezone.utc),   # ← timezone-aware
         status="present",
         notes=notes,
     )
@@ -96,26 +95,32 @@ async def check_out(
 ):
     """Check out for today."""
     today = date.today()
-    
+
     result = await db.execute(
         select(Attendance).where(
             Attendance.person_id == current_user.person_id,
-            Attendance.date == today
+            Attendance.date == today,
         )
     )
     attendance = result.scalar_one_or_none()
-    
+
     if not attendance:
         raise HTTPException(status_code=404, detail="No check-in found for today")
-    
+
     if attendance.check_out:
         raise HTTPException(status_code=400, detail="Already checked out today")
-    
-    attendance.check_out = datetime.now()
+
+    now = datetime.now(timezone.utc)
+    attendance.check_out = now
+
     if attendance.check_in:
-        duration = (attendance.check_out - attendance.check_in).total_seconds() / 60
+        # Make sure both are timezone-aware
+        check_in = attendance.check_in
+        if check_in.tzinfo is None:
+            check_in = check_in.replace(tzinfo=timezone.utc)
+        duration = (now - check_in).total_seconds() / 60
         attendance.duration_minutes = int(duration)
-    
+
     await db.commit()
     await db.refresh(attendance)
     return attendance
