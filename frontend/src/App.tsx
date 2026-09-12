@@ -9,11 +9,19 @@ import { OrgChartPage } from '@/features/people/pages/OrgChartPage';
 import { AttendancePage } from '@/features/attendance/pages/AttendancePage';
 import { TimesheetsPage } from '@/features/timesheets/pages/TimesheetsPage';
 import { ProjectsPage } from '@/features/projects/pages/ProjectsPage';
+import { ProjectLayout } from '@/features/projects/layouts/ProjectLayout';
+import { ProjectOverview } from '@/features/projects/pages/ProjectOverview';
+import { ProjectTasks } from '@/features/projects/pages/ProjectTasks';
+import { ProjectMilestones } from '@/features/projects/pages/ProjectMilestones';
+import { ProjectTeam } from '@/features/projects/pages/ProjectTeam';
+import { ProjectTimesheets } from '@/features/projects/pages/ProjectTimesheets';
+import { ProjectDocuments } from '@/features/projects/pages/ProjectDocuments';
+import { ProjectActivity } from '@/features/projects/pages/ProjectActivity';
+import { ProjectSettings } from '@/features/projects/pages/ProjectSettings';
 import { TasksPage } from '@/features/tasks/pages/TasksPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
 import { HRPage } from '@/features/hr/pages/HRPage';
 import { MyWorkPage } from '@/features/mywork/pages/MyWorkPage';
-
 
 function PageLoader() {
   return (
@@ -90,8 +98,24 @@ function App() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="my-work" element={<MyWorkPage />} />
 
-          {/* Work */}
+          {/* Work — Projects */}
           <Route path="projects" element={<ProjectsPage />} />
+          <Route
+            path="projects/new"
+            element={<Placeholder title="New Project — Coming next" />}
+          />
+          <Route path="projects/:id" element={<ProjectLayout />}>
+            <Route index element={<ProjectOverview />} />
+            <Route path="tasks" element={<ProjectTasks />} />
+            <Route path="milestones" element={<ProjectMilestones />} />
+            <Route path="team" element={<ProjectTeam />} />
+            <Route path="timesheets" element={<ProjectTimesheets />} />
+            <Route path="documents" element={<ProjectDocuments />} />
+            <Route path="activity" element={<ProjectActivity />} />
+            <Route path="settings" element={<ProjectSettings />} />
+          </Route>
+
+          {/* Work — Other */}
           <Route path="tasks" element={<TasksPage />} />
           <Route path="timesheets" element={<TimesheetsPage />} />
           <Route path="attendance" element={<AttendancePage />} />
