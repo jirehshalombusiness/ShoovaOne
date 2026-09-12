@@ -5,9 +5,8 @@ import { projectService, Project } from '@/services/project.service';
 import { peopleService } from '@/services/people.service';
 import { useQuery } from '@tanstack/react-query';
 import { usePermissions } from '@/hooks/usePermissions';
-import { Save, Trash2, AlertTriangle, Archive } from 'lucide-react';
+import { Save, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { cn } from '@/lib/utils';
 
 export function ProjectSettings() {
   const { project } = useOutletContext<{ project: Project }>();

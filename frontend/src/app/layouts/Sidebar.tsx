@@ -16,7 +16,6 @@ import {
   Briefcase,
   BarChart3,
   FolderKanban,
-  PanelLeftOpen,
   PanelLeftClose,
   ShieldCheck,
   UserCog,
