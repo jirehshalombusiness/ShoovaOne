@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, Date, Text, DECIMAL
+from sqlalchemy import Column, String, DateTime, ForeignKey, Date, Text, DECIMAL, Integer
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -23,6 +23,34 @@ class Project(BaseModel):
     # Relationships
     manager = relationship("Person", foreign_keys=[manager_id])
     tasks = relationship("Task", back_populates="project", cascade="all, delete-orphan")
+    members = relationship("ProjectMember", back_populates="project", cascade="all, delete-orphan")
+    milestones = relationship("Milestone", back_populates="project", cascade="all, delete-orphan")
+
+
+class ProjectMember(BaseModel):
+    __tablename__ = "project_members"
+
+    project_id = Column(GUID, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    person_id = Column(GUID, ForeignKey("people.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(50), nullable=False, default="member")
+    joined_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    project = relationship("Project", back_populates="members")
+    person = relationship("Person")
+
+
+class Milestone(BaseModel):
+    __tablename__ = "milestones"
+
+    project_id = Column(GUID, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(200), nullable=False)
+    description = Column(Text)
+    due_date = Column(Date)
+    completed_at = Column(DateTime(timezone=True))
+    status = Column(String(50), nullable=False, default="pending")
+    position = Column(Integer, nullable=False, default=0)
+
+    project = relationship("Project", back_populates="milestones")
 
 
 class Task(BaseModel):

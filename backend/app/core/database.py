@@ -62,7 +62,7 @@ from app.models.sql.user import User, Person  # noqa: F401
 from app.models.sql.role import Role, Permission, user_roles, role_permissions  # noqa: F401
 from app.models.sql.attendance import Attendance  # noqa: F401
 from app.models.sql.notification import Notification  # noqa: F401
-from app.models.sql.project import Project, Task  # noqa: F401
+from app.models.sql.project import Project, ProjectMember, Milestone, Task  # noqa: F401
 from app.models.sql.timesheet import Timesheet, TimesheetEntry, TimesheetApprovalHistory  # noqa: F401
 
 

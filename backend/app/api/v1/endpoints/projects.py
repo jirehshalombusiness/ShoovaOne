@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, func
+from sqlalchemy.orm import selectinload
+from datetime import date
 from typing import List, Optional
 import uuid
 
@@ -34,7 +36,7 @@ async def list_projects(
     current_user = Depends(require_permission(Permissions.PROJECTS_VIEW)),
 ):
     """List projects with counts."""
-    query = select(Project)
+    query = select(Project).options(selectinload(Project.manager))
 
     if status:
         query = query.where(Project.status == status)
@@ -90,11 +92,11 @@ async def list_projects(
                 end_date=p.end_date,
                 manager_id=str(p.manager_id) if p.manager_id else None,
                 department_id=p.department_id,
-                programme_id=p.programme_id,
-                organisation_id=p.organisation_id,
+                programme_id=getattr(p, "programme_id", None),
+                organisation_id=getattr(p, "organisation_id", None),
                 budget=p.budget,
                 actual_cost=p.actual_cost,
-                progress=p.progress or 0,
+                progress=getattr(p, "progress", 0) or 0,
                 created_at=p.created_at,
                 updated_at=p.updated_at,
                 manager_first_name=p.manager.first_name if p.manager else None,
@@ -116,14 +118,24 @@ async def get_project(
     current_user = Depends(require_permission(Permissions.PROJECTS_VIEW)),
 ):
     """Get one project with members + milestones."""
-    result = await db.execute(select(Project).where(Project.id == project_id))
+    result = await db.execute(
+        select(Project)
+        .options(
+            selectinload(Project.manager),
+            selectinload(Project.members).selectinload(ProjectMember.person),
+            selectinload(Project.milestones),
+        )
+        .where(Project.id == project_id)
+    )
     project = result.scalar_one_or_none()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Members with person data
     members_result = await db.execute(
-        select(ProjectMember).where(ProjectMember.project_id == project_id)
+        select(ProjectMember)
+        .options(selectinload(ProjectMember.person))
+        .where(ProjectMember.project_id == project_id)
     )
     members = members_result.scalars().all()
 
@@ -159,11 +171,11 @@ async def get_project(
         end_date=project.end_date,
         manager_id=str(project.manager_id) if project.manager_id else None,
         department_id=project.department_id,
-        programme_id=project.programme_id,
-        organisation_id=project.organisation_id,
+        programme_id=getattr(project, "programme_id", None),
+        organisation_id=getattr(project, "organisation_id", None),
         budget=project.budget,
         actual_cost=project.actual_cost,
-        progress=project.progress or 0,
+        progress=getattr(project, "progress", 0) or 0,
         created_at=project.created_at,
         updated_at=project.updated_at,
         manager_first_name=project.manager.first_name if project.manager else None,
@@ -214,7 +226,9 @@ async def create_project(
     """Create a project."""
     project = Project(
         id=str(uuid.uuid4()),
-        **payload.model_dump(),
+        **payload.model_dump(
+            exclude={"programme_id", "organisation_id", "progress"}
+        ),
     )
     db.add(project)
     await db.commit()
@@ -247,7 +261,10 @@ async def update_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    for key, value in payload.model_dump(
+        exclude_unset=True,
+        exclude={"programme_id", "organisation_id"},
+    ).items():
         setattr(project, key, value)
 
     await db.commit()
