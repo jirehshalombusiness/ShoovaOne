@@ -24,7 +24,7 @@ router = APIRouter()
 @router.get("/", response_model=List[PersonResponse])
 async def get_people(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=500),
     search: Optional[str] = None,
     type: Optional[str] = None,
     status: Optional[str] = None,
