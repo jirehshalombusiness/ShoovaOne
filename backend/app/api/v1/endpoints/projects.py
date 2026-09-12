@@ -14,8 +14,10 @@ from app.models.sql.user import Person
 from app.models.pydantic.project import (
     ProjectCreate, ProjectUpdate, ProjectResponse,
     MilestoneCreate, MilestoneUpdate, MilestoneResponse,
-    ProjectMemberCreate, ProjectMemberResponse,TaskCreate, TaskUpdate, TaskResponse
-
+    ProjectMemberCreate, ProjectMemberResponse,
+)
+from app.models.pydantic.task import (
+    TaskCreate, TaskUpdate, TaskResponse,
 )
 
 router = APIRouter()
