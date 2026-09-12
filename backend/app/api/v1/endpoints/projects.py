@@ -515,6 +515,10 @@ async def get_project_stats(
         "total_hours": total_hours,
     }
 
+# ============================================
+# TASK ENDPOINTS
+# ============================================
+
 @router.get("/{project_id}/tasks", response_model=List[TaskResponse])
 async def get_project_tasks(
     project_id: str,
@@ -524,7 +528,11 @@ async def get_project_tasks(
     current_user = Depends(require_permission(Permissions.TASKS_VIEW)),
 ):
     """Get tasks for a project."""
-    query = select(Task).where(Task.project_id == project_id)
+    query = (
+        select(Task)
+        .options(selectinload(Task.assignee))
+        .where(Task.project_id == project_id)
+    )
 
     if status_filter:
         query = query.where(Task.status == status_filter)
@@ -585,8 +593,9 @@ async def create_task(
     await db.commit()
     await db.refresh(task)
 
-    # Reload with assignee
-    result = await db.execute(select(Task).where(Task.id == task.id))
+    result = await db.execute(
+        select(Task).options(selectinload(Task.assignee)).where(Task.id == task.id)
+    )
     task = result.scalar_one()
 
     return TaskResponse(
@@ -626,7 +635,6 @@ async def update_task(
 
     update_data = payload.model_dump(exclude_unset=True)
 
-    # Handle status change to "done"
     if "status" in update_data and update_data["status"] == "done" and task.status != "done":
         from datetime import datetime, timezone
         task.completed_at = datetime.now(timezone.utc)
@@ -635,10 +643,10 @@ async def update_task(
         setattr(task, key, value)
 
     await db.commit()
-    await db.refresh(task)
 
-    # Reload with assignee
-    result = await db.execute(select(Task).where(Task.id == task.id))
+    result = await db.execute(
+        select(Task).options(selectinload(Task.assignee)).where(Task.id == task.id)
+    )
     task = result.scalar_one()
 
     return TaskResponse(
