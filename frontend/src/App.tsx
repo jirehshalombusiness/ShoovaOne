@@ -12,6 +12,7 @@ import { ProjectsPage } from '@/features/projects/pages/ProjectsPage';
 import { TasksPage } from '@/features/tasks/pages/TasksPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
 import { HRPage } from '@/features/hr/pages/HRPage';
+import { MyWorkPage } from '@/features/mywork/pages/MyWorkPage';
 
 function PageLoader() {
   return (
@@ -86,7 +87,7 @@ function App() {
 
           {/* Main */}
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="my-work" element={<Placeholder title="My Work" />} />
+          <Route path="my-work" element={<MyWorkPage />} />
 
           {/* Work */}
           <Route path="projects" element={<ProjectsPage />} />
