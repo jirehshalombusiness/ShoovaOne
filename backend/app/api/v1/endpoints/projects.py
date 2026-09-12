@@ -14,7 +14,8 @@ from app.models.sql.user import Person
 from app.models.pydantic.project import (
     ProjectCreate, ProjectUpdate, ProjectResponse,
     MilestoneCreate, MilestoneUpdate, MilestoneResponse,
-    ProjectMemberCreate, ProjectMemberResponse,
+    ProjectMemberCreate, ProjectMemberResponse,TaskCreate, TaskUpdate, TaskResponse
+
 )
 
 router = APIRouter()
@@ -511,3 +512,166 @@ async def get_project_stats(
         "completed_milestones": completed_milestones,
         "total_hours": total_hours,
     }
+
+@router.get("/{project_id}/tasks", response_model=List[TaskResponse])
+async def get_project_tasks(
+    project_id: str,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    assignee_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_permission(Permissions.TASKS_VIEW)),
+):
+    """Get tasks for a project."""
+    query = select(Task).where(Task.project_id == project_id)
+
+    if status_filter:
+        query = query.where(Task.status == status_filter)
+    if assignee_id:
+        query = query.where(Task.assignee_id == assignee_id)
+
+    query = query.order_by(Task.created_at.desc())
+    result = await db.execute(query)
+    tasks = result.scalars().all()
+
+    return [
+        TaskResponse(
+            id=str(t.id),
+            project_id=str(t.project_id) if t.project_id else None,
+            title=t.title,
+            description=t.description,
+            status=t.status,
+            priority=t.priority,
+            assignee_id=str(t.assignee_id) if t.assignee_id else None,
+            assignee_first_name=t.assignee.first_name if t.assignee else None,
+            assignee_last_name=t.assignee.last_name if t.assignee else None,
+            assignee_image_url=t.assignee.profile_image_url if t.assignee else None,
+            reporter_id=str(t.reporter_id) if t.reporter_id else None,
+            due_date=t.due_date,
+            start_date=t.start_date,
+            completed_at=t.completed_at,
+            estimated_hours=float(t.estimated_hours) if t.estimated_hours else None,
+            actual_hours=float(t.actual_hours) if t.actual_hours else None,
+            created_at=t.created_at,
+            updated_at=t.updated_at,
+        )
+        for t in tasks
+    ]
+
+
+@router.post("/{project_id}/tasks", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
+async def create_task(
+    project_id: str,
+    payload: TaskCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_permission(Permissions.TASKS_CREATE)),
+):
+    """Create a task."""
+    task = Task(
+        id=str(uuid.uuid4()),
+        project_id=project_id,
+        title=payload.title,
+        description=payload.description,
+        status=payload.status or "todo",
+        priority=payload.priority or "medium",
+        assignee_id=payload.assignee_id,
+        reporter_id=current_user.person_id,
+        due_date=payload.due_date,
+        start_date=payload.start_date,
+        estimated_hours=payload.estimated_hours,
+    )
+    db.add(task)
+    await db.commit()
+    await db.refresh(task)
+
+    # Reload with assignee
+    result = await db.execute(select(Task).where(Task.id == task.id))
+    task = result.scalar_one()
+
+    return TaskResponse(
+        id=str(task.id),
+        project_id=str(task.project_id) if task.project_id else None,
+        title=task.title,
+        description=task.description,
+        status=task.status,
+        priority=task.priority,
+        assignee_id=str(task.assignee_id) if task.assignee_id else None,
+        assignee_first_name=task.assignee.first_name if task.assignee else None,
+        assignee_last_name=task.assignee.last_name if task.assignee else None,
+        assignee_image_url=task.assignee.profile_image_url if task.assignee else None,
+        reporter_id=str(task.reporter_id) if task.reporter_id else None,
+        due_date=task.due_date,
+        start_date=task.start_date,
+        completed_at=task.completed_at,
+        estimated_hours=float(task.estimated_hours) if task.estimated_hours else None,
+        actual_hours=float(task.actual_hours) if task.actual_hours else None,
+        created_at=task.created_at,
+        updated_at=task.updated_at,
+    )
+
+
+@router.put("/tasks/{task_id}", response_model=TaskResponse)
+async def update_task(
+    task_id: str,
+    payload: TaskUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_permission(Permissions.TASKS_EDIT)),
+):
+    """Update a task."""
+    result = await db.execute(select(Task).where(Task.id == task_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    update_data = payload.model_dump(exclude_unset=True)
+
+    # Handle status change to "done"
+    if "status" in update_data and update_data["status"] == "done" and task.status != "done":
+        from datetime import datetime, timezone
+        task.completed_at = datetime.now(timezone.utc)
+
+    for key, value in update_data.items():
+        setattr(task, key, value)
+
+    await db.commit()
+    await db.refresh(task)
+
+    # Reload with assignee
+    result = await db.execute(select(Task).where(Task.id == task.id))
+    task = result.scalar_one()
+
+    return TaskResponse(
+        id=str(task.id),
+        project_id=str(task.project_id) if task.project_id else None,
+        title=task.title,
+        description=task.description,
+        status=task.status,
+        priority=task.priority,
+        assignee_id=str(task.assignee_id) if task.assignee_id else None,
+        assignee_first_name=task.assignee.first_name if task.assignee else None,
+        assignee_last_name=task.assignee.last_name if task.assignee else None,
+        assignee_image_url=task.assignee.profile_image_url if task.assignee else None,
+        reporter_id=str(task.reporter_id) if task.reporter_id else None,
+        due_date=task.due_date,
+        start_date=task.start_date,
+        completed_at=task.completed_at,
+        estimated_hours=float(task.estimated_hours) if task.estimated_hours else None,
+        actual_hours=float(task.actual_hours) if task.actual_hours else None,
+        created_at=task.created_at,
+        updated_at=task.updated_at,
+    )
+
+
+@router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_permission(Permissions.TASKS_DELETE)),
+):
+    """Delete a task."""
+    result = await db.execute(select(Task).where(Task.id == task_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    await db.delete(task)
+    await db.commit()
