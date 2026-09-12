@@ -9,7 +9,6 @@ import {
   Plus,
   X,
   Calendar,
-  MessageSquare,
   MoreHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
