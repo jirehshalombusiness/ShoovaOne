@@ -246,3 +246,11 @@ class Permissions:
     # ============================================
     DOCUMENTS_VIEW = "documents.view"
     DOCUMENTS_UPLOAD = "documents.upload"
+
+##Taks
+    TASKS_VIEW = "tasks.view"
+    TASKS_CREATE = "tasks.create"
+    TASKS_EDIT = "tasks.edit"
+    TASKS_DELETE = "tasks.delete"
+
+    
