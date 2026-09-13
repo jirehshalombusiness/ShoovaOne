@@ -29,10 +29,16 @@ export function ProjectOverview() {
     queryFn: () => projectService.getStats(project.id),
   });
 
-  const progress =
-    project.task_count > 0
-      ? Math.round((project.completed_task_count / project.task_count) * 100)
-      : project.progress || 0;
+// After: explicit progress wins if set, otherwise auto-compute
+const autoProgress =
+  project.task_count > 0
+    ? Math.round((project.completed_task_count / project.task_count) * 100)
+    : 0;
+
+const progress =
+  typeof project.progress === 'number' && project.progress > 0
+    ? project.progress
+    : autoProgress;
 
   const daysLeft = project.end_date
     ? Math.ceil(
