@@ -17,8 +17,11 @@ class Project(BaseModel):
     priority = Column(String(20), default="medium")
     manager_id = Column(GUID, ForeignKey("people.id"), nullable=True)
     department_id = Column(GUID, nullable=True)
+    programme_id = Column(GUID, nullable=True)
+    organisation_id = Column(GUID, nullable=True)
     budget = Column(DECIMAL(15, 2), nullable=True)
     actual_cost = Column(DECIMAL(15, 2), nullable=True)
+    progress = Column(Integer, default=0)
 
     # Relationships
     manager = relationship("Person", foreign_keys=[manager_id])
