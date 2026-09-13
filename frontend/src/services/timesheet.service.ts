@@ -57,11 +57,45 @@ export interface TimesheetAnalytics {
   by_project: { name: string; hours: number }[];
 }
 
+function toNumber(value: number | string | null | undefined, fallback = 0): number {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeTimesheet(data: Timesheet): Timesheet {
+  return {
+    ...data,
+    total_hours: toNumber(data.total_hours),
+    expected_hours: toNumber(data.expected_hours, 40),
+    entries: (data.entries || []).map((entry) => ({
+      ...entry,
+      break_minutes: toNumber(entry.break_minutes),
+      duration: toNumber(entry.duration),
+    })),
+  };
+}
+
+function normalizeAnalytics(data: TimesheetAnalytics): TimesheetAnalytics {
+  return {
+    ...data,
+    total_hours: toNumber(data.total_hours),
+    expected_hours: toNumber(data.expected_hours, 40),
+    daily: (data.daily || []).map((day) => ({
+      ...day,
+      hours: toNumber(day.hours),
+    })),
+    by_project: (data.by_project || []).map((project) => ({
+      ...project,
+      hours: toNumber(project.hours),
+    })),
+  };
+}
+
 export const timesheetService = {
   async getMyTimesheet(weekStart?: string): Promise<Timesheet> {
     const params = weekStart ? { week_start: weekStart } : {};
     const response = await api.get<Timesheet>('/timesheets/my', { params });
-    return response.data;
+    return normalizeTimesheet(response.data);
   },
 
   async createEntry(data: TimesheetEntryCreate): Promise<TimesheetEntry> {
@@ -78,7 +112,7 @@ export const timesheetService = {
   async getAnalytics(weekStart?: string): Promise<TimesheetAnalytics> {
     const params = weekStart ? { week_start: weekStart } : {};
     const response = await api.get<TimesheetAnalytics>('/timesheets/my/analytics', { params });
-    return response.data;
+    return normalizeAnalytics(response.data);
   },
 
   async deleteEntry(id: string): Promise<void> {
