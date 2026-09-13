@@ -46,32 +46,87 @@ const NAV_SECTIONS: NavSection[] = [
       { icon: Briefcase, label: 'My Work', path: '/my-work' },
     ],
   },
-  {
-    label: 'Work',
-    items: [
-      { icon: FolderKanban, label: 'Projects', path: '/projects' },
-      { icon: CheckSquare, label: 'Tasks', path: '/tasks' },
-      { icon: Clock, label: 'Timesheets', path: '/timesheets' },
-      { icon: FileText, label: 'Attendance', path: '/attendance' },
-    ],
-  },
-  {
-    label: 'People & HR',
-    items: [
-      { icon: Users, label: 'People', path: '/people' },
-      { icon: Network, label: 'Org Chart', path: '/people/org-chart' },
-      { icon: Shield, label: 'HR', path: '/hr', permission: 'hr.view_sensitive' },
-    ],
-  },
-  {
-    label: 'Business',
-    items: [
-      { icon: Building2, label: 'CRM', path: '/organisations' },
-      { icon: BookOpen, label: 'Programmes', path: '/programmes' },
-      { icon: CalendarDays, label: 'Events', path: '/events' },
-      { icon: DollarSign, label: 'Finance', path: '/finance', permission: 'finance.view' },
-    ],
-  },
+{
+  label: 'Work',
+  items: [
+    {
+      icon: FolderKanban,
+      label: 'Projects',
+      path: '/projects',
+      permission: 'projects.view',
+    },
+    {
+      icon: CheckSquare,
+      label: 'Tasks',
+      path: '/tasks',
+      permission: 'tasks.view',
+    },
+    {
+      icon: Clock,
+      label: 'Timesheets',
+      path: '/timesheets',
+      permission: 'timesheets.view',
+    },
+    {
+      icon: FileText,
+      label: 'Attendance',
+      path: '/attendance',
+      permission: 'attendance.view',
+    },
+  ],
+},
+{
+  label: 'People & HR',
+  items: [
+    {
+      icon: Users,
+      label: 'People',
+      path: '/people',
+      permission: 'people.view',
+    },
+    {
+      icon: Network,
+      label: 'Org Chart',
+      path: '/people/org-chart',
+      permission: 'people.view',
+    },
+    {
+      icon: Shield,
+      label: 'HR',
+      path: '/hr',
+      permission: 'hr.view_sensitive',
+    },
+  ],
+},
+{
+  label: 'Business',
+  items: [
+    {
+      icon: Building2,
+      label: 'CRM',
+      path: '/organisations',
+      permission: 'crm.view',
+    },
+    {
+      icon: BookOpen,
+      label: 'Programmes',
+      path: '/programmes',
+      permission: 'programmes.view',
+    },
+    {
+      icon: CalendarDays,
+      label: 'Events',
+      path: '/events',
+      permission: 'events.view',
+    },
+    {
+      icon: DollarSign,
+      label: 'Finance',
+      path: '/finance',
+      permission: 'finance.view',
+    },
+  ],
+},
   {
     label: 'System',
     items: [

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { Layout } from '@/app/layouts/Layout';
 import { LoginPage } from '@/features/auth/pages/LoginPage';
@@ -12,6 +12,9 @@ import { ProjectsPage } from '@/features/projects/pages/ProjectsPage';
 import { TasksPage } from '@/features/tasks/pages/TasksPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
 import { HRPage } from '@/features/hr/pages/HRPage';
+import { ChangePasswordPage } from '@/features/auth/pages/ChangePasswordPage';
+import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPassword';
+import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
 
 function PageLoader() {
   return (
@@ -31,9 +34,20 @@ function Placeholder({ title }: { title: string }) {
 }
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
+  const location = useLocation();
+
   if (loading) return <PageLoader />;
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.must_change_password && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
+  }
+
+  return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
@@ -73,6 +87,34 @@ function App() {
           }
         />
 
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicRoute>
+              <ForgotPasswordPage />
+            </PublicRoute>
+          }
+        />
+
+         <Route
+          path="/reset-password/:token"
+          element={
+            <PublicRoute>
+              <ResetPasswordPage />
+            </PublicRoute>
+          }
+        />
+
+        {/* Forced password change */}
+        <Route
+          path="/change-password"
+          element={
+            <PrivateRoute>
+              <ChangePasswordPage />
+            </PrivateRoute>
+          }
+        />
+
         {/* Protected */}
         <Route
           path="/"
@@ -89,16 +131,69 @@ function App() {
           <Route path="my-work" element={<Placeholder title="My Work" />} />
 
           {/* Work */}
-          <Route path="projects" element={<ProjectsPage />} />
-          <Route path="tasks" element={<TasksPage />} />
-          <Route path="timesheets" element={<TimesheetsPage />} />
-          <Route path="attendance" element={<AttendancePage />} />
+          <Route
+            path="projects"
+            element={
+              <PermissionRoute permission="projects.view">
+                <ProjectsPage />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="tasks"
+            element={
+              <PermissionRoute permission="tasks.view">
+                <TasksPage />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="timesheets"
+            element={
+              <PermissionRoute permission="timesheets.view">
+                <TimesheetsPage />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="attendance"
+            element={
+              <PermissionRoute permission="attendance.view">
+                <AttendancePage />
+              </PermissionRoute>
+            }
+          />
 
           {/* People & HR */}
-          <Route path="people" element={<PeoplePage />} />
-          <Route path="people/org-chart" element={<OrgChartPage />} />
-          <Route path="people/:id" element={<PersonDetailPage />} />
+          <Route
+            path="people"
+            element={
+              <PermissionRoute permission="people.view">
+                <PeoplePage />
+              </PermissionRoute>
+            }
+          />
 
+          <Route
+            path="people/org-chart"
+            element={
+              <PermissionRoute permission="people.view">
+                <OrgChartPage />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="people/:id"
+            element={
+              <PermissionRoute permission="people.view">
+                <PersonDetailPage />
+              </PermissionRoute>
+            }
+          />
           {/* HR — gated */}
           <Route
             path="hr"
@@ -110,9 +205,32 @@ function App() {
           />
 
           {/* Business */}
-          <Route path="organisations" element={<Placeholder title="CRM" />} />
-          <Route path="programmes" element={<Placeholder title="Programmes" />} />
-          <Route path="events" element={<Placeholder title="Events" />} />
+          <Route
+            path="organisations"
+            element={
+              <PermissionRoute permission="crm.view">
+                <Placeholder title="CRM" />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="programmes"
+            element={
+              <PermissionRoute permission="programmes.view">
+                <Placeholder title="Programmes" />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="events"
+            element={
+              <PermissionRoute permission="events.view">
+                <Placeholder title="Events" />
+              </PermissionRoute>
+            }
+          />
           <Route
             path="finance"
             element={

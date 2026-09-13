@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     ORG_TIMEZONE: str = "Africa/Accra"
     ORG_NAME: str = "Shoova Initiative"
 
+    # Email - Resend
+    RESEND_API_KEY: str = ""
+
+    # Frontend
+    FRONTEND_URL: str = "http://localhost:3000"
     @property
     def cors_origins_list(self) -> List[str]:
         """Convert CORS string to list."""

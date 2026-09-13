@@ -19,13 +19,23 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
+      const user = await login(email, password);
+
       if (rememberMe) {
         localStorage.setItem('remember_me', 'true');
       }
+
+      if (user.must_change_password) {
+        navigate('/change-password', { replace: true });
+        return;
+      }
+
       navigate('/dashboard');
-    } catch (err) {
-      setError('Invalid email or password. Please try again.');
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.detail || "Unable to sign in. Please try again.";
+
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -87,7 +97,7 @@ export function LoginPage() {
                 <button
                   type="button"
                   className="text-xs text-primary hover:text-primary-dark transition-colors font-medium"
-                  onClick={() => {/* Handle forgot password */}}
+                  onClick={() => navigate('/forgot-password')}
                 >
                   Forgot password?
                 </button>
@@ -215,7 +225,7 @@ export function LoginPage() {
               Manage your organisation with clarity and purpose
             </h2>
             <p className="text-white/80 text-sm leading-relaxed mb-8">
-              Shoova ONE unifies your people, projects, programmes, and partnerships 
+              Shoova ONE unifies your people, projects, programmes, and partnerships
               into a single, connected operating system.
             </p>
 

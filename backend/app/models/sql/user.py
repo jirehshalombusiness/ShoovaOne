@@ -8,16 +8,56 @@ from app.models.sql.role import user_roles
 class User(BaseModel):
     __tablename__ = "users"
 
-    person_id = Column(GUID, ForeignKey("people.id", ondelete="CASCADE"), nullable=False)
-    email = Column(String(255), unique=True, nullable=False, index=True)
+    person_id = Column(
+        GUID,
+        ForeignKey("people.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    email = Column(
+        String(255),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
     password_hash = Column(String(255))
-    is_active = Column(Boolean, default=True)
+
+    is_active = Column(
+        Boolean,
+        default=True,
+        nullable=False
+    )
+
+    # Security: users created with temporary passwords
+    # must choose a new password before using the system.
+    must_change_password = Column(
+        Boolean,
+        default=False,
+        nullable=False
+    )
+
     last_login_at = Column(DateTime(timezone=True))
 
     # Relationships
-    person = relationship("Person", back_populates="user", lazy="selectin")
-    roles = relationship("Role", secondary=user_roles, back_populates="users", lazy="selectin")
-    notifications = relationship("Notification", back_populates="user", lazy="selectin")
+    person = relationship(
+        "Person",
+        back_populates="user",
+        lazy="selectin"
+    )
+
+    roles = relationship(
+        "Role",
+        secondary=user_roles,
+        back_populates="users",
+        lazy="selectin"
+    )
+
+    notifications = relationship(
+        "Notification",
+        back_populates="user",
+        lazy="selectin"
+    )
 
 
 class Person(BaseModel):

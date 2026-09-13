@@ -3,9 +3,10 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
-  profile_image_url?: string | null;   // ← ADD
-  job_title?: string | null;           // ← ADD
+  profile_image_url?: string | null;
+  job_title?: string | null;
   is_active: boolean;
+  must_change_password: boolean;
   created_at: string;
   last_login_at: string | null;
   roles: string[];
