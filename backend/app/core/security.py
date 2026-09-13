@@ -183,6 +183,8 @@ class Permissions:
     TIMESHEETS_VIEW = "timesheets.view"
     TIMESHEETS_SUBMIT = "timesheets.submit"
     TIMESHEETS_APPROVE = "timesheets.approve"
+    TIMESHEETS_EDIT_ANY = "timesheets.edit_any"
+   
     
     # ============================================
     # PROJECTS

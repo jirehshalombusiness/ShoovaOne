@@ -47,6 +47,16 @@ export interface TimesheetEntryCreate {
   is_billable?: string;
 }
 
+export interface TimesheetAnalytics {
+  week_start: string;
+  week_end: string;
+  total_hours: number;
+  expected_hours: number;
+  status?: string;
+  daily: { date: string; hours: number }[];
+  by_project: { name: string; hours: number }[];
+}
+
 export const timesheetService = {
   async getMyTimesheet(weekStart?: string): Promise<Timesheet> {
     const params = weekStart ? { week_start: weekStart } : {};
@@ -61,6 +71,13 @@ export const timesheetService = {
 
   async updateEntry(id: string, data: Partial<TimesheetEntry>): Promise<TimesheetEntry> {
     const response = await api.put<TimesheetEntry>(`/timesheets/entries/${id}`, data);
+    return response.data;
+  },
+
+  // Add to timesheetService:
+  async getAnalytics(weekStart?: string): Promise<TimesheetAnalytics> {
+    const params = weekStart ? { week_start: weekStart } : {};
+    const response = await api.get<TimesheetAnalytics>('/timesheets/my/analytics', { params });
     return response.data;
   },
 

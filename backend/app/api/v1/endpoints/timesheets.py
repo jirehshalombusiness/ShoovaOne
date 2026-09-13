@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from app.core.database import get_db
 from app.core.security import require_permission, Permissions, get_current_active_user
+from app.services.permission_service import PermissionService
 from app.models.sql.timesheet import Timesheet, TimesheetEntry, TimesheetApprovalHistory
 from app.models.sql.user import Person
 from app.models.pydantic.timesheet import (
@@ -89,7 +90,10 @@ async def create_entry(
     if timesheet.person_id != current_user.person_id:
         raise HTTPException(status_code=403, detail="Not your timesheet")
     
-    if timesheet.status not in ["draft", "rejected"]:
+    can_override = await PermissionService.has_permission(
+        db, current_user.id, Permissions.TIMESHEETS_EDIT_ANY
+    )
+    if not can_override and timesheet.status not in ["draft", "rejected"]:
         raise HTTPException(status_code=400, detail="Timesheet is not editable")
     
     import uuid
@@ -142,22 +146,28 @@ async def update_entry(
             status_code=400,
             detail="This entry was auto-generated from attendance and cannot be edited."
         )
-    
+
     # Check timesheet ownership
     result = await db.execute(
         select(Timesheet).where(Timesheet.id == entry.timesheet_id)
     )
-    timesheet = result.scalar_one()
-    
+    timesheet = result.scalar_one_or_none()
+
+    if not timesheet:
+        raise HTTPException(status_code=404, detail="Timesheet not found")
+
     if timesheet.person_id != current_user.person_id:
         raise HTTPException(status_code=403, detail="Not your timesheet")
-    
-    if timesheet.status not in ["draft", "rejected"]:
+
+    can_override = await PermissionService.has_permission(
+        db, current_user.id, Permissions.TIMESHEETS_EDIT_ANY
+    )
+    if not can_override and timesheet.status not in ["draft", "rejected"]:
         raise HTTPException(status_code=400, detail="Timesheet is not editable")
-    
+
     for key, value in entry_data.model_dump(exclude_unset=True).items():
         setattr(entry, key, value)
-    
+
     # Update total hours
     result = await db.execute(
         select(func.sum(TimesheetEntry.duration))
@@ -165,7 +175,7 @@ async def update_entry(
     )
     total = result.scalar() or 0
     timesheet.total_hours = Decimal(str(total))
-    
+
     await db.commit()
     await db.refresh(entry)
     return entry
@@ -182,23 +192,35 @@ async def delete_entry(
         select(TimesheetEntry).where(TimesheetEntry.id == entry_id)
     )
     entry = result.scalar_one_or_none()
-    
+
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
-    
+
+    if entry.is_locked:
+        raise HTTPException(
+            status_code=400,
+            detail="This entry was auto-generated from attendance and cannot be edited."
+        )
+
     result = await db.execute(
         select(Timesheet).where(Timesheet.id == entry.timesheet_id)
     )
-    timesheet = result.scalar_one()
-    
+    timesheet = result.scalar_one_or_none()
+
+    if not timesheet:
+        raise HTTPException(status_code=404, detail="Timesheet not found")
+
     if timesheet.person_id != current_user.person_id:
         raise HTTPException(status_code=403, detail="Not your timesheet")
-    
-    if timesheet.status not in ["draft", "rejected"]:
+
+    can_override = await PermissionService.has_permission(
+        db, current_user.id, Permissions.TIMESHEETS_EDIT_ANY
+    )
+    if not can_override and timesheet.status not in ["draft", "rejected"]:
         raise HTTPException(status_code=400, detail="Timesheet is not editable")
-    
+
     await db.delete(entry)
-    
+
     # Update total hours
     result = await db.execute(
         select(func.sum(TimesheetEntry.duration))
@@ -206,7 +228,7 @@ async def delete_entry(
     )
     total = result.scalar() or 0
     timesheet.total_hours = Decimal(str(total))
-    
+
     await db.commit()
 
 
@@ -376,3 +398,123 @@ async def get_approval_history(
         .order_by(TimesheetApprovalHistory.created_at)
     )
     return result.scalars().all()
+async def _can_edit_timesheet(
+    db: AsyncSession,
+    user_id: str,
+    timesheet_owner_person_id: str,
+    current_user_person_id: str,
+) -> bool:
+    """
+    Returns True if the user can edit this timesheet.
+    Rules:
+    - Owner can edit IF timesheet is draft/rejected (not submitted/approved)
+    - Any user with timesheets.edit_any can edit ALWAYS
+    """
+    from app.services.permission_service import PermissionService
+
+    if await PermissionService.has_permission(db, user_id, Permissions.TIMESHEETS_EDIT_ANY):
+        return True
+
+    # Owner can only edit draft/rejected
+    if str(timesheet_owner_person_id) != str(current_user_person_id):
+        return False
+
+    return True
+
+@router.get("/my/analytics")
+async def get_my_timesheet_analytics(
+    week_start: Optional[date] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_permission(Permissions.TIMESHEETS_VIEW)),
+):
+    """
+    Analytics for the current user's week:
+    - hours per day
+    - hours per project
+    - total hours
+    """
+    from datetime import timedelta
+    from app.models.sql.project import Project
+
+    if not week_start:
+        today = date.today()
+        week_start = today - timedelta(days=today.weekday())
+    week_end = week_start + timedelta(days=6)
+
+    # Get timesheet
+    ts_result = await db.execute(
+        select(Timesheet).where(
+            Timesheet.person_id == current_user.person_id,
+            Timesheet.week_start_date == week_start,
+        )
+    )
+    timesheet = ts_result.scalar_one_or_none()
+
+    if not timesheet:
+        return {
+            "week_start": week_start.isoformat(),
+            "week_end": week_end.isoformat(),
+            "total_hours": 0,
+            "expected_hours": 40,
+            "daily": [],
+            "by_project": [],
+        }
+
+    # Get entries
+    entries_result = await db.execute(
+        select(TimesheetEntry)
+        .where(TimesheetEntry.timesheet_id == timesheet.id)
+    )
+    entries = entries_result.scalars().all()
+
+    # Group by day
+    daily_map: dict[str, float] = {}
+    for i in range(7):
+        d = week_start + timedelta(days=i)
+        daily_map[d.isoformat()] = 0.0
+
+    for e in entries:
+        daily_map[e.date.isoformat()] = daily_map.get(e.date.isoformat(), 0) + float(e.duration or 0)
+
+    # Group by project
+    project_ids = list({str(e.project_id) for e in entries if e.project_id})
+    projects_map: dict[str, str] = {}
+    if project_ids:
+        proj_result = await db.execute(
+            select(Project).where(Project.id.in_(project_ids))
+        )
+        for p in proj_result.scalars().all():
+            projects_map[str(p.id)] = p.name
+
+    project_hours: dict[str, float] = {}
+    unassigned_hours = 0.0
+    for e in entries:
+        hours = float(e.duration or 0)
+        if e.project_id:
+            pid = str(e.project_id)
+            name = projects_map.get(pid, "Unknown")
+            project_hours[name] = project_hours.get(name, 0) + hours
+        else:
+            unassigned_hours += hours
+
+    by_project = [
+        {"name": name, "hours": round(h, 2)}
+        for name, h in sorted(project_hours.items(), key=lambda x: -x[1])
+    ]
+    if unassigned_hours > 0:
+        by_project.append({"name": "General / Admin", "hours": round(unassigned_hours, 2)})
+
+    total = sum(float(e.duration or 0) for e in entries)
+
+    return {
+        "week_start": week_start.isoformat(),
+        "week_end": week_end.isoformat(),
+        "total_hours": round(total, 2),
+        "expected_hours": float(timesheet.expected_hours or 40),
+        "status": timesheet.status,
+        "daily": [
+            {"date": d, "hours": round(h, 2)}
+            for d, h in sorted(daily_map.items())
+        ],
+        "by_project": by_project,
+    }

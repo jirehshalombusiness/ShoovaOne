@@ -1,5 +1,5 @@
 from pydantic import BaseModel, field_validator
-from datetime import datetime, date, time
+from datetime import datetime, date as date_type, time
 from typing import Optional, List
 from decimal import Decimal
 
@@ -9,7 +9,7 @@ from decimal import Decimal
 # =============================================
 
 class TimesheetEntryBase(BaseModel):
-    date: date
+    date: date_type
     project_id: Optional[str] = None
     task_id: Optional[str] = None
     start_time: Optional[time] = None
@@ -25,7 +25,7 @@ class TimesheetEntryCreate(TimesheetEntryBase):
 
 
 class TimesheetEntryUpdate(BaseModel):
-    date: Optional[date] = None
+    date: Optional[date_type] = None
     project_id: Optional[str] = None
     task_id: Optional[str] = None
     start_time: Optional[time] = None
@@ -59,8 +59,8 @@ class TimesheetEntryResponse(TimesheetEntryBase):
 # =============================================
 
 class TimesheetBase(BaseModel):
-    week_start_date: date
-    week_end_date: date
+    week_start_date: date_type
+    week_end_date: date_type
     expected_hours: Decimal = 40
     notes: Optional[str] = None
 
