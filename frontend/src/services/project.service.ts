@@ -11,6 +11,18 @@ export interface ProjectMember {
   profile_image_url: string | null;
 }
 
+export interface ActivityItem {
+  id: string;
+  action: string;
+  actor_person_id: string | null;
+  actor_first_name: string;
+  actor_last_name: string;
+  actor_image_url: string | null;
+  created_at: string;
+  metadata: Record<string, any> | null;
+}
+
+
 export interface Milestone {
   id: string;
   project_id: string;
@@ -48,6 +60,7 @@ export interface Project {
   member_count: number;
   members: ProjectMember[];
   milestones: Milestone[];
+  activities: ActivityItem[];
 }
 
 export const projectService = {
@@ -58,6 +71,13 @@ export const projectService = {
     manager_id?: string;
   }): Promise<Project[]> {
     const response = await api.get<Project[]>('/projects', { params });
+    return response.data;
+  },
+
+  async getActivity(projectId: string, limit = 50): Promise<ActivityItem[]> {
+    const response = await api.get<ActivityItem[]>(`/projects/${projectId}/activity`, {
+      params: { limit },
+    });
     return response.data;
   },
 

@@ -6,6 +6,8 @@ from datetime import date
 from typing import List, Optional
 import uuid
 
+from app.core.audit import log_action
+from app.models.sql.audit_log import AuditLog
 from app.models.sql.timesheet import Timesheet, TimesheetEntry, TimesheetApprovalHistory
 from app.core.database import get_db
 from app.core.security import require_permission, Permissions
@@ -247,6 +249,17 @@ async def create_project(
         )
         db.add(member)
         await db.commit()
+
+    await log_action(
+        db=db,
+        actor_user_id=str(current_user.id),
+        actor_person_id=str(current_user.person_id),
+        action="created",
+        entity_type="project",
+        entity_id=str(project.id),
+        new_values={"name": project.name, "code": project.code},
+    )
+    await db.commit()
 
     return await get_project(project.id, db, current_user)
 
@@ -685,3 +698,117 @@ async def delete_task(
 
     await db.delete(task)
     await db.commit()
+
+# ============================================
+# PROJECT TIMESHEETS (aggregated per person)
+# ============================================
+
+@router.get("/{project_id}/timesheets")
+async def get_project_timesheets(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_permission(Permissions.TIMESHEETS_VIEW)),
+):
+    """Get hours logged to this project, grouped by person."""
+    from sqlalchemy import func as sqlfunc
+    from app.models.sql.timesheet import Timesheet, TimesheetEntry
+
+    # Group hours by person
+    result = await db.execute(
+        select(
+            Person.id,
+            Person.first_name,
+            Person.last_name,
+            Person.profile_image_url,
+            sqlfunc.sum(TimesheetEntry.duration).label("total_hours"),
+            sqlfunc.count(TimesheetEntry.id).label("entry_count"),
+        )
+        .select_from(TimesheetEntry)
+        .join(Timesheet, TimesheetEntry.timesheet_id == Timesheet.id)
+        .join(Person, Timesheet.person_id == Person.id)
+        .where(TimesheetEntry.project_id == project_id)
+        .group_by(Person.id, Person.first_name, Person.last_name, Person.profile_image_url)
+        .order_by(sqlfunc.sum(TimesheetEntry.duration).desc())
+    )
+    rows = result.all()
+
+    people_hours = [
+        {
+            "person_id": str(r.id),
+            "first_name": r.first_name,
+            "last_name": r.last_name,
+            "profile_image_url": r.profile_image_url,
+            "total_hours": float(r.total_hours or 0),
+            "entry_count": r.entry_count or 0,
+        }
+        for r in rows
+    ]
+
+    # Recent entries (last 20)
+    entries_result = await db.execute(
+        select(TimesheetEntry, Person.first_name, Person.last_name, Person.profile_image_url)
+        .join(Timesheet, TimesheetEntry.timesheet_id == Timesheet.id)
+        .join(Person, Timesheet.person_id == Person.id)
+        .where(TimesheetEntry.project_id == project_id)
+        .order_by(TimesheetEntry.date.desc())
+        .limit(20)
+    )
+    entry_rows = entries_result.all()
+
+    recent_entries = [
+        {
+            "id": str(e.TimesheetEntry.id),
+            "date": e.TimesheetEntry.date.isoformat() if e.TimesheetEntry.date else None,
+            "duration": float(e.TimesheetEntry.duration or 0),
+            "description": e.TimesheetEntry.description,
+            "person_first_name": e.first_name,
+            "person_last_name": e.last_name,
+            "person_image_url": e.profile_image_url,
+        }
+        for e in entry_rows
+    ]
+
+    total_hours = sum(p["total_hours"] for p in people_hours)
+
+    return {
+        "total_hours": total_hours,
+        "people": people_hours,
+        "recent_entries": recent_entries,
+    }
+
+
+@router.get("/{project_id}/activity")
+async def get_project_activity(
+    project_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(require_permission(Permissions.PROJECTS_VIEW)),
+):
+    """Get activity log for a project."""
+    from sqlalchemy.orm import selectinload
+    
+    result = await db.execute(
+        select(AuditLog)
+        .options(selectinload(AuditLog.actor))
+        .where(
+            AuditLog.entity_type == "project",
+            AuditLog.entity_id == project_id,
+        )
+        .order_by(AuditLog.created_at.desc())
+        .limit(limit)
+    )
+    logs = result.scalars().all()
+
+    return [
+        {
+            "id": str(log.id),
+            "action": log.action,
+            "actor_person_id": str(log.actor_person_id) if log.actor_person_id else None,
+            "actor_first_name": log.actor.first_name if log.actor else "System",
+            "actor_last_name": log.actor.last_name if log.actor else "",
+            "actor_image_url": log.actor.profile_image_url if log.actor else None,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+            "metadata": log.metadata_,
+        }
+        for log in logs
+    ]

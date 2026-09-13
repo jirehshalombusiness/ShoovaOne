@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # Organization
     ORG_TIMEZONE: str = "Africa/Accra"
     ORG_NAME: str = "Shoova Initiative"
+#    # SupabaseDocument
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_KEY: str = ""
 
     @property
     def cors_origins_list(self) -> List[str]:

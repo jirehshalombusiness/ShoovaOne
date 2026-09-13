@@ -1,5 +1,27 @@
 import { api } from './api';
 import { Person, PersonRelationship, PersonActivity } from '@/types/person.types';
+import { Milestone, ProjectMember } from './project.service';
+
+export interface ProjectTimesheetsData {
+  total_hours: number;
+  people: {
+    person_id: string;
+    first_name: string;
+    last_name: string;
+    profile_image_url: string | null;
+    total_hours: number;
+    entry_count: number;
+  }[];
+  recent_entries: {
+    id: string;
+    date: string | null;
+    duration: number;
+    description: string | null;
+    person_first_name: string;
+    person_last_name: string;
+    person_image_url: string | null;
+  }[];
+}
 
 // =============================================
 // FILTERS
@@ -74,6 +96,40 @@ export const peopleService = {
   async restore(id: string): Promise<Person> {
     const response = await api.patch<Person>(`/people/${id}/restore`);
     return response.data;
+  },
+
+  // Add to the ProjectService object:
+
+  async getProjectTimesheets(projectId: string): Promise<ProjectTimesheetsData> {
+    const response = await api.get<ProjectTimesheetsData>(`/projects/${projectId}/timesheets`);
+    return response.data;
+  },
+
+  async createMilestone(projectId: string, data: Partial<Milestone>): Promise<Milestone> {
+    const response = await api.post<Milestone>(`/projects/${projectId}/milestones`, data);
+    return response.data;
+  },
+
+  async updateMilestone(milestoneId: string, data: Partial<Milestone>): Promise<Milestone> {
+    const response = await api.put<Milestone>(`/projects/milestones/${milestoneId}`, data);
+    return response.data;
+  },
+
+  async deleteMilestone(milestoneId: string): Promise<void> {
+    await api.delete(`/projects/milestones/${milestoneId}`);
+  },
+
+  async addMember(projectId: string, personId: string, role: string = 'member'): Promise<ProjectMember> {
+    const response = await api.post<ProjectMember>(`/projects/${projectId}/members`, {
+      project_id: projectId,
+      person_id: personId,
+      role,
+    });
+    return response.data;
+  },
+
+  async removeMember(memberId: string): Promise<void> {
+    await api.delete(`/projects/members/${memberId}`);
   },
 
   // ---------- RELATIONSHIPS & ACTIVITY ----------
