@@ -100,7 +100,7 @@ export function TimesheetsPage() {
   );
 
   return (
-    <div className="space-y-5 max-w-7xl">
+    <div className="space-y-5 max-w-8xl">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>

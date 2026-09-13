@@ -33,7 +33,7 @@ export function AttendancePage() {
   const isCheckedOut = today?.check_in && today?.check_out;
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-6 max-w-8xl">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
