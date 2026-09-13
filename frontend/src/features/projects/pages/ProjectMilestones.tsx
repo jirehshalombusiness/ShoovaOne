@@ -1,19 +1,15 @@
 import { useState } from 'react';
 import { useOutletContext, useParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectService, Project, Milestone } from '@/services/project.service';
 import { usePermissions } from '@/hooks/usePermissions';
-import { Avatar } from '@/components/ui/Avatar';
 import {
   Plus,
   Target,
   Check,
   Calendar,
   X,
-  CheckCircle2,
   Circle,
-  Clock,
-  AlertTriangle,
   Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';

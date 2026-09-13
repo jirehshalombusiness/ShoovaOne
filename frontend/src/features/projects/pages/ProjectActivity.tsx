@@ -1,6 +1,6 @@
 ﻿import { useOutletContext, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { projectService, Project, ActivityItem } from '@/services/project.service';
+import { projectService, Project } from '@/services/project.service';
 import { Avatar } from '@/components/ui/Avatar';
 import {
   Activity,
@@ -9,7 +9,6 @@ import {
   UserPlus,
   Target,
   Trash2,
-  FileText,
   CheckCircle,
   Clock,
 } from 'lucide-react';
@@ -41,7 +40,6 @@ function getActionColor(action: string) {
 }
 
 function humanizeAction(action: string, metadata: any): string {
-  const actor = metadata?.actor_name || '';
   switch (action) {
     case 'created':
       return `created the project`;
