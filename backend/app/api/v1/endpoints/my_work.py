@@ -4,6 +4,8 @@ from sqlalchemy import select, or_, and_, func
 from typing import List, Optional
 from datetime import date, datetime, timedelta
 
+from sqlalchemy.orm import selectinload
+from sqlalchemy import select, func
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.sql.user import Person
@@ -149,35 +151,180 @@ async def get_my_projects(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_active_user),
 ):
-    """Get projects where I'm the manager or assigned to a task."""
-    person_id = current_user.person_id
+    """Get projects where I'm a member."""
+    from app.models.sql.project import ProjectMember
 
-    # Projects I manage
-    managed_query = select(Project).where(
-        or_(
-            Project.manager_id == person_id,
-            Project.id.in_(
-                select(Task.project_id).where(
-                    Task.assignee_id == person_id,
-                    Task.project_id.isnot(None),
-                )
-            ),
+    # Find all project IDs where I'm a member
+    member_result = await db.execute(
+        select(ProjectMember.project_id).where(
+            ProjectMember.person_id == current_user.person_id
         )
-    ).limit(50)
+    )
+    project_ids = [r[0] for r in member_result.all()]
 
-    result = await db.execute(managed_query)
+    if not project_ids:
+        return []
+
+    # Get projects with those IDs, plus counts
+    result = await db.execute(
+        select(Project)
+        .options(selectinload(Project.manager))
+        .where(Project.id.in_(project_ids))
+        .order_by(Project.created_at.desc())
+    )
     projects = result.scalars().all()
 
-    return [
-        {
+    # Build response with my role + counts
+    responses = []
+    for p in projects:
+        # Get my role in this project
+        role_result = await db.execute(
+            select(ProjectMember.role).where(
+                ProjectMember.project_id == p.id,
+                ProjectMember.person_id == current_user.person_id,
+            )
+        )
+        my_role = role_result.scalar_one_or_none() or "member"
+
+        # Task counts (assigned to me)
+        from app.models.sql.project import Task
+        my_tasks_result = await db.execute(
+            select(func.count(Task.id)).where(
+                Task.project_id == p.id,
+                Task.assignee_id == current_user.person_id,
+                Task.status.notin_(["done", "cancelled"]),
+            )
+        )
+        my_open_tasks = my_tasks_result.scalar() or 0
+
+        total_tasks_result = await db.execute(
+            select(func.count(Task.id)).where(Task.project_id == p.id)
+        )
+        total_tasks = total_tasks_result.scalar() or 0
+
+        completed_result = await db.execute(
+            select(func.count(Task.id)).where(
+                Task.project_id == p.id, Task.status == "done"
+            )
+        )
+        completed_tasks = completed_result.scalar() or 0
+
+        responses.append({
             "id": str(p.id),
             "name": p.name,
             "code": p.code,
+            "description": p.description,
             "status": p.status,
             "priority": p.priority,
             "start_date": p.start_date.isoformat() if p.start_date else None,
             "end_date": p.end_date.isoformat() if p.end_date else None,
-            "is_manager": str(p.manager_id) == str(person_id),
+            "progress": p.progress or 0,
+            "manager_id": str(p.manager_id) if p.manager_id else None,
+            "manager_first_name": p.manager.first_name if p.manager else None,
+            "manager_last_name": p.manager.last_name if p.manager else None,
+            "manager_image_url": p.manager.profile_image_url if p.manager else None,
+            "my_role": my_role,
+            "my_open_tasks": my_open_tasks,
+            "total_tasks": total_tasks,
+            "completed_tasks": completed_tasks,
+        })
+
+    return responses
+
+@router.get("/meetings")
+async def get_my_meetings(
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_active_user),
+):
+    """
+    Get upcoming meetings where I'm an attendee.
+    Returns empty for now — will populate when Meetings module is built.
+    """
+    return []
+
+@router.get("/activity")
+async def get_my_activity(
+    limit: int = 30,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_active_user),
+):
+    """Get recent activity by me."""
+    from app.models.sql.audit_log import AuditLog
+
+    result = await db.execute(
+        select(AuditLog)
+        .where(AuditLog.actor_person_id == current_user.person_id)
+        .order_by(AuditLog.created_at.desc())
+        .limit(limit)
+    )
+    logs = result.scalars().all()
+
+    return [
+        {
+            "id": str(log.id),
+            "action": log.action,
+            "entity_type": log.entity_type,
+            "entity_id": str(log.entity_id),
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+            "metadata": log.metadata_,
         }
-        for p in projects
+        for log in logs
     ]
+
+@router.get("/timesheet")
+async def get_my_current_timesheet(
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_active_user),
+):
+    """Get my timesheet for the current week."""
+    from datetime import date, timedelta
+    from app.models.sql.timesheet import Timesheet, TimesheetEntry
+
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    week_end = week_start + timedelta(days=6)
+
+    result = await db.execute(
+        select(Timesheet).where(
+            Timesheet.person_id == current_user.person_id,
+            Timesheet.week_start_date == week_start,
+        )
+    )
+    timesheet = result.scalar_one_or_none()
+
+    if not timesheet:
+        return {
+            "week_start_date": week_start.isoformat(),
+            "week_end_date": week_end.isoformat(),
+            "total_hours": 0,
+            "expected_hours": 40,
+            "status": "not_started",
+            "entries": [],
+        }
+
+    # Get entries
+    entries_result = await db.execute(
+        select(TimesheetEntry)
+        .where(TimesheetEntry.timesheet_id == timesheet.id)
+        .order_by(TimesheetEntry.date.desc())
+    )
+    entries = entries_result.scalars().all()
+
+    return {
+        "id": str(timesheet.id),
+        "week_start_date": timesheet.week_start_date.isoformat(),
+        "week_end_date": timesheet.week_end_date.isoformat(),
+        "total_hours": float(timesheet.total_hours or 0),
+        "expected_hours": float(timesheet.expected_hours or 40),
+        "status": timesheet.status,
+        "entries": [
+            {
+                "id": str(e.id),
+                "date": e.date.isoformat(),
+                "duration": float(e.duration or 0),
+                "description": e.description,
+                "project_id": str(e.project_id) if e.project_id else None,
+            }
+            for e in entries
+        ],
+    }

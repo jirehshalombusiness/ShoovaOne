@@ -29,11 +29,47 @@ export interface MyProject {
   id: string;
   name: string;
   code: string | null;
+  description: string | null;
   status: string;
   priority: string;
   start_date: string | null;
   end_date: string | null;
-  is_manager: boolean;
+  progress: number;
+  manager_id: string | null;
+  manager_first_name: string | null;
+  manager_last_name: string | null;
+  manager_image_url: string | null;
+  my_role: string;
+  my_open_tasks: number;
+  total_tasks: number;
+  completed_tasks: number;
+}
+
+export interface MyTimesheetEntry {
+  id: string;
+  date: string;
+  duration: number;
+  description: string | null;
+  project_id: string | null;
+}
+
+export interface MyTimesheet {
+  id?: string;
+  week_start_date: string;
+  week_end_date: string;
+  total_hours: number;
+  expected_hours: number;
+  status: string;
+  entries: MyTimesheetEntry[];
+}
+
+export interface ActivityItem {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  created_at: string;
+  metadata: Record<string, any> | null;
 }
 
 export const myWorkService = {
@@ -42,7 +78,10 @@ export const myWorkService = {
     return response.data;
   },
 
-  async getTasks(filter?: 'today' | 'overdue' | 'upcoming' | 'all', status?: string): Promise<MyTask[]> {
+  async getTasks(
+    filter?: 'today' | 'overdue' | 'upcoming' | 'all',
+    status?: string
+  ): Promise<MyTask[]> {
     const params: Record<string, string> = {};
     if (filter) params.filter = filter;
     if (status) params.status = status;
@@ -52,6 +91,21 @@ export const myWorkService = {
 
   async getProjects(): Promise<MyProject[]> {
     const response = await api.get<MyProject[]>('/my-work/projects');
+    return response.data;
+  },
+
+  async getTimesheet(): Promise<MyTimesheet> {
+    const response = await api.get<MyTimesheet>('/my-work/timesheet');
+    return response.data;
+  },
+
+  async getMeetings(): Promise<any[]> {
+    const response = await api.get<any[]>('/my-work/meetings');
+    return response.data;
+  },
+
+  async getActivity(): Promise<ActivityItem[]> {
+    const response = await api.get<ActivityItem[]>('/my-work/activity');
     return response.data;
   },
 };
