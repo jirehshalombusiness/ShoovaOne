@@ -134,10 +134,16 @@ function ProjectCard({
   project: Project;
   onClick: () => void;
 }) {
-  const progress =
+
+  const autoProgress =
     project.task_count > 0
       ? Math.round((project.completed_task_count / project.task_count) * 100)
-      : project.progress || 0;
+      : 0;
+
+  const progress =
+    typeof project.progress === 'number' && project.progress > 0
+      ? project.progress
+      : autoProgress;
 
   const daysLeft = project.end_date
     ? Math.ceil((new Date(project.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))

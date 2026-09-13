@@ -22,11 +22,15 @@ interface ProjectSubSidebarProps {
 export function ProjectSubSidebar({ project }: ProjectSubSidebarProps) {
   const navigate = useNavigate();
 
-  const progress =
-    project.task_count > 0
-      ? Math.round((project.completed_task_count / project.task_count) * 100)
-      : project.progress || 0;
+const autoProgress =
+  project.task_count > 0
+    ? Math.round((project.completed_task_count / project.task_count) * 100)
+    : 0;
 
+const progress =
+  typeof project.progress === 'number' && project.progress > 0
+    ? project.progress
+    : autoProgress;
   const navItems = [
     {
       icon: LayoutDashboard,
