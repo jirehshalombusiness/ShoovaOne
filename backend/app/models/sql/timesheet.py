@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Date, Time, DECIMAL, Text
+from sqlalchemy import Boolean, Column, String, Integer, DateTime, ForeignKey, Date, Time, DECIMAL, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -58,3 +58,7 @@ class TimesheetApprovalHistory(BaseModel):
     # Relationships
     timesheet = relationship("Timesheet")
     performer = relationship("Person", foreign_keys=[performed_by])
+
+    source = Column(String(20), default="manual")
+    attendance_id = Column(GUID, ForeignKey("attendance.id", ondelete="SET NULL"), nullable=True)
+    is_locked = Column(Boolean, default=False)

@@ -1,41 +1,54 @@
 import { api } from './api';
 
-export interface Attendance {
+export interface AssignedTask {
   id: string;
-  person_id: string;
+  title: string;
+  status: string;
+  priority: string;
+  due_date: string | null;
+  project_id: string | null;
+  project_name: string | null;
+  is_personal: boolean;
+}
+
+export interface TodayAttendance {
   date: string;
   check_in: string | null;
   check_out: string | null;
   duration_minutes: number | null;
   status: string;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
+  planned_task_ids: string[];
+  adhoc_tasks: any[];
+  assigned_tasks: AssignedTask[];
+}
+
+export interface CheckOutBreakdown {
+  task_id: string | null;
+  hours: number;
+  completed: boolean;
+  description?: string;
 }
 
 export const attendanceService = {
-  async getToday(): Promise<Attendance | null> {
-    const response = await api.get<Attendance | null>('/attendance/today');
+  async getToday(): Promise<TodayAttendance> {
+    const response = await api.get<TodayAttendance>('/attendance/today');
     return response.data;
   },
 
-  async checkIn(notes?: string): Promise<Attendance> {
-    const response = await api.post<Attendance>('/attendance/checkin', { notes });
+  async checkIn(payload: {
+    planned_task_ids: string[];
+    adhoc_tasks?: { title: string; priority?: string }[];
+    notes?: string;
+  }): Promise<any> {
+    const response = await api.post('/attendance/checkin', payload);
     return response.data;
   },
 
-  async checkOut(): Promise<Attendance> {
-    const response = await api.post<Attendance>('/attendance/checkout');
-    return response.data;
-  },
-
-  async getAll(params?: { person_id?: string; start_date?: string; end_date?: string }) {
-    const response = await api.get<Attendance[]>('/attendance', { params });
-    return response.data;
-  },
-
-  async update(id: string, data: Partial<Attendance>) {
-    const response = await api.put<Attendance>(`/attendance/${id}`, data);
+  async checkOut(payload: {
+    task_breakdown: CheckOutBreakdown[];
+    notes?: string;
+  }): Promise<any> {
+    const response = await api.post('/attendance/checkout', payload);
     return response.data;
   },
 };

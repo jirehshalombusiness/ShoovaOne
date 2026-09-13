@@ -133,9 +133,15 @@ async def update_entry(
         select(TimesheetEntry).where(TimesheetEntry.id == entry_id)
     )
     entry = result.scalar_one_or_none()
-    
+
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
+
+    if entry.is_locked:
+        raise HTTPException(
+            status_code=400,
+            detail="This entry was auto-generated from attendance and cannot be edited."
+        )
     
     # Check timesheet ownership
     result = await db.execute(

@@ -41,8 +41,11 @@ class TimesheetEntryResponse(TimesheetEntryBase):
     timesheet_id: str
     created_at: datetime
     updated_at: datetime
+    source: str = "manual"
+    attendance_id: Optional[str] = None
+    is_locked: bool = False
 
-    @field_validator('id', 'timesheet_id', 'project_id', 'task_id', mode='before')
+    @field_validator('id', 'timesheet_id', 'project_id', 'task_id', 'attendance_id', mode='before')
     @classmethod
     def convert_to_str(cls, v):
         return str(v) if v else v
@@ -130,3 +133,7 @@ class TimesheetApprove(BaseModel):
 class TimesheetReturn(BaseModel):
     timesheet_id: str
     comment: str
+
+source: str = "manual"
+attendance_id: Optional[str] = None
+is_locked: bool = False

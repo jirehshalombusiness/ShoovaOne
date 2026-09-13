@@ -1,5 +1,7 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, JSON, Date
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, JSON, Date, Text, Boolean
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 from app.models.sql.base import BaseModel, GUID
 
@@ -16,6 +18,13 @@ class Attendance(BaseModel):
     notes = Column(String)
     check_in_location = Column(JSON)
     check_out_location = Column(JSON)
+
+    # NEW
+    planned_task_ids = Column(JSON, default=list)
+    completed_task_ids = Column(JSON, default=list)
+    adhoc_tasks = Column(JSON, default=list)
+    confirmed_at = Column(DateTime(timezone=True))
+    checkout_notes = Column(Text)
 
     # Relationships
     person = relationship("Person", back_populates="attendance", lazy="selectin")
