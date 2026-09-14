@@ -5,6 +5,7 @@ from app.models.sql.attendance import Attendance
 from app.models.sql.notification import Notification
 from app.models.sql.project import Project, Task
 from app.models.sql.timesheet import Timesheet, TimesheetEntry, TimesheetApprovalHistory
+from app.models.sql.password_reset_token import PasswordResetToken
 from app.models.sql.document_type import DocumentType
 from app.models.sql.hr_note import HRNote
 from app.models.sql.hr_celebration import HRCelebration
@@ -26,7 +27,8 @@ __all__ = [
     "Timesheet",
     "TimesheetEntry",
     "TimesheetApprovalHistory",
+    "PasswordResetToken",
     "DocumentType",
     "HRNote",
-    "HRCelebration"
+    "HRCelebration",
 ]
