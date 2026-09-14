@@ -2,6 +2,7 @@ import resend
 
 from app.core.config import settings
 
+FRONTEND_URL = "http://localhost:3000"
 
 def send_password_reset_email(
     recipient_email: str,
@@ -18,8 +19,8 @@ def send_password_reset_email(
     resend.api_key = settings.RESEND_API_KEY
 
     reset_url = (
-        f"{settings.FRONTEND_URL}/reset-password/{reset_token}"
-    )
+    f"{FRONTEND_URL}/reset-password/{reset_token}"
+   )
 
     first_name = recipient_name or "there"
 

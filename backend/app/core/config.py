@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     JWT_EXPIRATION_MINUTES: int = 43200
 
     # CORS
-    BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    BACKEND_CORS_ORIGINS: str = "http://localhost:3000"
 
     # Organization
     ORG_TIMEZONE: str = "Africa/Accra"

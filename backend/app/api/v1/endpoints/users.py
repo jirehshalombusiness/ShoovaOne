@@ -88,9 +88,8 @@ async def get_users(
 
     Requires users.manage permission.
     """
-
     result = await db.execute(
-        select(User)
+        select(User, Person)
         .join(Person, User.person_id == Person.id)
         .options(
             selectinload(User.roles),

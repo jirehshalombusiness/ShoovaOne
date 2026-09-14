@@ -585,6 +585,32 @@ def run_migration():
 
     print("✅ password_reset_tokens table created")
 
+        # ============================================================
+    # TIMESHEET SECURITY / ATTENDANCE LINK FIELDS
+    # ============================================================
+
+    cursor.execute("PRAGMA table_info(timesheet_entries)")
+    timesheet_entry_columns = [
+        row[1] for row in cursor.fetchall()
+    ]
+
+    timesheet_entry_fields = [
+        ("source", "TEXT"),
+        ("attendance_id", "TEXT"),
+        ("is_locked", "INTEGER NOT NULL DEFAULT 0"),
+    ]
+
+    for column_name, column_type in timesheet_entry_fields:
+        if column_name not in timesheet_entry_columns:
+            cursor.execute(
+                f"ALTER TABLE timesheet_entries "
+                f"ADD COLUMN {column_name} {column_type}"
+            )
+            print(
+                f"✅ Added {column_name} column to timesheet_entries"
+            )
+
+
     # ============================================================
     # ATTENDANCE SECURITY / HR FIELDS
     # ============================================================

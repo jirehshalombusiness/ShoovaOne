@@ -161,11 +161,7 @@ function App() {
 
         <Route
           path="/reset-password/:token"
-          element={
-            <PublicRoute>
-              <ResetPasswordPage />
-            </PublicRoute>
-          }
+          element={<ResetPasswordPage /> }
         />
 
         {/* ========================================================= */}
