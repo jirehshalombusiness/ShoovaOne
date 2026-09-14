@@ -3,6 +3,8 @@ import { api } from './api';
 export interface Task {
   id: string;
   project_id: string | null;
+  project_name?: string | null;
+  project_code?: string | null;
   title: string;
   description: string | null;
   status: string;
@@ -17,12 +19,12 @@ export interface Task {
   completed_at: string | null;
   estimated_hours: number | null;
   actual_hours: number | null;
+  is_personal?: boolean;
   created_at: string;
   updated_at: string;
 }
 
 export const taskService = {
-  // Project-scoped tasks
   async getByProject(
     projectId: string,
     params?: { status?: string; assignee_id?: string }
@@ -36,7 +38,6 @@ export const taskService = {
     return response.data;
   },
 
-  // Update a project task
   async update(taskId: string, data: Partial<Task>): Promise<Task> {
     const response = await api.put<Task>(`/projects/tasks/${taskId}`, data);
     return response.data;
@@ -46,11 +47,17 @@ export const taskService = {
     await api.delete(`/projects/tasks/${taskId}`);
   },
 
-  // Global task endpoints (for personal tasks)
+  // ============================================
+  // GLOBAL TASK ENDPOINTS (for personal tasks)
+  // ============================================
+
   async getAll(params?: {
     status?: string;
     project_id?: string;
     assignee_id?: string;
+    created_by_me?: boolean;
+    assigned_to_me?: boolean;
+    search?: string;
   }): Promise<Task[]> {
     const response = await api.get<Task[]>('/tasks/', { params });
     return response.data;

@@ -18,16 +18,21 @@ router = APIRouter()
 # LIST ALL TASKS (across all projects + personal)
 # ============================================
 
-@router.get("/", response_model=List[TaskResponse])
+@router.get("/")
 async def list_all_tasks(
     status_filter: Optional[str] = Query(None, alias="status"),
     project_id: Optional[str] = None,
     assignee_id: Optional[str] = None,
+    created_by_me: bool = False,
+    assigned_to_me: bool = False,
+    search: Optional[str] = None,
     limit: int = Query(200, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     current_user = Depends(require_permission(Permissions.TASKS_VIEW)),
 ):
-    """List all tasks (for admin/global view)."""
+    """List tasks with rich filters."""
+    from app.models.sql.project import Project
+
     query = (
         select(Task)
         .options(selectinload(Task.assignee), selectinload(Task.project))
@@ -35,36 +40,51 @@ async def list_all_tasks(
 
     if status_filter:
         query = query.where(Task.status == status_filter)
-    if project_id:
+    if project_id == "personal":
+        query = query.where(Task.project_id.is_(None))
+    elif project_id:
         query = query.where(Task.project_id == project_id)
     if assignee_id:
         query = query.where(Task.assignee_id == assignee_id)
+    if assigned_to_me:
+        query = query.where(Task.assignee_id == current_user.person_id)
+    if created_by_me:
+        query = query.where(Task.reporter_id == current_user.person_id)
+    if search:
+        query = query.where(Task.title.ilike(f"%{search}%"))
 
-    query = query.order_by(Task.created_at.desc()).limit(limit)
+    query = query.order_by(
+        Task.due_date.asc().nulls_last(),
+        Task.created_at.desc(),
+    ).limit(limit)
+
     result = await db.execute(query)
     tasks = result.scalars().all()
 
     return [
-        TaskResponse(
-            id=str(t.id),
-            project_id=str(t.project_id) if t.project_id else None,
-            title=t.title,
-            description=t.description,
-            status=t.status,
-            priority=t.priority,
-            assignee_id=str(t.assignee_id) if t.assignee_id else None,
-            assignee_first_name=t.assignee.first_name if t.assignee else None,
-            assignee_last_name=t.assignee.last_name if t.assignee else None,
-            assignee_image_url=t.assignee.profile_image_url if t.assignee else None,
-            reporter_id=str(t.reporter_id) if t.reporter_id else None,
-            due_date=t.due_date,
-            start_date=t.start_date,
-            completed_at=t.completed_at,
-            estimated_hours=float(t.estimated_hours) if t.estimated_hours else None,
-            actual_hours=float(t.actual_hours) if t.actual_hours else None,
-            created_at=t.created_at,
-            updated_at=t.updated_at,
-        )
+        {
+            "id": str(t.id),
+            "project_id": str(t.project_id) if t.project_id else None,
+            "project_name": t.project.name if t.project else None,
+            "project_code": t.project.code if t.project else None,
+            "title": t.title,
+            "description": t.description,
+            "status": t.status,
+            "priority": t.priority,
+            "assignee_id": str(t.assignee_id) if t.assignee_id else None,
+            "assignee_first_name": t.assignee.first_name if t.assignee else None,
+            "assignee_last_name": t.assignee.last_name if t.assignee else None,
+            "assignee_image_url": t.assignee.profile_image_url if t.assignee else None,
+            "reporter_id": str(t.reporter_id) if t.reporter_id else None,
+            "start_date": t.start_date.isoformat() if t.start_date else None,
+            "due_date": t.due_date.isoformat() if t.due_date else None,
+            "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+            "estimated_hours": float(t.estimated_hours) if t.estimated_hours else None,
+            "actual_hours": float(t.actual_hours) if t.actual_hours else None,
+            "is_personal": t.project_id is None,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "updated_at": t.updated_at.isoformat() if t.updated_at else None,
+        }
         for t in tasks
     ]
 

@@ -38,14 +38,11 @@ export function TaskDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { data: task, isLoading } = useQuery({
-    queryKey: ['task', id],
-    queryFn: async () => {
-      const tasks = await taskService.getByProject(id!);
-      return tasks.find((task) => task.id === id);
-    },
-    enabled: !!id,
-  });
+const { data: task, isLoading } = useQuery({
+  queryKey: ['task', id],
+  queryFn: () => taskService.getById(id!),
+  enabled: !!id,
+});
 
   const { data: people } = useQuery({
     queryKey: ['people', 'for-task-assignee'],
