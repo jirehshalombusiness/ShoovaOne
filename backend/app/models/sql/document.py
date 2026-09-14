@@ -1,6 +1,7 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, BigInteger
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, BigInteger, Boolean, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+
 
 from app.models.sql.base import BaseModel, GUID
 
@@ -21,3 +22,13 @@ class Document(BaseModel):
     deleted_at = Column(DateTime(timezone=True))
 
     owner = relationship("Person", lazy="selectin")
+
+    # Add to imports
+
+
+# Add these fields to the Document class:
+document_type_id = Column(GUID, ForeignKey("document_types.id", ondelete="SET NULL"))
+expiry_date = Column(Date)
+verified = Column(Boolean, default=False)
+verified_by = Column(GUID, ForeignKey("people.id"))
+verified_at = Column(DateTime(timezone=True))

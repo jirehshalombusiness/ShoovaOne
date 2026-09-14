@@ -24,6 +24,9 @@ import { HRPage } from '@/features/hr/pages/HRPage';
 import { MyWorkPage } from '@/features/mywork/pages/MyWorkPage';
 import { NewProjectPage } from '@/features/projects/pages/NewProjectPage';
 import { TaskDetailPage } from '@/features/tasks/pages/TaskDetailPage';
+import { EmployeesPage } from '@/features/hr/pages/EmployeesPage';
+import { EmployeeDetailPage } from '@/features/hr/pages/EmployeeDetailPage';
+
 
 function PageLoader() {
   return (
@@ -127,6 +130,8 @@ function App() {
           <Route path="people" element={<PeoplePage />} />
           <Route path="people/org-chart" element={<OrgChartPage />} />
           <Route path="people/:id" element={<PersonDetailPage />} />
+          <Route path="employees" element={<EmployeesPage />} />
+          <Route path="employees/:id" element={<EmployeeDetailPage />} />
 
           {/* HR — gated */}
           <Route
