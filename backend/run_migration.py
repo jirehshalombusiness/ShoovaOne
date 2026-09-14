@@ -206,6 +206,59 @@ def run_migration():
             )
             print("✅ Assigned CEO role to admin user")
     
+        # Add password reset support
+    cursor.execute("PRAGMA table_info(users)")
+    user_columns = [row[1] for row in cursor.fetchall()]
+
+    if "must_change_password" not in user_columns:
+        cursor.execute(
+            "ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0"
+        )
+        print("✅ Added must_change_password column to users")
+
+    # Create password reset tokens table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash TEXT UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        used_at TIMESTAMP
+    )
+    ''')
+
+    cursor.execute('''
+    CREATE INDEX IF NOT EXISTS ix_password_reset_tokens_user_id
+    ON password_reset_tokens(user_id)
+    ''')
+
+    cursor.execute('''
+    CREATE INDEX IF NOT EXISTS ix_password_reset_tokens_token_hash
+    ON password_reset_tokens(token_hash)
+    ''')
+
+    print("✅ password_reset_tokens table created")
+
+        # ATTENDANCE SECURITY/HR FIELDS
+    cursor.execute("PRAGMA table_info(attendance)")
+    attendance_columns = [row[1] for row in cursor.fetchall()]
+
+    attendance_fields = [
+        ("planned_task_ids", "TEXT"),
+        ("completed_task_ids", "TEXT"),
+        ("adhoc_tasks", "TEXT"),
+        ("confirmed_at", "TIMESTAMP"),
+        ("checkout_notes", "TEXT"),
+    ]
+
+    for column_name, column_type in attendance_fields:
+        if column_name not in attendance_columns:
+            cursor.execute(
+                f"ALTER TABLE attendance ADD COLUMN {column_name} {column_type}"
+            )
+            print(f"✅ Added {column_name} column to attendance")
+
+
     conn.commit()
     conn.close()
     print("✅ Migration completed successfully!")

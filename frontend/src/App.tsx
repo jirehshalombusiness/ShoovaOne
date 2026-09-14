@@ -1,13 +1,19 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { Layout } from '@/app/layouts/Layout';
+
 import { LoginPage } from '@/features/auth/pages/LoginPage';
+import { ChangePasswordPage } from '@/features/auth/pages/ChangePasswordPage';
+import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPassword';
+import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
+
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage';
 import { PeoplePage } from '@/features/people/pages/PeoplePage';
 import { PersonDetailPage } from '@/features/people/pages/PersonDetailPage';
 import { OrgChartPage } from '@/features/people/pages/OrgChartPage';
 import { AttendancePage } from '@/features/attendance/pages/AttendancePage';
 import { TimesheetsPage } from '@/features/timesheets/pages/TimesheetsPage';
+
 import { ProjectsPage } from '@/features/projects/pages/ProjectsPage';
 import { ProjectLayout } from '@/features/projects/layouts/ProjectLayout';
 import { ProjectOverview } from '@/features/projects/pages/ProjectOverview';
@@ -18,6 +24,7 @@ import { ProjectTimesheets } from '@/features/projects/pages/ProjectTimesheets';
 import { ProjectDocuments } from '@/features/projects/pages/ProjectDocuments';
 import { ProjectActivity } from '@/features/projects/pages/ProjectActivity';
 import { ProjectSettings } from '@/features/projects/pages/ProjectSettings';
+
 import { TasksPage } from '@/features/tasks/pages/TasksPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
 import { HRPage } from '@/features/hr/pages/HRPage';
@@ -41,16 +48,64 @@ function Placeholder({ title }: { title: string }) {
   );
 }
 
+/**
+ * Protects the main application.
+ *
+ * Authenticated users who still need to change their password
+ * are redirected to the password-change page.
+ */
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
+
   if (loading) return <PageLoader />;
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.must_change_password) {
+    return <Navigate to="/change-password" replace />;
+  }
+
+  return <>{children}</>;
 }
 
+/**
+ * Allows authenticated users to access a page even when
+ * they have must_change_password=true.
+ *
+ * This is specifically needed for /change-password.
+ */
+function AuthenticatedRoute({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) return <PageLoader />;
+
+  return isAuthenticated ? (
+    <>{children}</>
+  ) : (
+    <Navigate to="/login" replace />
+  );
+}
+
+/**
+ * Protects public authentication pages from already
+ * authenticated users.
+ */
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
+
   if (loading) return <PageLoader />;
-  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <>{children}</>;
+
+  return isAuthenticated ? (
+    <Navigate to="/dashboard" replace />
+  ) : (
+    <>{children}</>
+  );
 }
 
 function PermissionRoute({
@@ -61,8 +116,13 @@ function PermissionRoute({
   children: React.ReactNode;
 }) {
   const { user, loading } = useAuth();
+
   if (loading) return <PageLoader />;
-  const permissions = Array.isArray(user?.permissions) ? user.permissions : [];
+
+  const permissions = Array.isArray(user?.permissions)
+    ? user.permissions
+    : [];
+
   return permissions.includes(permission) ? (
     <>{children}</>
   ) : (
@@ -74,7 +134,10 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public */}
+        {/* ========================================================= */}
+        {/* PUBLIC AUTHENTICATION                                    */}
+        {/* ========================================================= */}
+
         <Route
           path="/login"
           element={
@@ -84,7 +147,41 @@ function App() {
           }
         />
 
-        {/* Protected */}
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicRoute>
+              <ForgotPasswordPage />
+            </PublicRoute>
+          }
+        />
+
+        <Route
+          path="/reset-password/:token"
+          element={
+            <PublicRoute>
+              <ResetPasswordPage />
+            </PublicRoute>
+          }
+        />
+
+        {/* ========================================================= */}
+        {/* AUTHENTICATED PASSWORD CHANGE                             */}
+        {/* ========================================================= */}
+
+        <Route
+          path="/change-password"
+          element={
+            <AuthenticatedRoute>
+              <ChangePasswordPage />
+            </AuthenticatedRoute>
+          }
+        />
+
+        {/* ========================================================= */}
+        {/* PROTECTED APPLICATION                                     */}
+        {/* ========================================================= */}
+
         <Route
           path="/"
           element={
@@ -93,38 +190,109 @@ function App() {
             </PrivateRoute>
           }
         >
-          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route
+            index
+            element={<Navigate to="/dashboard" replace />}
+          />
 
           {/* Main */}
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="my-work" element={<MyWorkPage />} />
+          <Route
+            path="dashboard"
+            element={<DashboardPage />}
+          />
+
+          <Route
+            path="my-work"
+            element={<MyWorkPage />}
+          />
 
           {/* Work — Projects */}
-          <Route path="projects" element={<ProjectsPage />} />
+          <Route
+            path="projects"
+            element={<ProjectsPage />}
+          />
+
           <Route
             path="projects/new"
             element={<NewProjectPage />}
           />
-          <Route path="projects/:id" element={<ProjectLayout />}>
-            <Route index element={<ProjectOverview />} />
-            <Route path="tasks" element={<ProjectTasks />} />
-            <Route path="milestones" element={<ProjectMilestones />} />
-            <Route path="team" element={<ProjectTeam />} />
-            <Route path="timesheets" element={<ProjectTimesheets />} />
-            <Route path="documents" element={<ProjectDocuments />} />
-            <Route path="activity" element={<ProjectActivity />} />
-            <Route path="settings" element={<ProjectSettings />} />
+
+          <Route
+            path="projects/:id"
+            element={<ProjectLayout />}
+          >
+            <Route
+              index
+              element={<ProjectOverview />}
+            />
+
+            <Route
+              path="tasks"
+              element={<ProjectTasks />}
+            />
+
+            <Route
+              path="milestones"
+              element={<ProjectMilestones />}
+            />
+
+            <Route
+              path="team"
+              element={<ProjectTeam />}
+            />
+
+            <Route
+              path="timesheets"
+              element={<ProjectTimesheets />}
+            />
+
+            <Route
+              path="documents"
+              element={<ProjectDocuments />}
+            />
+
+            <Route
+              path="activity"
+              element={<ProjectActivity />}
+            />
+
+            <Route
+              path="settings"
+              element={<ProjectSettings />}
+            />
           </Route>
 
           {/* Work — Other */}
-          <Route path="tasks" element={<TasksPage />} />
-          <Route path="timesheets" element={<TimesheetsPage />} />
-          <Route path="attendance" element={<AttendancePage />} />
+          <Route
+            path="tasks"
+            element={<TasksPage />}
+          />
+
+          <Route
+            path="timesheets"
+            element={<TimesheetsPage />}
+          />
+
+          <Route
+            path="attendance"
+            element={<AttendancePage />}
+          />
 
           {/* People & HR */}
-          <Route path="people" element={<PeoplePage />} />
-          <Route path="people/org-chart" element={<OrgChartPage />} />
-          <Route path="people/:id" element={<PersonDetailPage />} />
+          <Route
+            path="people"
+            element={<PeoplePage />}
+          />
+
+          <Route
+            path="people/org-chart"
+            element={<OrgChartPage />}
+          />
+
+          <Route
+            path="people/:id"
+            element={<PersonDetailPage />}
+          />
 
           {/* HR — gated */}
           <Route
@@ -137,9 +305,21 @@ function App() {
           />
 
           {/* Business */}
-          <Route path="organisations" element={<Placeholder title="CRM" />} />
-          <Route path="programmes" element={<Placeholder title="Programmes" />} />
-          <Route path="events" element={<Placeholder title="Events" />} />
+          <Route
+            path="organisations"
+            element={<Placeholder title="CRM" />}
+          />
+
+          <Route
+            path="programmes"
+            element={<Placeholder title="Programmes" />}
+          />
+
+          <Route
+            path="events"
+            element={<Placeholder title="Events" />}
+          />
+
           <Route
             path="finance"
             element={
@@ -150,8 +330,16 @@ function App() {
           />
 
           {/* System */}
-          <Route path="reports" element={<Placeholder title="Reports" />} />
-          <Route path="settings" element={<Placeholder title="Settings" />} />
+          <Route
+            path="reports"
+            element={<Placeholder title="Reports" />}
+          />
+
+          <Route
+            path="settings"
+            element={<Placeholder title="Settings" />}
+          />
+
           <Route
             path="users"
             element={
@@ -160,6 +348,7 @@ function App() {
               </PermissionRoute>
             }
           />
+
           <Route
             path="roles"
             element={
@@ -170,13 +359,31 @@ function App() {
           />
 
           {/* User menu shortcuts */}
-          <Route path="profile" element={<Placeholder title="My Profile" />} />
-          <Route path="notifications" element={<Placeholder title="Notifications" />} />
-          <Route path="help" element={<Placeholder title="Help & Support" />} />
+          <Route
+            path="profile"
+            element={<Placeholder title="My Profile" />}
+          />
+
+          <Route
+            path="notifications"
+            element={
+              <Placeholder title="Notifications" />
+            }
+          />
+
+          <Route
+            path="help"
+            element={
+              <Placeholder title="Help & Support" />
+            }
+          />
         </Route>
 
         {/* Catch-all */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="*"
+          element={<Navigate to="/dashboard" replace />}
+        />
       </Routes>
     </BrowserRouter>
   );

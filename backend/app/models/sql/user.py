@@ -12,6 +12,7 @@ class User(BaseModel):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255))
     is_active = Column(Boolean, default=True)
+    must_change_password = Column(Boolean, default=False, nullable=False)
     last_login_at = Column(DateTime(timezone=True))
 
     # Relationships

@@ -5,8 +5,9 @@ import { User } from '@/types/user.types';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => void;
   isAuthenticated: boolean;
 }
 
@@ -18,12 +19,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
  */
 function normalizeUser(raw: any): User | null {
   if (!raw) return null;
+
   return {
     id: raw.id,
     email: raw.email,
     first_name: raw.first_name ?? '',
     last_name: raw.last_name ?? '',
+    profile_image_url: raw.profile_image_url ?? null,
+    job_title: raw.job_title ?? null,
     is_active: raw.is_active ?? true,
+    must_change_password: raw.must_change_password ?? false,
     created_at: raw.created_at ?? new Date().toISOString(),
     last_login_at: raw.last_login_at ?? null,
     roles: Array.isArray(raw.roles) ? raw.roles : [],
@@ -76,15 +81,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loadUser();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     const response = await authService.login(email, password);
     const normalized = normalizeUser(response.user);
+
     setUser(normalized);
+
     if (normalized) {
       localStorage.setItem('user', JSON.stringify(normalized));
+      return normalized;
     }
+
+    throw new Error('Unable to load user information');
   };
 
+
+  const updateUser = (updates: Partial<User>) => {
+    setUser((current) => {
+      if (!current) return current;
+
+      const updatedUser = {
+        ...current,
+        ...updates,
+      };
+
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+
+      return updatedUser;
+    });
+  };
   const logout = async () => {
     try {
       await authService.logout();
@@ -96,6 +121,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
+
+
   return (
     <AuthContext.Provider
       value={{
@@ -103,6 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         login,
         logout,
+        updateUser,
         isAuthenticated: !!user,
       }}
     >

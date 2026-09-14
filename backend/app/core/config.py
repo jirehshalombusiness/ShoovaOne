@@ -22,13 +22,17 @@ class Settings(BaseSettings):
     # CORS
     BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
 
-    # Organization
+  # Organization
     ORG_TIMEZONE: str = "Africa/Accra"
     ORG_NAME: str = "Shoova Initiative"
-#    # SupabaseDocument
+
+    # SupabaseDocument
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_KEY: str = ""
 
+    # Password reset / email
+    RESEND_API_KEY: str = ""
+    FRONTEND_URL: str = "http://localhost:3000"
     @property
     def cors_origins_list(self) -> List[str]:
         """Convert CORS string to list."""

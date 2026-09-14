@@ -5,6 +5,7 @@ from app.models.sql.attendance import Attendance
 from app.models.sql.notification import Notification
 from app.models.sql.project import Project, Task
 from app.models.sql.timesheet import Timesheet, TimesheetEntry, TimesheetApprovalHistory
+from app.models.sql.password_reset_token import PasswordResetToken
 
 __all__ = [
     "Base",
@@ -23,4 +24,5 @@ __all__ = [
     "Timesheet",
     "TimesheetEntry",
     "TimesheetApprovalHistory",
+    "PasswordResetToken",
 ]
