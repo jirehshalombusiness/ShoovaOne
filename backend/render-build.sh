@@ -12,6 +12,8 @@ pip install --upgrade pip setuptools wheel
 # Install requirements
 pip install -r requirements.txt
 
+python migrate_postgres.py
+
 if [ -n "$SUPERADMIN_PASSWORD" ]; then
   python bootstrap_superadmin.py
 fi
