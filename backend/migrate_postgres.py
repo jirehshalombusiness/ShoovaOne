@@ -18,7 +18,14 @@ async def migrate():
             "Refusing to run against SQLite."
         )
 
-    if database_url.startswith("postgres://"):
+    # Normalize PostgreSQL URL for asyncpg
+    if database_url.startswith("postgresql+asyncpg://"):
+        database_url = database_url.replace(
+            "postgresql+asyncpg://",
+            "postgresql://",
+            1,
+        )
+    elif database_url.startswith("postgres://"):
         database_url = database_url.replace(
             "postgres://",
             "postgresql://",
@@ -28,7 +35,6 @@ async def migrate():
     print("🔄 Connecting to PostgreSQL...")
 
     conn = await asyncpg.connect(database_url)
-
     try:
         # =========================================================
         # 1. USERS

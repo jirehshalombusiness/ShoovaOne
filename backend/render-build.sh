@@ -2,18 +2,16 @@
 
 echo "🚀 Starting Render build..."
 
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate
-
-# Upgrade pip and install setuptools
+# Render already provides the Python environment
 pip install --upgrade pip setuptools wheel
 
 # Install requirements
 pip install -r requirements.txt
 
+# Run PostgreSQL migration
 python migrate_postgres.py
 
+# Bootstrap Super Admin if password is provided
 if [ -n "$SUPERADMIN_PASSWORD" ]; then
   python bootstrap_superadmin.py
 fi
