@@ -340,9 +340,20 @@ function ComingUp() {
 
 function TaskRow({ task }: { task: MyTask }) {
   const navigate = useNavigate();
+
+  const handleClick = () => {
+    if (task.project_id) {
+      // Project task → go to project Kanban, highlight the task
+      navigate(`/projects/${task.project_id}/tasks?highlight=${task.id}`);
+    } else {
+      // Personal task → go to global tasks page
+      navigate(`/tasks/${task.id}`);
+    }
+  };
+
   return (
     <button
-      onClick={() => navigate(`/tasks/${task.id}`)}
+      onClick={handleClick}
       className="w-full flex items-start gap-3 px-3 py-2.5 rounded-md hover:bg-gray-50 transition-colors text-left group"
     >
       <div className="pt-0.5">
@@ -476,9 +487,15 @@ function TasksTab() {
       ) : (
         <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
           {tasks.map((task) => (
-            <button
-              key={task.id}
-              onClick={() => navigate(`/tasks/${task.id}`)}
+          <button
+            key={task.id}
+            onClick={() => {
+              if (task.project_id) {
+                navigate(`/projects/${task.project_id}/tasks?highlight=${task.id}`);
+              } else {
+                navigate(`/tasks/${task.id}`);
+              }
+            }}
               className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left group"
             >
               <StatusIcon status={task.status} />

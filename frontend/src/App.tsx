@@ -23,6 +23,7 @@ import { UsersPage } from '@/features/users/pages/UsersPage';
 import { HRPage } from '@/features/hr/pages/HRPage';
 import { MyWorkPage } from '@/features/mywork/pages/MyWorkPage';
 import { NewProjectPage } from '@/features/projects/pages/NewProjectPage';
+import { TaskDetailPage } from '@/features/tasks/pages/TaskDetailPage';
 
 function PageLoader() {
   return (
@@ -118,6 +119,7 @@ function App() {
 
           {/* Work — Other */}
           <Route path="tasks" element={<TasksPage />} />
+          <Route path="tasks/:id" element={<TaskDetailPage />} />
           <Route path="timesheets" element={<TimesheetsPage />} />
           <Route path="attendance" element={<AttendancePage />} />
 

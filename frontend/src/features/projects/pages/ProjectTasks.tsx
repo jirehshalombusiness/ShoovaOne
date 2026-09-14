@@ -1,16 +1,11 @@
-import { useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { taskService, Task } from '@/services/task.service';
 import { peopleService } from '@/services/people.service';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Avatar } from '@/components/ui/Avatar';
-import {
-  Plus,
-  X,
-  Calendar,
-  MoreHorizontal,
-} from 'lucide-react';
+import { Plus, X, Calendar, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, isPast, isToday } from 'date-fns';
 import { toast } from 'react-hot-toast';
@@ -25,6 +20,9 @@ const COLUMNS = [
 
 export function ProjectTasks() {
   const { id: projectId } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const highlightedTaskId = searchParams.get('highlight');
+
   const queryClient = useQueryClient();
   const { hasPermission } = usePermissions();
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
@@ -58,6 +56,23 @@ export function ProjectTasks() {
     });
     return grouped;
   }, [tasks]);
+
+  // Highlight the task if `highlight` query param is present
+  useEffect(() => {
+    if (highlightedTaskId && tasks && tasks.length > 0) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`task-${highlightedTaskId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-2', 'ring-primary', 'ring-offset-2');
+          setTimeout(() => {
+            el.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+          }, 3000);
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedTaskId, tasks]);
 
   const handleDragStart = (taskId: string) => {
     setDraggedTaskId(taskId);
@@ -95,7 +110,8 @@ export function ProjectTasks() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Tasks</h1>
           <p className="text-xs text-gray-500 mt-0.5">
-            {tasks?.length ?? 0} {tasks?.length === 1 ? 'task' : 'tasks'} across {COLUMNS.length} columns
+            {tasks?.length ?? 0} {tasks?.length === 1 ? 'task' : 'tasks'} across{' '}
+            {COLUMNS.length} columns
           </p>
         </div>
         {canCreate && (
@@ -142,6 +158,7 @@ export function ProjectTasks() {
                 ) : (
                   groupedTasks[column.id].map((task) => (
                     <div
+                      id={`task-${task.id}`}
                       key={task.id}
                       draggable
                       onDragStart={() => handleDragStart(task.id)}
@@ -184,7 +201,9 @@ export function ProjectTasks() {
                           <span
                             className={cn(
                               'text-[10px] flex items-center gap-1',
-                              isPast(new Date(task.due_date)) && !isToday(new Date(task.due_date)) && task.status !== 'done'
+                              isPast(new Date(task.due_date)) &&
+                                !isToday(new Date(task.due_date)) &&
+                                task.status !== 'done'
                                 ? 'text-red-600 font-medium'
                                 : 'text-gray-500'
                             )}
@@ -308,7 +327,9 @@ function NewTaskModal({
             <input
               type="text"
               value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, title: e.target.value })
+              }
               required
               autoFocus
               className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
@@ -322,7 +343,9 @@ function NewTaskModal({
             </label>
             <textarea
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
               rows={2}
               className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
               placeholder="Add details..."
@@ -336,11 +359,15 @@ function NewTaskModal({
               </label>
               <select
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, status: e.target.value })
+                }
                 className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
                 {COLUMNS.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
                 ))}
               </select>
             </div>
@@ -350,7 +377,9 @@ function NewTaskModal({
               </label>
               <select
                 value={formData.priority}
-                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, priority: e.target.value })
+                }
                 className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
                 <option value="low">Low</option>
@@ -367,7 +396,9 @@ function NewTaskModal({
             </label>
             <select
               value={formData.assignee_id}
-              onChange={(e) => setFormData({ ...formData, assignee_id: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, assignee_id: e.target.value })
+              }
               className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="">Unassigned</option>
@@ -386,7 +417,9 @@ function NewTaskModal({
             <input
               type="date"
               value={formData.due_date}
-              onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, due_date: e.target.value })
+              }
               className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
@@ -448,10 +481,7 @@ function TaskDetailDrawer({
 
   return (
     <>
-      <div
-        className="fixed inset-0 bg-black/40 z-40"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/40 z-40" onClick={onClose} />
       <div className="fixed top-0 right-0 bottom-0 w-full sm:w-[500px] bg-white z-50 flex flex-col shadow-xl">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
           <h3 className="text-sm font-semibold text-gray-900">Task Details</h3>
@@ -481,7 +511,9 @@ function TaskDetailDrawer({
                 className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
                 {COLUMNS.map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
                 ))}
               </select>
             </div>
