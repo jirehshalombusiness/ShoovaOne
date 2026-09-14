@@ -24,12 +24,12 @@ import { ProjectTimesheets } from '@/features/projects/pages/ProjectTimesheets';
 import { ProjectDocuments } from '@/features/projects/pages/ProjectDocuments';
 import { ProjectActivity } from '@/features/projects/pages/ProjectActivity';
 import { ProjectSettings } from '@/features/projects/pages/ProjectSettings';
+import { NewProjectPage } from '@/features/projects/pages/NewProjectPage';
 
 import { TasksPage } from '@/features/tasks/pages/TasksPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
 import { HRPage } from '@/features/hr/pages/HRPage';
 import { MyWorkPage } from '@/features/mywork/pages/MyWorkPage';
-import { NewProjectPage } from '@/features/projects/pages/NewProjectPage';
 
 function PageLoader() {
   return (
@@ -72,7 +72,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 
 /**
  * Allows authenticated users to access a page even when
- * they have must_change_password=true.
+ * must_change_password=true.
  *
  * This is specifically needed for /change-password.
  */
@@ -108,6 +108,9 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Protects routes based on the authenticated user's permissions.
+ */
 function PermissionRoute({
   permission,
   children,
@@ -201,25 +204,41 @@ function App() {
             element={<DashboardPage />}
           />
 
+          {/* My Work */}
           <Route
             path="my-work"
             element={<MyWorkPage />}
           />
 
-          {/* Work — Projects */}
+          {/* ===================================================== */}
+          {/* PROJECTS                                               */}
+          {/* ===================================================== */}
+
           <Route
             path="projects"
-            element={<ProjectsPage />}
+            element={
+              <PermissionRoute permission="projects.view">
+                <ProjectsPage />
+              </PermissionRoute>
+            }
           />
 
           <Route
             path="projects/new"
-            element={<NewProjectPage />}
+            element={
+              <PermissionRoute permission="projects.create">
+                <NewProjectPage />
+              </PermissionRoute>
+            }
           />
 
           <Route
             path="projects/:id"
-            element={<ProjectLayout />}
+            element={
+              <PermissionRoute permission="projects.view">
+                <ProjectLayout />
+              </PermissionRoute>
+            }
           >
             <Route
               index
@@ -262,39 +281,68 @@ function App() {
             />
           </Route>
 
-          {/* Work — Other */}
+          {/* ===================================================== */}
+          {/* WORK                                                   */}
+          {/* ===================================================== */}
+
           <Route
             path="tasks"
-            element={<TasksPage />}
+            element={
+              <PermissionRoute permission="tasks.view">
+                <TasksPage />
+              </PermissionRoute>
+            }
           />
 
           <Route
             path="timesheets"
-            element={<TimesheetsPage />}
+            element={
+              <PermissionRoute permission="timesheets.view">
+                <TimesheetsPage />
+              </PermissionRoute>
+            }
           />
 
           <Route
             path="attendance"
-            element={<AttendancePage />}
+            element={
+              <PermissionRoute permission="attendance.view">
+                <AttendancePage />
+              </PermissionRoute>
+            }
           />
 
-          {/* People & HR */}
+          {/* ===================================================== */}
+          {/* PEOPLE & HR                                            */}
+          {/* ===================================================== */}
+
           <Route
             path="people"
-            element={<PeoplePage />}
+            element={
+              <PermissionRoute permission="people.view">
+                <PeoplePage />
+              </PermissionRoute>
+            }
           />
 
           <Route
             path="people/org-chart"
-            element={<OrgChartPage />}
+            element={
+              <PermissionRoute permission="people.view">
+                <OrgChartPage />
+              </PermissionRoute>
+            }
           />
 
           <Route
             path="people/:id"
-            element={<PersonDetailPage />}
+            element={
+              <PermissionRoute permission="people.view">
+                <PersonDetailPage />
+              </PermissionRoute>
+            }
           />
 
-          {/* HR — gated */}
           <Route
             path="hr"
             element={
@@ -304,20 +352,35 @@ function App() {
             }
           />
 
-          {/* Business */}
+          {/* ===================================================== */}
+          {/* BUSINESS                                               */}
+          {/* ===================================================== */}
+
           <Route
             path="organisations"
-            element={<Placeholder title="CRM" />}
+            element={
+              <PermissionRoute permission="crm.view">
+                <Placeholder title="CRM" />
+              </PermissionRoute>
+            }
           />
 
           <Route
             path="programmes"
-            element={<Placeholder title="Programmes" />}
+            element={
+              <PermissionRoute permission="programmes.view">
+                <Placeholder title="Programmes" />
+              </PermissionRoute>
+            }
           />
 
           <Route
             path="events"
-            element={<Placeholder title="Events" />}
+            element={
+              <PermissionRoute permission="events.view">
+                <Placeholder title="Events" />
+              </PermissionRoute>
+            }
           />
 
           <Route
@@ -329,7 +392,10 @@ function App() {
             }
           />
 
-          {/* System */}
+          {/* ===================================================== */}
+          {/* SYSTEM                                                 */}
+          {/* ===================================================== */}
+
           <Route
             path="reports"
             element={<Placeholder title="Reports" />}
@@ -366,16 +432,12 @@ function App() {
 
           <Route
             path="notifications"
-            element={
-              <Placeholder title="Notifications" />
-            }
+            element={<Placeholder title="Notifications" />}
           />
 
           <Route
             path="help"
-            element={
-              <Placeholder title="Help & Support" />
-            }
+            element={<Placeholder title="Help & Support" />}
           />
         </Route>
 

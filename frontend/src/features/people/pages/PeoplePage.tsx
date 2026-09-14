@@ -8,17 +8,23 @@ export function PeoplePage() {
   const [showCreate, setShowCreate] = useState(false);
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '', type: 'staff' });
-  const createPerson = useMutation({
-    mutationFn: () => peopleService.create({
-      ...form,
-      email: form.email || null,
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['people'] });
-      setForm({ first_name: '', last_name: '', email: '', type: 'staff' });
-      setShowCreate(false);
-    },
-  });
+
+ const createPerson = useMutation({
+  mutationFn: () => peopleService.create({
+    ...form,
+    email: form.email || null,
+  }),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['people'] });
+    setForm({
+      first_name: '',
+      last_name: '',
+      email: '',
+      type: 'staff',
+    });
+    setShowCreate(false);
+  },
+});
 
   return (
     <div className="space-y-6">

@@ -9,6 +9,7 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface PersonProfileHeaderProps {
   person: Person;
@@ -16,6 +17,8 @@ interface PersonProfileHeaderProps {
 }
 
 export function PersonProfileHeader({ person, onEdit }: PersonProfileHeaderProps) {
+  const { hasPermission } = usePermissions();
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'text-green-600 bg-green-50';
@@ -67,7 +70,7 @@ export function PersonProfileHeader({ person, onEdit }: PersonProfileHeaderProps
             </div>
 
             <div className="flex items-center gap-2 flex-shrink-0">
-              {onEdit && (
+             {onEdit && hasPermission('people.edit') && (
                 <button
                   onClick={onEdit}
                   className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"

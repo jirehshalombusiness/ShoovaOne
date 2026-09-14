@@ -7,14 +7,15 @@ import { PersonOverview } from '../components/PersonOverview';
 import { PersonActivity } from '../components/PersonActivity';
 import { PersonHR } from '@/features/hr/components/PersonHR';
 import { usePermissions } from '@/hooks/usePermissions';
-import { 
-  ArrowLeft, 
-  User, 
-  Briefcase, 
-  Calendar, 
-  FileText, 
-  Clock, 
-  Users, 
+import { EditPersonModal } from '../components/EditPersonModal';
+import {
+  ArrowLeft,
+  User,
+  Briefcase,
+  Calendar,
+  FileText,
+  Clock,
+  Users,
   Shield,
   Lock
 } from 'lucide-react';
@@ -35,6 +36,7 @@ export function PersonDetailPage() {
   const navigate = useNavigate();
   const { hasPermission } = usePermissions();
   const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const { data: person, isLoading } = useQuery({
     queryKey: ['person', id],
@@ -47,12 +49,12 @@ export function PersonDetailPage() {
 
   const tabs: TabConfig[] = [
     { id: 'overview', label: 'Overview', icon: User },
-    { 
-      id: 'hr', 
-      label: 'HR', 
-      icon: Shield, 
+    {
+      id: 'hr',
+      label: 'HR',
+      icon: Shield,
       permission: 'hr.view_sensitive',
-      requiresSensitive: true 
+      requiresSensitive: true
     },
     { id: 'projects', label: 'Projects', icon: Briefcase },
     { id: 'events', label: 'Events', icon: Calendar },
@@ -101,7 +103,20 @@ export function PersonDetailPage() {
       </button>
 
       {/* Profile Header */}
-      <PersonProfileHeader person={person} />
+      <PersonProfileHeader
+        person={person}
+        onEdit={
+          hasPermission('people.edit')
+            ? () => setShowEditModal(true)
+            : undefined
+        }
+      />
+      {showEditModal && hasPermission('people.edit') && (
+        <EditPersonModal
+          person={person}
+          onClose={() => setShowEditModal(false)}
+        />
+      )}
 
       {/* Tabs */}
       <div className="border-b border-gray-200">

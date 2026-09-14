@@ -86,10 +86,22 @@ async def get_current_active_user(
     current_user = Depends(get_current_user),
 ):
     """Get current active user."""
-    if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
-    return current_user
 
+    if not current_user.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail="Inactive user",
+        )
+
+    # Users with a temporary password must change it
+    # before accessing protected parts of the system.
+    if current_user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Password change required",
+        )
+
+    return current_user
 
 def require_permission(permission: str):
     """

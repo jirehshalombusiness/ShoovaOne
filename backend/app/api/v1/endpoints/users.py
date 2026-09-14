@@ -18,59 +18,91 @@ from app.models.pydantic.user import (
     ManagedUserResponse,
 )
 
+
 router = APIRouter()
 
 
-# =============================================
+# ============================================================
 # ROLE SECURITY RULES
-# =============================================
+# ============================================================
 
 PROTECTED_ROLES = {"ceo"}
+
+# Only the Super Admin / CEO can assign protected roles.
 SUPER_ADMIN_ONLY_ROLES = {"ceo"}
 
 
-def get_role_names(user: User) -> List[str]:
-    """Return the user's assigned role names."""
-    return [role.name for role in user.roles]
+def get_role_names(user: User) -> set[str]:
+    """Return the role names assigned to a user."""
+    return {role.name.lower() for role in user.roles}
 
 
-def can_assign_roles(current_user: User, role_names: List[str]) -> bool:
-    """Only the CEO can assign protected roles such as CEO."""
-    requested_roles = {role.lower() for role in role_names}
+def can_assign_roles(
+    current_user: User,
+    requested_role_names: set[str],
+) -> bool:
+    """
+    Prevent non-Super Admin users from assigning protected roles.
 
-    if requested_roles.intersection(SUPER_ADMIN_ONLY_ROLES):
-        return any(
-            role.name.lower() == "ceo"
-            for role in current_user.roles
-        )
+    The CEO/Super Admin can assign any system role.
+    Other users with users.manage cannot assign the CEO role.
+    """
+
+    if not requested_role_names:
+        return True
+
+    current_user_roles = get_role_names(current_user)
+    is_super_admin = "ceo" in current_user_roles
+
+    requested_roles = {
+        role.strip().lower()
+        for role in requested_role_names
+    }
+
+    protected_requested = (
+        requested_roles & SUPER_ADMIN_ONLY_ROLES
+    )
+
+    if protected_requested and not is_super_admin:
+        return False
 
     return True
 
 
-# =============================================
+# ============================================================
 # GET ALL USERS
-# =============================================
+# ============================================================
 
-@router.get("/", response_model=List[ManagedUserResponse])
+@router.get(
+    "/",
+    response_model=List[ManagedUserResponse],
+)
 async def get_users(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
         require_permission(Permissions.USERS_MANAGE)
     ),
 ):
-    """Get all users. Requires users.manage permission."""
+    """
+    Get all users.
+
+    Requires users.manage permission.
+    """
 
     result = await db.execute(
-        select(User, Person)
+        select(User)
         .join(Person, User.person_id == Person.id)
-        .options(selectinload(User.roles))
+        .options(
+            selectinload(User.roles),
+        )
     )
+
     rows = result.all()
 
-    users = []
+    response = []
 
     for user, person in rows:
-        users.append(
+        response.append(
             ManagedUserResponse(
                 id=str(user.id),
                 person_id=str(user.person_id),
@@ -86,12 +118,12 @@ async def get_users(
             )
         )
 
-    return users
+    return response
 
 
-# =============================================
+# ============================================================
 # CREATE USER LOGIN ACCESS
-# =============================================
+# ============================================================
 
 @router.post(
     "/",
@@ -105,12 +137,22 @@ async def create_user(
         require_permission(Permissions.USERS_MANAGE)
     ),
 ):
-    """Create login access for an existing Person."""
+    """
+    Create login access for an existing Person.
 
-    # Find the existing Person.
+    Requires users.manage permission.
+    """
+
+    # --------------------------------------------------------
+    # 1. Find Person
+    # --------------------------------------------------------
+
     result = await db.execute(
-        select(Person).where(Person.id == user_data.person_id)
+        select(Person).where(
+            Person.id == user_data.person_id
+        )
     )
+
     person = result.scalar_one_or_none()
 
     if not person:
@@ -119,10 +161,16 @@ async def create_user(
             detail="Person not found",
         )
 
-    # A Person should only have one login account.
+    # --------------------------------------------------------
+    # 2. Check existing User account for this Person
+    # --------------------------------------------------------
+
     result = await db.execute(
-        select(User).where(User.person_id == person.id)
+        select(User).where(
+            User.person_id == person.id
+        )
     )
+
     existing_user = result.scalar_one_or_none()
 
     if existing_user:
@@ -131,7 +179,10 @@ async def create_user(
             detail="This person already has a user account",
         )
 
-    # The Person's email becomes the login email.
+    # --------------------------------------------------------
+    # 3. Person must have an email
+    # --------------------------------------------------------
+
     if not person.email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -141,11 +192,30 @@ async def create_user(
             ),
         )
 
-    # Validate requested roles.
-    requested_role_names = [
+    # --------------------------------------------------------
+    # 4. Email must be unique
+    # --------------------------------------------------------
+
+    result = await db.execute(
+        select(User).where(
+            User.email == person.email
+        )
+    )
+
+    if result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already exists",
+        )
+
+    # --------------------------------------------------------
+    # 5. Validate requested roles
+    # --------------------------------------------------------
+
+    requested_role_names = {
         name.strip().lower()
         for name in user_data.role_names
-    ]
+    }
 
     if not can_assign_roles(
         current_user,
@@ -153,7 +223,7 @@ async def create_user(
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the CEO can assign the CEO role",
+            detail="Only the Super Admin can assign the CEO role.",
         )
 
     roles = []
@@ -164,6 +234,7 @@ async def create_user(
                 Role.name.in_(requested_role_names)
             )
         )
+
         roles = result.scalars().all()
 
         found_role_names = {
@@ -172,23 +243,29 @@ async def create_user(
         }
 
         missing_roles = (
-            set(requested_role_names) - found_role_names
+            requested_role_names
+            - found_role_names
         )
 
         if missing_roles:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
-                    f"Invalid role(s): "
+                    f"Role(s) not found: "
                     f"{', '.join(sorted(missing_roles))}"
                 ),
             )
 
-    # Create the User login account.
+    # --------------------------------------------------------
+    # 6. Create User
+    # --------------------------------------------------------
+
     user = User(
         person_id=person.id,
         email=person.email,
-        password_hash=get_password_hash(user_data.password),
+        password_hash=get_password_hash(
+            user_data.password
+        ),
         is_active=True,
         must_change_password=True,
     )
@@ -196,15 +273,29 @@ async def create_user(
     user.roles = roles
 
     db.add(user)
-    await db.commit()
 
-    # Reload the user with roles before building the response.
+    # --------------------------------------------------------
+    # 7. Save
+    # --------------------------------------------------------
+
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+
+    # Reload with roles
     result = await db.execute(
         select(User)
         .options(selectinload(User.roles))
         .where(User.id == user.id)
     )
+
     user = result.scalar_one()
+
+    # --------------------------------------------------------
+    # 8. Response
+    # --------------------------------------------------------
 
     return ManagedUserResponse(
         id=str(user.id),
@@ -221,9 +312,9 @@ async def create_user(
     )
 
 
-# =============================================
+# ============================================================
 # UPDATE USER
-# =============================================
+# ============================================================
 
 @router.patch(
     "/{user_id}",
@@ -237,13 +328,22 @@ async def update_user(
         require_permission(Permissions.USERS_MANAGE)
     ),
 ):
-    """Update a user. Requires users.manage permission."""
+    """
+    Update a user's access, password, or roles.
+
+    Requires users.manage permission.
+    """
+
+    # --------------------------------------------------------
+    # 1. Find User
+    # --------------------------------------------------------
 
     result = await db.execute(
         select(User)
         .options(selectinload(User.roles))
         .where(User.id == user_id)
     )
+
     user = result.scalar_one_or_none()
 
     if not user:
@@ -252,83 +352,160 @@ async def update_user(
             detail="User not found",
         )
 
+    # --------------------------------------------------------
+    # 2. Find associated Person
+    # --------------------------------------------------------
+
     result = await db.execute(
-        select(Person).where(Person.id == user.person_id)
+        select(Person).where(
+            Person.id == user.person_id
+        )
     )
+
     person = result.scalar_one_or_none()
 
     if not person:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Person not found",
+            detail="Associated person not found",
         )
 
-    current_user_is_ceo = any(
-        role.name.lower() == "ceo"
-        for role in current_user.roles
+    # --------------------------------------------------------
+    # 3. Determine Super Admin status
+    # --------------------------------------------------------
+
+    current_user_roles = get_role_names(current_user)
+    target_user_roles = get_role_names(user)
+
+    current_user_is_super_admin = (
+        "ceo" in current_user_roles
     )
 
-    target_is_ceo = any(
-        role.name.lower() == "ceo"
-        for role in user.roles
+    target_is_super_admin = (
+        "ceo" in target_user_roles
     )
 
-    # Protect the CEO/Super Admin account.
-    if target_is_ceo and not current_user_is_ceo:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="The CEO account is protected",
-        )
+    # --------------------------------------------------------
+    # 4. Prevent self-deactivation
+    # --------------------------------------------------------
 
-    # A user cannot deactivate their own account.
     if (
-        user.id == current_user.id
+        str(user.id) == str(current_user.id)
         and user_data.is_active is False
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You cannot deactivate your own account",
+            detail="You cannot deactivate your own account.",
         )
 
-    # Prevent deactivating the last active CEO.
-    if user_data.is_active is False and target_is_ceo:
-        result = await db.execute(
-            select(func.count(User.id))
-            .join(User.roles)
-            .where(
-                Role.name == "ceo",
-                User.is_active.is_(True),
-            )
+    # --------------------------------------------------------
+    # 5. Protect Super Admin account
+    # --------------------------------------------------------
+
+    if (
+        target_is_super_admin
+        and not current_user_is_super_admin
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Only the Super Admin can modify "
+                "the Super Admin account."
+            ),
         )
-        active_ceo_count = result.scalar() or 0
 
-        if active_ceo_count <= 1:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot deactivate the last active CEO",
+    # --------------------------------------------------------
+    # 6. Update active status
+    # --------------------------------------------------------
+
+    if user_data.is_active is not None:
+
+        # Prevent deactivating the last active Super Admin
+        if (
+            target_is_super_admin
+            and user_data.is_active is False
+        ):
+            result = await db.execute(
+                select(User)
+                .join(User.roles)
+                .where(Role.name == "ceo")
             )
 
-    # Update roles if supplied.
+            ceo_users = result.scalars().all()
+
+            active_ceo_count = sum(
+                1
+                for ceo_user in ceo_users
+                if ceo_user.is_active
+            )
+
+            if active_ceo_count <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "The last active Super Admin "
+                        "cannot be deactivated."
+                    ),
+                )
+
+        user.is_active = user_data.is_active
+
+    # --------------------------------------------------------
+    # 7. Update password
+    # --------------------------------------------------------
+
+    if user_data.password:
+
+        user.password_hash = get_password_hash(
+            user_data.password
+        )
+
+        # Force user to change the administrator-set password.
+        user.must_change_password = True
+
+    # --------------------------------------------------------
+    # 8. Update roles
+    # --------------------------------------------------------
+
     if user_data.role_names is not None:
-        target_role_names = [
+
+        requested_role_names = {
             name.strip().lower()
             for name in user_data.role_names
-        ]
+        }
 
+        # Prevent unauthorized privilege escalation
         if not can_assign_roles(
             current_user,
-            target_role_names,
+            requested_role_names,
         ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only the CEO can assign the CEO role",
+                detail=(
+                    "Only the Super Admin can assign "
+                    "the CEO role."
+                ),
+            )
+
+        # A non-Super Admin cannot modify a Super Admin's roles
+        if (
+            target_is_super_admin
+            and not current_user_is_super_admin
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Only the Super Admin can modify "
+                    "the Super Admin's roles."
+                ),
             )
 
         result = await db.execute(
             select(Role).where(
-                Role.name.in_(target_role_names)
+                Role.name.in_(requested_role_names)
             )
         )
+
         roles = result.scalars().all()
 
         found_role_names = {
@@ -337,65 +514,80 @@ async def update_user(
         }
 
         missing_roles = (
-            set(target_role_names) - found_role_names
+            requested_role_names
+            - found_role_names
         )
 
         if missing_roles:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=(
-                    f"Invalid role(s): "
+                    f"Role(s) not found: "
                     f"{', '.join(sorted(missing_roles))}"
                 ),
             )
 
-        currently_ceo = any(
-            role.name.lower() == "ceo"
-            for role in user.roles
+        # ----------------------------------------------------
+        # Prevent removing CEO from the last Super Admin
+        # ----------------------------------------------------
+
+        currently_ceo = (
+            "ceo" in target_user_roles
         )
 
-        remains_ceo = "ceo" in target_role_names
+        remains_ceo = (
+            "ceo" in requested_role_names
+        )
 
-        # Prevent removing CEO from the last CEO account.
         if currently_ceo and not remains_ceo:
+
             result = await db.execute(
-                select(func.count(User.id))
+                select(User)
                 .join(User.roles)
                 .where(Role.name == "ceo")
             )
-            ceo_count = result.scalar() or 0
 
-            if ceo_count <= 1:
+            ceo_users = result.scalars().all()
+
+            active_ceo_users = [
+                ceo_user
+                for ceo_user in ceo_users
+                if ceo_user.is_active
+            ]
+
+            if len(active_ceo_users) <= 1:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=(
-                        "Cannot remove the CEO role from "
-                        "the last CEO"
+                        "The last Super Admin must "
+                        "retain the CEO role."
                     ),
                 )
 
         user.roles = roles
 
-    # Update active status.
-    if user_data.is_active is not None:
-        user.is_active = user_data.is_active
+    # --------------------------------------------------------
+    # 9. Save
+    # --------------------------------------------------------
 
-    # An administrator-set password becomes a temporary password.
-    if user_data.password:
-        user.password_hash = get_password_hash(
-            user_data.password
-        )
-        user.must_change_password = True
+    try:
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
 
-    await db.commit()
-
-    # Reload with roles after the update.
+    # Reload with roles
     result = await db.execute(
         select(User)
         .options(selectinload(User.roles))
         .where(User.id == user.id)
     )
+
     user = result.scalar_one()
+
+    # --------------------------------------------------------
+    # 10. Response
+    # --------------------------------------------------------
 
     return ManagedUserResponse(
         id=str(user.id),
@@ -412,9 +604,9 @@ async def update_user(
     )
 
 
-# =============================================
+# ============================================================
 # DELETE USER LOGIN ACCESS
-# =============================================
+# ============================================================
 
 @router.delete(
     "/{user_id}",
@@ -427,13 +619,22 @@ async def delete_user(
         require_permission(Permissions.USERS_MANAGE)
     ),
 ):
-    """Delete a user login account."""
+    """
+    Delete a user login account.
+
+    Requires users.manage permission.
+    """
+
+    # --------------------------------------------------------
+    # 1. Find User
+    # --------------------------------------------------------
 
     result = await db.execute(
         select(User)
         .options(selectinload(User.roles))
         .where(User.id == user_id)
     )
+
     user = result.scalar_one_or_none()
 
     if not user:
@@ -442,27 +643,35 @@ async def delete_user(
             detail="User not found",
         )
 
-    # Prevent self-deletion.
-    if user.id == current_user.id:
+    # --------------------------------------------------------
+    # 2. Prevent self-deletion
+    # --------------------------------------------------------
+
+    if str(user.id) == str(current_user.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You cannot delete your own account",
+            detail="You cannot delete your own account.",
         )
 
-    # Never allow the CEO/Super Admin account to be deleted.
-    target_is_ceo = any(
-        role.name.lower() == "ceo"
-        for role in user.roles
-    )
+    # --------------------------------------------------------
+    # 3. Protect Super Admin
+    # --------------------------------------------------------
 
-    if target_is_ceo:
+    target_user_roles = get_role_names(user)
+
+    if "ceo" in target_user_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "The CEO account is protected and "
-                "cannot be deleted"
-            ),
+            detail="The Super Admin account cannot be deleted.",
         )
 
-    await db.delete(user)
-    await db.commit()
+    # --------------------------------------------------------
+    # 4. Delete
+    # --------------------------------------------------------
+
+    try:
+        await db.delete(user)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise

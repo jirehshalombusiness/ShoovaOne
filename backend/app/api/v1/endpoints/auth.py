@@ -30,6 +30,7 @@ from app.services.password_reset_service import (
 )
 from app.services.permission_service import PermissionService
 
+
 router = APIRouter()
 
 
@@ -44,9 +45,9 @@ async def login(
         select(User)
         .options(
             selectinload(User.person),
-            selectinload(User.roles).selectinload(Role.permissions)
+            selectinload(User.roles).selectinload(Role.permissions),
         )
-        .where(User.email == form_data.username)
+        .where(User.email == form_data.username.lower().strip())
     )
 
     user = result.scalar_one_or_none()
@@ -98,8 +99,8 @@ async def login(
             "email": user.email,
             "first_name": person.first_name,
             "last_name": person.last_name,
-            "profile_image_url": person.profile_image_url,
-            "job_title": person.job_title,
+            "profile_image_url": person.profile_image_url if person else None,
+            "job_title": person.job_title if person else None,
             "is_active": user.is_active,
             "must_change_password": user.must_change_password,
             "created_at": user.created_at,
@@ -132,7 +133,7 @@ async def get_current_user_info(
         select(User)
         .options(
             selectinload(User.person),
-            selectinload(User.roles).selectinload(Role.permissions)
+            selectinload(User.roles).selectinload(Role.permissions),
         )
         .where(User.id == current_user.id)
     )
@@ -182,6 +183,7 @@ async def change_password(
 ):
     """Allow an authenticated user to change their password."""
 
+    # Verify current password
     if not verify_password(
         password_data.current_password,
         current_user.password_hash,
@@ -191,6 +193,7 @@ async def change_password(
             detail="Current password is incorrect",
         )
 
+    # Validate new password
     if len(password_data.new_password) < 8:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -206,13 +209,19 @@ async def change_password(
             detail="New password must be different from the current password",
         )
 
+    # Update password
     current_user.password_hash = get_password_hash(
         password_data.new_password
     )
 
     current_user.must_change_password = False
 
-    await db.commit()
+    try:
+        await db.commit()
+        await db.refresh(current_user)
+    except Exception:
+        await db.rollback()
+        raise
 
     return {
         "message": "Password changed successfully"
@@ -225,36 +234,54 @@ async def forgot_password(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Request a password reset email.
+    Send a password reset email.
 
     Always return the same response whether or not
-    the email exists, to avoid exposing registered accounts.
+    the email exists, to prevent email enumeration.
     """
+
+    email = request.email.lower().strip()
 
     result = await db.execute(
         select(User)
         .options(selectinload(User.person))
-        .where(User.email == request.email)
+        .where(User.email == email)
     )
 
     user = result.scalar_one_or_none()
 
-    if user and user.is_active:
-        reset_token = await create_password_reset_token(
-            db,
-            user,
-        )
+    # Do not reveal whether an account exists
+    if user is None or not user.is_active:
+        return {
+            "message": "If an account exists for this email, "
+                       "a password reset link has been sent."
+        }
 
-        person = user.person
+    # Create secure reset token
+    reset_token = await create_password_reset_token(
+        db=db,
+        user=user,
+    )
 
+    # Get recipient name
+    recipient_name = "there"
+
+    if user.person:
+        recipient_name = user.person.first_name
+
+    # Send reset email
+    try:
         send_password_reset_email(
             recipient_email=user.email,
-            recipient_name=person.first_name if person else "",
+            recipient_name=recipient_name,
             reset_token=reset_token,
         )
+    except Exception as e:
+        print(f"Password reset email error: {e}")
 
     return {
-        "message": "If an account exists for that email, a password reset link has been sent."
+        "message": "If an account exists for this email, "
+                   "a password reset link has been sent."
     }
 
 
@@ -263,49 +290,62 @@ async def reset_password(
     request: ResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Reset a password using a valid reset token."""
+    """Reset a user's password using a valid password reset token."""
 
+    # Validate the reset token
     reset_token = await get_valid_password_reset_token(
-        db,
-        request.token,
+        db=db,
+        raw_token=request.token,
     )
 
-    if not reset_token:
+    if reset_token is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired password reset token",
+            detail="Invalid or expired password reset link",
         )
 
+    # Validate the new password
     if len(request.new_password) < 8:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="New password must be at least 8 characters long",
+            detail="Password must be at least 8 characters long",
         )
 
+    # Load the user
     result = await db.execute(
         select(User).where(User.id == reset_token.user_id)
     )
 
     user = result.scalar_one_or_none()
 
-    if not user:
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid password reset request",
+            detail="Invalid password reset link",
         )
 
+    # Make sure the account is still active
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid password reset link",
+        )
+
+    # Set the new password
     user.password_hash = get_password_hash(
         request.new_password
     )
 
+    # A successful password reset satisfies any forced password change
     user.must_change_password = False
 
-    await db.commit()
-
+    # Make the reset token single-use
     await mark_password_reset_token_used(
-        db,
-        reset_token,
+        db=db,
+        reset_token=reset_token,
     )
+
+    await db.commit()
 
     return {
         "message": "Password reset successfully"
