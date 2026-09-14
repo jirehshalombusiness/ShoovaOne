@@ -1,74 +1,134 @@
 import { api } from './api';
-import { 
-  EmploymentRecord, 
-  Compensation, 
-  LeaveBalance, 
-  PerformanceReview, 
-  HRDocument,
-  EmployeeSummary 
-} from '@/types/hr.types';
+
+export interface HREmployee {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  type: string;
+  status: string;
+  job_title: string | null;
+  location: string | null;
+  employment_type: string | null;
+  profile_image_url: string | null;
+  date_of_birth: string | null;
+}
+
+export interface HRDocument {
+  id: string;
+  name: string;
+  file_url: string;
+  mime_type: string | null;
+  verified: boolean;
+  expiry_date: string | null;
+  created_at: string;
+}
+
+export interface HRNote {
+  id: string;
+  category: string;
+  title: string | null;
+  content: string;
+  author_id: string | null;
+  author_first_name: string | null;
+  author_last_name: string | null;
+  created_at: string;
+}
+
+export interface HRProject {
+  id: string;
+  name: string;
+  code: string | null;
+  status: string;
+}
+
+export interface HRTask {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  due_date: string | null;
+}
+
+export interface EmployeeDetail {
+  person: HREmployee & {
+    gender: string | null;
+    address: string | null;
+    city: string | null;
+    country: string | null;
+    emergency_contact_name: string | null;
+    emergency_contact_phone: string | null;
+    emergency_contact_relationship: string | null;
+    created_at: string;
+  };
+  documents: HRDocument[];
+  notes: HRNote[];
+  projects: HRProject[];
+  tasks: HRTask[];
+}
+
+export interface Celebration {
+  id: string;
+  type: string;
+  person_id: string;
+  first_name: string;
+  last_name: string;
+  image_url: string | null;
+  date: string;
+  days_away: number;
+  years: number;
+  label: string;
+}
+
+export interface HROverview {
+  total_people: number;
+  active_staff: number;
+  active_volunteers: number;
+  birthdays_this_month: any[];
+  pending_documents: number;
+  documents_expiring_soon: any[];
+  pending_leave_requests: number;
+}
 
 export const hrService = {
-  // Employment Records
-  async getEmployment(personId: string): Promise<EmploymentRecord[]> {
-    const response = await api.get<EmploymentRecord[]>(`/hr/employment/${personId}`);
+  async getOverview(): Promise<HROverview> {
+    const response = await api.get<HROverview>('/hr/overview');
     return response.data;
   },
 
-  async createEmployment(data: Partial<EmploymentRecord>): Promise<EmploymentRecord> {
-    const response = await api.post<EmploymentRecord>('/hr/employment', data);
+  async getEmployees(params?: {
+    search?: string;
+    type?: string;
+    status?: string;
+  }): Promise<HREmployee[]> {
+    const response = await api.get<HREmployee[]>('/hr/employees', { params });
     return response.data;
   },
 
-  async updateEmployment(id: string, data: Partial<EmploymentRecord>): Promise<EmploymentRecord> {
-    const response = await api.put<EmploymentRecord>(`/hr/employment/${id}`, data);
+  async getEmployee(id: string): Promise<EmployeeDetail> {
+    const response = await api.get<EmployeeDetail>(`/hr/employees/${id}`);
     return response.data;
   },
 
-  // Compensation
-  async getCompensation(personId: string): Promise<Compensation[]> {
-    const response = await api.get<Compensation[]>(`/hr/compensation/${personId}`);
+  async getDocumentTypes(): Promise<any[]> {
+    const response = await api.get<any[]>('/hr/document-types');
     return response.data;
   },
 
-  async createCompensation(data: Partial<Compensation>): Promise<Compensation> {
-    const response = await api.post<Compensation>('/hr/compensation', data);
+  async createNote(personId: string, data: {
+    category?: string;
+    title?: string;
+    content: string;
+  }): Promise<any> {
+    const response = await api.post(`/hr/employees/${personId}/notes`, data);
     return response.data;
   },
 
-  // Leave Balances
-  async getLeaveBalances(personId: string): Promise<LeaveBalance[]> {
-    const response = await api.get<LeaveBalance[]>(`/hr/leave-balances/${personId}`);
-    return response.data;
-  },
-
-  // Performance Reviews
-  async getPerformanceReviews(personId: string): Promise<PerformanceReview[]> {
-    const response = await api.get<PerformanceReview[]>(`/hr/performance/${personId}`);
-    return response.data;
-  },
-
-  async createPerformanceReview(data: Partial<PerformanceReview>): Promise<PerformanceReview> {
-    const response = await api.post<PerformanceReview>('/hr/performance', data);
-    return response.data;
-  },
-
-  // HR Documents
-  async getHRDocuments(personId: string): Promise<HRDocument[]> {
-    const response = await api.get<HRDocument[]>(`/hr/documents/${personId}`);
-    return response.data;
-  },
-
-  async uploadHRDocument(data: FormData): Promise<HRDocument> {
-    const response = await api.post<HRDocument>('/hr/documents', data, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+  async getCelebrations(daysAhead = 30): Promise<Celebration[]> {
+    const response = await api.get<Celebration[]>('/hr/celebrations', {
+      params: { days_ahead: daysAhead },
     });
-    return response.data;
-  },
-
-  // Summary
-  async getSummary(): Promise<EmployeeSummary> {
-    const response = await api.get<EmployeeSummary>('/hr/summary');
     return response.data;
   },
 };

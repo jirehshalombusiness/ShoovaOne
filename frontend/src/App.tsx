@@ -30,6 +30,9 @@ import { TasksPage } from '@/features/tasks/pages/TasksPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
 import { HRPage } from '@/features/hr/pages/HRPage';
 import { MyWorkPage } from '@/features/mywork/pages/MyWorkPage';
+import { TaskDetailPage } from '@/features/tasks/pages/TaskDetailPage';
+import { EmployeesPage } from '@/features/hr/pages/EmployeesPage';
+import { EmployeeDetailPage } from '@/features/hr/pages/EmployeeDetailPage';
 
 function PageLoader() {
   return (
@@ -161,7 +164,7 @@ function App() {
 
         <Route
           path="/reset-password/:token"
-          element={<ResetPasswordPage /> }
+          element={<ResetPasswordPage />}
         />
 
         {/* ========================================================= */}
@@ -276,7 +279,6 @@ function App() {
               element={<ProjectSettings />}
             />
           </Route>
-
           {/* ===================================================== */}
           {/* WORK                                                   */}
           {/* ===================================================== */}
@@ -286,6 +288,15 @@ function App() {
             element={
               <PermissionRoute permission="tasks.view">
                 <TasksPage />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="tasks/:id"
+            element={
+              <PermissionRoute permission="tasks.view">
+                <TaskDetailPage />
               </PermissionRoute>
             }
           />
@@ -339,6 +350,23 @@ function App() {
             }
           />
 
+          <Route
+            path="employees"
+            element={
+              <PermissionRoute permission="hr.view_sensitive">
+                <EmployeesPage />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="employees/:id"
+            element={
+              <PermissionRoute permission="hr.view_sensitive">
+                <EmployeeDetailPage />
+              </PermissionRoute>
+            }
+          />
           <Route
             path="hr"
             element={

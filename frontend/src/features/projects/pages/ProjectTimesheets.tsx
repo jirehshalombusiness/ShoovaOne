@@ -63,7 +63,7 @@ export function ProjectTimesheets() {
   const maxHours = Math.max(...people.map((p) => p.total_hours), 1);
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-9xl space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-gray-900">Timesheets</h1>

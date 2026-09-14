@@ -103,7 +103,7 @@ export function ProjectSettings() {
   };
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-100xl space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-gray-900">Project Settings</h1>
