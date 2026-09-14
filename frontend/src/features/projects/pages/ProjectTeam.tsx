@@ -45,7 +45,7 @@ export function ProjectTeam() {
   });
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <div className="max-w-9xl space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
