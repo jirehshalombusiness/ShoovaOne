@@ -42,7 +42,9 @@ async def bootstrap_superadmin() -> None:
     conn = await asyncpg.connect(database_url)
 
     try:
-        # Ensure CEO role exists
+        # ---------------------------------------------------------
+        # 1. Ensure CEO role exists
+        # ---------------------------------------------------------
         role = await conn.fetchrow(
             "SELECT id FROM roles WHERE name = 'ceo'"
         )
@@ -74,7 +76,9 @@ async def bootstrap_superadmin() -> None:
         else:
             role_id = role["id"]
 
-        # Ensure Super Admin person exists
+        # ---------------------------------------------------------
+        # 2. Ensure Super Admin person exists
+        # ---------------------------------------------------------
         person = await conn.fetchrow(
             "SELECT id FROM people WHERE lower(email) = $1",
             email,
@@ -109,17 +113,32 @@ async def bootstrap_superadmin() -> None:
                 last_name,
                 email,
             )
+
+            print(f"Created Super Admin person: {email}")
+
         else:
             person_id = person["id"]
 
-        # Ensure Super Admin user exists
+        # ---------------------------------------------------------
+        # 3. Ensure Super Admin user exists
+        # ---------------------------------------------------------
         user = await conn.fetchrow(
-            "SELECT id FROM users WHERE lower(email) = $1",
+            """
+            SELECT id
+            FROM users
+            WHERE lower(email) = $1
+            """,
             email,
         )
 
         if not user:
+            # -----------------------------------------------------
+            # First-time creation:
+            # Use SUPERADMIN_PASSWORD
+            # -----------------------------------------------------
             user_id = uuid.uuid4()
+
+            password_hash = pwd_context.hash(password)
 
             await conn.execute(
                 """
@@ -129,6 +148,7 @@ async def bootstrap_superadmin() -> None:
                     email,
                     password_hash,
                     is_active,
+                    must_change_password,
                     created_at,
                     updated_at
                 )
@@ -138,6 +158,7 @@ async def bootstrap_superadmin() -> None:
                     $3,
                     $4,
                     true,
+                    false,
                     NOW(),
                     NOW()
                 )
@@ -145,25 +166,45 @@ async def bootstrap_superadmin() -> None:
                 user_id,
                 person_id,
                 email,
-                pwd_context.hash(password),
+                password_hash,
             )
+
+            print(f"Created Super Admin account: {email}")
+
         else:
+            # -----------------------------------------------------
+            # Existing account:
+            #
+            # IMPORTANT:
+            # DO NOT change the password.
+            #
+            # The password may have been changed through:
+            # - Change Password
+            # - Forgot Password
+            # - Reset Password
+            #
+            # Future Render deployments must not overwrite it.
+            # -----------------------------------------------------
             user_id = user["id"]
 
             await conn.execute(
                 """
                 UPDATE users
                 SET
-                    password_hash = $1,
                     is_active = true,
                     updated_at = NOW()
-                WHERE id = $2
+                WHERE id = $1
                 """,
-                pwd_context.hash(password),
                 user_id,
             )
 
-        # Assign CEO role to Super Admin
+            print(
+                f"Existing Super Admin preserved; password not changed: {email}"
+            )
+
+        # ---------------------------------------------------------
+        # 4. Assign CEO role to Super Admin
+        # ---------------------------------------------------------
         await conn.execute(
             """
             INSERT INTO user_roles (
@@ -177,7 +218,9 @@ async def bootstrap_superadmin() -> None:
             role_id,
         )
 
-        # Give CEO role every permission
+        # ---------------------------------------------------------
+        # 5. Give CEO role every permission
+        # ---------------------------------------------------------
         await conn.execute(
             """
             INSERT INTO role_permissions (
