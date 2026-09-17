@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     SECRET_KEY: str = "dev-secret-key-change-in-production-123456789"
 
-    # Database - Will be overridden by DATABASE_URL environment variable
+    # Database
     DATABASE_URL: str = "sqlite:///./shoova_one.db"
 
     # JWT
@@ -20,19 +20,29 @@ class Settings(BaseSettings):
     JWT_EXPIRATION_MINUTES: int = 43200
 
     # CORS
-    BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    BACKEND_CORS_ORIGINS: str = "http://localhost:3000"
 
     # Organization
     ORG_TIMEZONE: str = "Africa/Accra"
     ORG_NAME: str = "Shoova Initiative"
-#    # SupabaseDocument
+
+    # Supabase
     SUPABASE_URL: str = ""
     SUPABASE_SERVICE_KEY: str = ""
+
+    # Email - Resend
+    RESEND_API_KEY: str = ""
+
+    # Frontend
+    FRONTEND_URL: str = "http://localhost:5173"
 
     @property
     def cors_origins_list(self) -> List[str]:
         """Convert CORS string to list."""
-        return [origin.strip() for origin in self.BACKEND_CORS_ORIGINS.split(",")]
+        return [
+            origin.strip()
+            for origin in self.BACKEND_CORS_ORIGINS.split(",")
+        ]
 
     model_config = ConfigDict(
         env_file=".env",
