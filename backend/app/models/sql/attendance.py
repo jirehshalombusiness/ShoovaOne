@@ -26,5 +26,11 @@ class Attendance(BaseModel):
     confirmed_at = Column(DateTime(timezone=True))
     checkout_notes = Column(Text)
 
+    work_type = Column(String(20), default="office")
+    current_status = Column(String(20), default="not_started")
+    overtime_minutes = Column(Integer, default=0)
+    standard_minutes = Column(Integer, default=0)
+    last_heartbeat_at = Column(DateTime(timezone=True))
+
     # Relationships
     person = relationship("Person", back_populates="attendance", lazy="selectin")

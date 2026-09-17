@@ -143,7 +143,19 @@ async def check_in(
         )
         valid_ids = [str(r[0]) for r in valid_result.all()]
         planned_task_ids = valid_ids
+        async def check_in(
+            payload: dict,
+            db: AsyncSession = Depends(get_db),
+            current_user = Depends(require_permission(Permissions.ATTENDANCE_CHECKIN)),
+        ):
+            # ... existing validation ...
+            work_type = payload.get("work_type", "office")
 
+            attendance = Attendance(
+                # ... existing fields ...
+                work_type=work_type,
+                current_status="active",
+            )
     # Create ad-hoc tasks in the tasks table (personal tasks, no project)
     created_adhoc = []
     for a in adhoc_tasks:

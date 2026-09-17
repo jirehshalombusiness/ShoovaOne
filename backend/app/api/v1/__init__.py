@@ -10,7 +10,8 @@ from app.api.v1.endpoints import (
     projects,
     tasks,
     documents,
-    hr
+    hr,
+    sessions
 )
 
 
@@ -29,3 +30,4 @@ api_router.include_router(projects.router, prefix="/projects", tags=["projects"]
 api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 api_router.include_router(documents.router, prefix="/documents", tags=["documents"])
 api_router.include_router(hr.router, prefix="/hr", tags=["hr"])
+api_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
