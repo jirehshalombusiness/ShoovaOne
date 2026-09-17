@@ -11,8 +11,10 @@ from app.api.v1.endpoints import (
     tasks,
     documents,
     hr,
-    sessions
+    WorkSession
+
 )
+from backend.app.api.v1.endpoints import sessions
 
 
 # Create the router
@@ -30,4 +32,4 @@ api_router.include_router(projects.router, prefix="/projects", tags=["projects"]
 api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 api_router.include_router(documents.router, prefix="/documents", tags=["documents"])
 api_router.include_router(hr.router, prefix="/hr", tags=["hr"])
-api_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
+api_router.include_router(WorkSession.router, prefix="/work-sessions", tags=["work-sessions"])
