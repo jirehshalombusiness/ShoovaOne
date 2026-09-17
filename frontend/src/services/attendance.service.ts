@@ -39,6 +39,7 @@ export const attendanceService = {
     planned_task_ids: string[];
     adhoc_tasks?: { title: string; priority?: string }[];
     notes?: string;
+    work_type?: string;   // NEW
   }): Promise<any> {
     const response = await api.post('/attendance/checkin', payload);
     return response.data;
