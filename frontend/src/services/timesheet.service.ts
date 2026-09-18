@@ -12,6 +12,10 @@ export interface TimesheetEntry {
   duration: number;
   description: string | null;
   is_billable: string;
+  is_overtime?: boolean;         // NEW
+  overtime_minutes?: number;      // NEW
+  source?: string;                // NEW
+  is_locked?: boolean;            // NEW
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +49,10 @@ export interface TimesheetEntryCreate {
   duration: number;
   description?: string;
   is_billable?: string;
+  is_overtime?: boolean;         // NEW
+  overtime_minutes?: number;      // NEW
+  source?: string;                // NEW
+  is_locked?: boolean;            // NEW
 }
 
 export interface TimesheetAnalytics {

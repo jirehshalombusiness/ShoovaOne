@@ -22,4 +22,5 @@ __all__ = [
     "Timesheet",
     "TimesheetEntry",
     "TimesheetApprovalHistory",
+    "WorkSession"
 ]

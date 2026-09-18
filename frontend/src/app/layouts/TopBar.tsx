@@ -4,6 +4,7 @@ import { NotificationBell } from '@/components/ui/NotificationBell';
 import { UserMenu } from '@/components/ui/UserMenu';
 import { CreateMenu } from '@/components/ui/CreateMenu';
 import { cn } from '@/lib/utils';
+import { SessionIndicator } from '@/components/ui/SessionIndicator';
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -65,6 +66,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
       <div className="hidden lg:flex items-center gap-1 ml-auto">
         <CreateMenu />
         <NotificationBell />
+        <SessionIndicator />
         <div className="ml-1">
           <UserMenu />
         </div>
