@@ -84,6 +84,8 @@ class ManagedUserUpdate(BaseModel):
     role_names: Optional[List[str]] = None
     password: Optional[str] = None
 
+class DirectPermissionRequest(BaseModel):
+    permission: str
 
 class ManagedUserResponse(BaseModel):
     id: str
@@ -93,7 +95,14 @@ class ManagedUserResponse(BaseModel):
     last_name: str
     is_active: bool
     must_change_password: bool = False
+
+    # Role-based permissions
     roles: List[str] = Field(default_factory=list)
+    permissions: List[str] = Field(default_factory=list)
+
+    # Permissions granted directly to this user
+    direct_permissions: List[str] = Field(default_factory=list)
+
     last_login_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

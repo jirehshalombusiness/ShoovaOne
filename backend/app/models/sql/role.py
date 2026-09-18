@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey, Table, DateTime
+from sqlalchemy import Column, String, Boolean, ForeignKey, Table, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -22,6 +22,34 @@ role_permissions = Table(
     Column('created_at', DateTime(timezone=True), server_default=func.now())
 )
 
+user_permissions = Table(
+    'user_permissions',
+    Base.metadata,
+    Column(
+        'user_id',
+        GUID,
+        ForeignKey('users.id', ondelete='CASCADE'),
+        primary_key=True
+    ),
+    Column(
+        'permission_id',
+        GUID,
+        ForeignKey('permissions.id', ondelete='CASCADE'),
+        primary_key=True
+    ),
+    Column(
+        'granted_by',
+        GUID,
+        ForeignKey('users.id', ondelete='SET NULL'),
+        nullable=True
+    ),
+    Column(
+        'created_at',
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+)
+
 
 class Role(BaseModel):
     __tablename__ = 'roles'
@@ -38,9 +66,29 @@ class Role(BaseModel):
 class Permission(BaseModel):
     __tablename__ = 'permissions'
 
+    __table_args__ = (
+        UniqueConstraint(
+            'resource',
+            'action',
+            name='uq_permissions_resource_action'
+        ),
+    )
+
     resource = Column(String(100), nullable=False)
     action = Column(String(50), nullable=False)
     description = Column(String)
 
     # Relationships
-    roles = relationship('Role', secondary=role_permissions, back_populates='permissions')
+    roles = relationship(
+        'Role',
+        secondary=role_permissions,
+        back_populates='permissions'
+    )
+
+    users = relationship(
+        "User",
+        secondary=user_permissions,
+        primaryjoin="Permission.id == user_permissions.c.permission_id",
+        secondaryjoin="User.id == user_permissions.c.user_id",
+        viewonly=True,
+    )

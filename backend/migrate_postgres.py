@@ -84,7 +84,8 @@ async def migrate():
                 action VARCHAR(50) NOT NULL,
                 description TEXT,
                 created_at TIMESTAMPTZ DEFAULT NOW(),
-                updated_at TIMESTAMPTZ DEFAULT NOW()
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                CONSTRAINT uq_permissions_resource_action UNIQUE (resource, action)
             )
             """
         )
@@ -132,14 +133,137 @@ async def migrate():
         print("✅ role_permissions table verified")
 
         # =========================================================
-        # 6. DEFAULT SYSTEM ROLES
+        # 6. USER PERMISSIONS
         # =========================================================
+        print("🔐 Checking user_permissions table...")
+
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_permissions (
+                user_id UUID NOT NULL
+                    REFERENCES users(id) ON DELETE CASCADE,
+                permission_id UUID NOT NULL
+                    REFERENCES permissions(id) ON DELETE CASCADE,
+                granted_by UUID
+                    REFERENCES users(id) ON DELETE SET NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                PRIMARY KEY (user_id, permission_id)
+            )
+            """
+        )
+
+        print("✅ user_permissions table verified")
+
+        # =========================================================
+        # 5A. PERMISSION DUPLICATE CLEANUP / UNIQUE CONSTRAINT
+        # =========================================================
+        print("🔍 Checking for duplicate permissions...")
+
+        # Remove duplicate role-permission assignments that would
+        # conflict when duplicate permission IDs are consolidated.
+        await conn.execute(
+            """
+            DELETE FROM role_permissions rp
+            USING permissions duplicate_permission,
+                  permissions keeper_permission
+            WHERE rp.permission_id = duplicate_permission.id
+              AND keeper_permission.resource = duplicate_permission.resource
+              AND keeper_permission.action = duplicate_permission.action
+              AND keeper_permission.id < duplicate_permission.id
+              AND EXISTS (
+                  SELECT 1
+                  FROM role_permissions existing_rp
+                  WHERE existing_rp.role_id = rp.role_id
+                    AND existing_rp.permission_id = keeper_permission.id
+              )
+            """
+        )
+
+        # Repoint remaining role-permission assignments to the
+        # keeper permission ID.
+        await conn.execute(
+            """
+            UPDATE role_permissions rp
+            SET permission_id = keeper_permission.id
+            FROM permissions duplicate_permission
+            JOIN permissions keeper_permission
+              ON keeper_permission.resource = duplicate_permission.resource
+             AND keeper_permission.action = duplicate_permission.action
+             AND keeper_permission.id < duplicate_permission.id
+            WHERE rp.permission_id = duplicate_permission.id
+            """
+        )
+
+        # Remove duplicate direct user-permission assignments that
+        # would conflict with the keeper permission.
+        await conn.execute(
+            """
+            DELETE FROM user_permissions up
+            USING permissions duplicate_permission,
+                  permissions keeper_permission
+            WHERE up.permission_id = duplicate_permission.id
+              AND keeper_permission.resource = duplicate_permission.resource
+              AND keeper_permission.action = duplicate_permission.action
+              AND keeper_permission.id < duplicate_permission.id
+              AND EXISTS (
+                  SELECT 1
+                  FROM user_permissions existing_up
+                  WHERE existing_up.user_id = up.user_id
+                    AND existing_up.permission_id = keeper_permission.id
+              )
+            """
+        )
+
+        # Repoint remaining direct user-permission assignments.
+        await conn.execute(
+            """
+            UPDATE user_permissions up
+            SET permission_id = keeper_permission.id
+            FROM permissions duplicate_permission
+            JOIN permissions keeper_permission
+              ON keeper_permission.resource = duplicate_permission.resource
+             AND keeper_permission.action = duplicate_permission.action
+             AND keeper_permission.id < duplicate_permission.id
+            WHERE up.permission_id = duplicate_permission.id
+            """
+        )
+
+        # Keep exactly one permission definition for each
+        # resource/action pair.
+        await conn.execute(
+            """
+            DELETE FROM permissions
+            WHERE id NOT IN (
+                SELECT MIN(id)
+                FROM permissions
+                GROUP BY resource, action
+            )
+            """
+        )
+
+        # Enforce uniqueness on existing PostgreSQL databases.
+        await conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS
+                uq_permissions_resource_action
+            ON permissions (resource, action)
+            """
+        )
+
+        print("✅ Permissions are unique and protected")
+
+        # =========================================================
+        # 6. DEFAULT SYSTEM ROLES
         print("🔐 Seeding system roles...")
 
         roles = [
             (
                 "ceo",
                 "Chief Executive Officer - Full system access",
+            ),
+           (
+                "system_admin",
+                "System Administrator - Technical system administration",
             ),
             (
                 "executive_director",
@@ -218,7 +342,7 @@ async def migrate():
             ("timesheets", "view", "View timesheets"),
             ("timesheets", "submit", "Submit timesheets"),
             ("timesheets", "approve", "Approve timesheets"),
-
+            ("timesheets", "edit_any", "Edit any user's timesheets"),
             # PROJECTS
             ("projects", "view", "View projects"),
             ("projects", "create", "Create projects"),
@@ -242,9 +366,14 @@ async def migrate():
             ("finance", "approve", "Approve finance records"),
 
             # USERS & ROLES
-            ("users", "manage", "Manage users"),
+            ("users", "manage", "Manage user accounts"),
             ("roles", "manage", "Manage roles and permissions"),
 
+            # AUDIT
+            ("audit", "view", "View system audit logs"),
+
+            # SYSTEM ADMINISTRATION
+            ("system", "manage", "Manage system configuration and security"),
             # EVENTS
             ("events", "view", "View events"),
             ("events", "create", "Create events"),
@@ -252,6 +381,7 @@ async def migrate():
 
             # ATTENDANCE
             ("attendance", "view", "View attendance records"),
+            ("attendance", "view_any", "View all employees' attendance records"),
             ("attendance", "checkin", "Check in/out"),
             ("attendance", "edit", "Edit attendance records"),
 
@@ -312,22 +442,52 @@ async def migrate():
 
         def has_permission(role_name, resource, action):
             # -----------------------------------------------------
-            # CEO / SUPER ADMIN
-            # Full system access
+            # CEO
+            # Organizational top-level authority.
+            # Full access across Shoova ONE.
             # -----------------------------------------------------
             if role_name == "ceo":
                 return True
 
             # -----------------------------------------------------
+            # SYSTEM ADMINISTRATOR
+            # Technical/system administration only.
+            #
+            # System Admin does NOT automatically receive access
+            # to sensitive HR, compensation, performance, or
+            # other organizational decision-making data.
+            # -----------------------------------------------------
+            if role_name == "system_admin":
+                return (
+                    (
+                        resource == "users"
+                        and action == "manage"
+                    )
+                    or (
+                        resource == "roles"
+                        and action == "manage"
+                    )
+                    or (
+                        resource == "system"
+                        and action == "manage"
+                    )
+                )
+
+            # -----------------------------------------------------
             # EXECUTIVE DIRECTOR
-            # Organisation-wide access except system administration
+            # Organisation-wide operational access except
+            # system administration.
             # -----------------------------------------------------
             if role_name == "executive_director":
-                return resource not in ("users", "roles")
+                return resource not in (
+                    "users",
+                    "roles",
+                    "system",
+                )
 
             # -----------------------------------------------------
             # HEAD OF HR
-            # Full HR access + employee management
+            # Full HR access + employee management.
             # -----------------------------------------------------
             if role_name == "head_of_hr":
                 return (
@@ -358,6 +518,7 @@ async def migrate():
                         resource == "attendance"
                         and action in (
                             "view",
+                            "view_any",
                             "edit",
                         )
                     )
@@ -373,7 +534,7 @@ async def migrate():
             # -----------------------------------------------------
             # DIRECTOR
             # Department management without system administration
-            # or sensitive HR editing
+            # or sensitive HR editing.
             # -----------------------------------------------------
             if role_name == "director":
                 return (
@@ -381,6 +542,7 @@ async def migrate():
                     and resource not in (
                         "users",
                         "roles",
+                        "system",
                         "finance",
                     )
                     and not (
@@ -394,7 +556,7 @@ async def migrate():
 
             # -----------------------------------------------------
             # MANAGER
-            # Team-level operational management
+            # Team-level operational management.
             # -----------------------------------------------------
             if role_name == "manager":
                 return (
@@ -417,7 +579,7 @@ async def migrate():
 
             # -----------------------------------------------------
             # STAFF
-            # Basic operational access
+            # Basic operational access.
             # -----------------------------------------------------
             if role_name == "staff":
                 return (
@@ -439,7 +601,7 @@ async def migrate():
 
             # -----------------------------------------------------
             # VOLUNTEER
-            # Very limited operational access
+            # Very limited operational access.
             # -----------------------------------------------------
             if role_name == "volunteer":
                 return (
@@ -457,7 +619,7 @@ async def migrate():
 
             # -----------------------------------------------------
             # EXTERNAL PARTNER
-            # Restricted collaboration only
+            # Restricted collaboration only.
             # -----------------------------------------------------
             if role_name == "external_partner":
                 return (
@@ -475,8 +637,7 @@ async def migrate():
                     )
                 )
 
-            return False
-
+                return False
         # Fetch every permission from PostgreSQL
         all_permissions = await conn.fetch(
             """
@@ -500,6 +661,17 @@ async def migrate():
                 continue
 
             role_id = role["id"]
+
+            # Make system-role permissions authoritative.
+            # This removes permissions that are no longer allowed
+            # by the current role rules before re-assigning the correct ones.
+            await conn.execute(
+                """
+                DELETE FROM role_permissions
+                WHERE role_id = $1
+                """,
+                role_id,
+            )
 
             for permission in all_permissions:
                 permission_id = permission["id"]
