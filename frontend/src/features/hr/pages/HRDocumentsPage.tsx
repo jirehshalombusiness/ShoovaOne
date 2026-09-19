@@ -8,7 +8,6 @@ import {
   Upload,
   Download,
   Trash2,
-  CheckCircle2,
   AlertCircle,
   File as FileIcon,
   FileImage,
@@ -159,12 +158,6 @@ export function HRDocumentsPage() {
                     >
                       {doc.name}
                     </a>
-                    {doc.verified && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-700 flex-shrink-0">
-                        <CheckCircle2 className="w-2.5 h-2.5" />
-                        Verified
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-3 text-[11px] text-gray-500 mt-0.5">
                     <span>{formatBytes(doc.file_size_bytes)}</span>

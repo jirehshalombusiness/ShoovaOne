@@ -1,34 +1,39 @@
-from app.models.sql.base import Base, BaseModel, GUID
-from app.models.sql.user import User, Person
-from app.models.sql.role import Role, Permission, user_roles, role_permissions
-from app.models.sql.attendance import Attendance
-from app.models.sql.notification import Notification
-from app.models.sql.project import Project, Task
-from app.models.sql.timesheet import Timesheet, TimesheetEntry, TimesheetApprovalHistory
-from app.models.sql.password_reset_token import PasswordResetToken
-from app.models.sql.document_type import DocumentType
-from app.models.sql.hr_note import HRNote
-from app.models.sql.hr_celebration import HRCelebration
+from fastapi import APIRouter
 
-__all__ = [
-    "Base",
-    "BaseModel",
-    "GUID",
-    "User",
-    "Person",
-    "Role",
-    "Permission",
-    "user_roles",
-    "role_permissions",
-    "Attendance",
-    "Notification",
-    "Project",
-    "Task",
-    "Timesheet",
-    "TimesheetEntry",
-    "TimesheetApprovalHistory",
-    "PasswordResetToken",
-    "DocumentType",
-    "HRNote",
-    "HRCelebration",
-]
+from app.api.v1.endpoints import (
+    auth,
+    people,
+    attendance,
+    notifications,
+    timesheets,
+    users,
+    my_work,
+    projects,
+    tasks,
+    documents,
+    audit,
+    sessions,
+    hr,
+)
+
+
+api_router = APIRouter()
+
+api_router.include_router(auth.router,          prefix="/auth",          tags=["authentication"])
+api_router.include_router(people.router,        prefix="/people",        tags=["people"])
+api_router.include_router(attendance.router,    prefix="/attendance",    tags=["attendance"])
+api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
+api_router.include_router(timesheets.router,    prefix="/timesheets",    tags=["timesheets"])
+api_router.include_router(users.router,         prefix="/users",         tags=["users"])
+api_router.include_router(my_work.router,       prefix="/my-work",       tags=["my_work"])
+api_router.include_router(projects.router,      prefix="/projects",      tags=["projects"])
+api_router.include_router(tasks.router,         prefix="/tasks",         tags=["tasks"])
+api_router.include_router(documents.router,     prefix="/documents",     tags=["documents"])
+api_router.include_router(audit.router,         prefix="/audit",         tags=["audit"])
+api_router.include_router(sessions.router,      prefix="/sessions",      tags=["sessions"])
+
+# HR package — replaces old hr.py + hr_self.py
+# The hr package declares its own prefixes internally:
+#   /me/*        self-service
+#   /hr/*        admin
+api_router.include_router(hr.router, tags=["hr"])
