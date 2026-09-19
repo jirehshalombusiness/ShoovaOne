@@ -31,8 +31,20 @@ import { UsersPage } from '@/features/users/pages/UsersPage';
 import { HRPage } from '@/features/hr/pages/HRPage';
 import { MyWorkPage } from '@/features/mywork/pages/MyWorkPage';
 import { TaskDetailPage } from '@/features/tasks/pages/TaskDetailPage';
+
+
+
+import { HRLayout } from '@/features/hr/layouts/HRLayout';
+import { HRHomePage } from '@/features/hr/pages/HRHomePage';
+import { HRTimeOffPage } from '@/features/hr/pages/HRTimeOffPage';
+import { HRDevicesPage } from '@/features/hr/pages/HRDevicesPage';
+import { HRContractPage } from '@/features/hr/pages/HRContractPage';
+import { HRDocumentsPage } from '@/features/hr/pages/HRDocumentsPage';
 import { EmployeesPage } from '@/features/hr/pages/EmployeesPage';
 import { EmployeeDetailPage } from '@/features/hr/pages/EmployeeDetailPage';
+import { HRLeaveRequestsPage } from '@/features/hr/pages/HRLeaveRequestsPage';
+import { HRRecruitmentPage } from '@/features/hr/pages/HRRecruitmentPage';
+import { HRReportsPage } from '@/features/hr/pages/HRReportsPage';
 
 function PageLoader() {
   return (

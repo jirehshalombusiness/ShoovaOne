@@ -7,7 +7,12 @@ import { X } from 'lucide-react';
 export function PeoplePage() {
   const [showCreate, setShowCreate] = useState(false);
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({ first_name: '', last_name: '', email: '', type: 'staff' });
+  const [form, setForm] = useState<{
+    first_name: string;
+    last_name: string;
+    email: string;
+    type: 'staff' | 'volunteer' | 'beneficiary' | 'external_contact';
+  }>({ first_name: '', last_name: '', email: '', type: 'staff' });
 
  const createPerson = useMutation({
   mutationFn: () => peopleService.create({
@@ -59,7 +64,7 @@ export function PeoplePage() {
                 <input required placeholder="Last name" value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm" />
               </div>
               <input type="email" placeholder="Email address" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm" />
-              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
+              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as typeof form.type })} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm">
                 <option value="staff">Staff</option>
                 <option value="volunteer">Volunteer</option>
                 <option value="beneficiary">Beneficiary</option>

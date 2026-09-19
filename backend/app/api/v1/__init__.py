@@ -12,6 +12,7 @@ from app.api.v1.endpoints import (
     documents,
     hr,
     sessions,
+    hr_self
 )
 
 
@@ -31,3 +32,4 @@ api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 api_router.include_router(documents.router, prefix="/documents", tags=["documents"])
 api_router.include_router(hr.router, prefix="/hr", tags=["hr"])
 api_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
+api_router.include_router(hr_self.router, prefix="/hr-self", tags=["hr_self"])
