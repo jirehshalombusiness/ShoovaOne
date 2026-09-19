@@ -1,0 +1,159 @@
+﻿ShoovaOne/frontend/
+├── public/
+├── src/
+│   ├── app/
+│   │   ├── layouts/
+│   │   │   ├── Layout.tsx
+│   │   │   ├── MobileBottomNav.tsx
+│   │   │   ├── MobileMenuDrawer.tsx
+│   │   │   ├── Sidebar.tsx
+│   │   │   ├── TopBar.tsx
+│   │   ├── providers/
+│   │   ├── router/
+│   ├── components/
+│   │   ├── forms/
+│   │   ├── shared/
+│   │   ├── ui/
+│   │   │   ├── Avatar.tsx
+│   │   │   ├── CreateMenu.tsx
+│   │   │   ├── NotificationBell.tsx
+│   │   │   ├── SessionIndicator.tsx
+│   │   │   ├── Skeleton.tsx
+│   │   │   ├── UserMenu.tsx
+│   ├── features/
+│   │   ├── attendance/
+│   │   │   ├── components/
+│   │   │   │   ├── CheckInModal.tsx
+│   │   │   ├── pages/
+│   │   │   │   ├── AttendancePage.tsx
+│   │   ├── audit/
+│   │   │   ├── pages/
+│   │   │   │   ├── AuditLogsPage.tsx
+│   │   ├── auth/
+│   │   │   ├── pages/
+│   │   │   │   ├── ChangePasswordPage.tsx
+│   │   │   │   ├── ForgotPassword.tsx
+│   │   │   │   ├── LoginPage.tsx
+│   │   │   │   ├── ResetPasswordPage.tsx
+│   │   ├── dashboard/
+│   │   │   ├── components/
+│   │   │   │   ├── ActionRequired.tsx
+│   │   │   │   ├── ActiveProjects.tsx
+│   │   │   │   ├── DashboardHeader.tsx
+│   │   │   │   ├── DashboardKpis.tsx
+│   │   │   │   ├── MyWork.tsx
+│   │   │   │   ├── PartnershipsOverview.tsx
+│   │   │   │   ├── PeopleOverview.tsx
+│   │   │   │   ├── ProgrammesOverview.tsx
+│   │   │   │   ├── RecentActivity.tsx
+│   │   │   │   ├── UpcomingOverview.tsx
+│   │   │   ├── pages/
+│   │   │   │   ├── DashboardPage.tsx
+│   │   ├── hr/
+│   │   │   ├── components/
+│   │   │   │   ├── CompensationInfo.tsx
+│   │   │   │   ├── EmploymentHistory.tsx
+│   │   │   │   ├── LeaveBalances.tsx
+│   │   │   │   ├── PersonHR.tsx
+│   │   │   ├── layouts/
+│   │   │   │   ├── HRLayout.tsx
+│   │   │   ├── pages/
+│   │   │   │   ├── EmployeeDetailPage.tsx
+│   │   │   │   ├── EmployeesPage.tsx
+│   │   │   │   ├── HRCelebrationsPage.tsx
+│   │   │   │   ├── HRContractPage.tsx
+│   │   │   │   ├── HRDevicesPage.tsx
+│   │   │   │   ├── HRDocumentsPage.tsx
+│   │   │   │   ├── HRHomePage.tsx
+│   │   │   │   ├── HRLeavePage.tsx
+│   │   │   │   ├── HRLeaveRequestsPage.tsx
+│   │   │   │   ├── HRPage.tsx
+│   │   │   │   ├── HRRecruitmentPage.tsx
+│   │   │   │   ├── HRReportsPage.tsx
+│   │   │   │   ├── HRTimeOffPage.tsx
+│   │   ├── mywork/
+│   │   │   ├── pages/
+│   │   │   │   ├── MyWorkPage.tsx
+│   │   ├── people/
+│   │   │   ├── components/
+│   │   │   │   ├── EditPersonModal.tsx
+│   │   │   │   ├── PeopleDirectory.tsx
+│   │   │   │   ├── PersonActivity.tsx
+│   │   │   │   ├── PersonOverview.tsx
+│   │   │   │   ├── PersonProfileHeader.tsx
+│   │   │   ├── pages/
+│   │   │   │   ├── OrgChartPage.tsx
+│   │   │   │   ├── PeoplePage.tsx
+│   │   │   │   ├── PersonDetailPage.tsx
+│   │   ├── projects/
+│   │   │   ├── components/
+│   │   │   │   ├── ProjectSubSidebar.tsx
+│   │   │   ├── layouts/
+│   │   │   │   ├── ProjectLayout.tsx
+│   │   │   ├── pages/
+│   │   │   │   ├── NewProjectPage.tsx
+│   │   │   │   ├── ProjectActivity.tsx
+│   │   │   │   ├── ProjectDocuments.tsx
+│   │   │   │   ├── ProjectMilestones.tsx
+│   │   │   │   ├── ProjectOverview.tsx
+│   │   │   │   ├── ProjectSettings.tsx
+│   │   │   │   ├── ProjectsPage.tsx
+│   │   │   │   ├── ProjectTasks.tsx
+│   │   │   │   ├── ProjectTeam.tsx
+│   │   │   │   ├── ProjectTimesheets.tsx
+│   │   ├── tasks/
+│   │   │   ├── pages/
+│   │   │   │   ├── TaskDetailPage.tsx
+│   │   │   │   ├── TasksPage.tsx
+│   │   ├── timesheets/
+│   │   │   ├── pages/
+│   │   │   │   ├── TimesheetsPage.tsx
+│   │   ├── users/
+│   │   │   ├── pages/
+│   │   │   │   ├── UsersPage.tsx
+│   ├── hooks/
+│   │   ├── useDebounce.ts
+│   │   ├── useIdleDetection.ts
+│   │   ├── usePermissions.ts
+│   ├── lib/
+│   │   ├── auth.tsx
+│   │   ├── notifications.tsx
+│   │   ├── supabase.ts
+│   │   ├── utils.ts
+│   ├── services/
+│   │   ├── api.ts
+│   │   ├── attendance.service.ts
+│   │   ├── audit.service.ts
+│   │   ├── auth.service.ts
+│   │   ├── auth.ts
+│   │   ├── document.service.ts
+│   │   ├── hr.service.ts
+│   │   ├── mywork.service.ts
+│   │   ├── notification.service.ts
+│   │   ├── organization.service.ts
+│   │   ├── people.service.ts
+│   │   ├── people.ts
+│   │   ├── project.service.ts
+│   │   ├── session.service.ts
+│   │   ├── task.service.ts
+│   │   ├── timesheet.service.ts
+│   │   ├── users.ts
+│   ├── types/
+│   │   ├── hr.types.ts
+│   │   ├── person.types.ts
+│   │   ├── user.types.ts
+│   ├── utils/
+│   ├── App.tsx
+│   ├── index.css
+│   ├── main.tsx
+│   ├── vite-env.d.ts
+├── .env
+├── index.html
+├── package.json
+├── package-lock.json
+├── postcss.config.js
+├── tailwind.config.js
+├── tsconfig.json
+├── tsconfig.node.json
+├── vercel.json
+├── vite.config.ts
