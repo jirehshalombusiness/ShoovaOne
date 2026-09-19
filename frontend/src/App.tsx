@@ -387,10 +387,21 @@ function App() {
             path="hr"
             element={
               <PermissionRoute permission="hr.view_sensitive">
-                <HRPage />
+                <HRLayout />
               </PermissionRoute>
             }
-          />
+          >
+            <Route index element={<HRHomePage />} />
+            <Route path="time-off" element={<HRTimeOffPage />} />
+            <Route path="devices" element={<HRDevicesPage />} />
+            <Route path="contract" element={<HRContractPage />} />
+            <Route path="documents" element={<HRDocumentsPage />} />
+            <Route path="employees" element={<EmployeesPage />} />
+            <Route path="employees/:id" element={<EmployeeDetailPage />} />
+            <Route path="leave-requests" element={<HRLeaveRequestsPage />} />
+            <Route path="recruitment" element={<HRRecruitmentPage />} />
+            <Route path="reports" element={<HRReportsPage />} />
+          </Route>
 
           {/* ===================================================== */}
           {/* BUSINESS                                               */}

@@ -13,7 +13,8 @@ from app.api.v1.endpoints import (
     documents,
     hr,
     audit,
-    hr_self
+    hr_self,
+    sessions
 )
 
 
