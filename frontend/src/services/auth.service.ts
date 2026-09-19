@@ -7,17 +7,28 @@ export const authService = {
     formData.append('username', email);
     formData.append('password', password);
 
-    const response = await api.post<LoginResponse>('/auth/login', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    
+    const response = await api.post<LoginResponse>(
+      '/auth/login',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
     if (response.data.access_token) {
-      localStorage.setItem('access_token', response.data.access_token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      localStorage.setItem(
+        'access_token',
+        response.data.access_token
+      );
+
+      localStorage.setItem(
+        'user',
+        JSON.stringify(response.data.user)
+      );
     }
-    
+
     return response.data;
   },
 
@@ -25,8 +36,9 @@ export const authService = {
     try {
       await api.post('/auth/logout');
     } catch (error) {
-      // Ignore error if endpoint doesn't exist
+      // Ignore logout API errors.
     }
+
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
   },
@@ -36,11 +48,12 @@ export const authService = {
       const response = await api.get<User>('/auth/me');
       return response.data;
     } catch (error) {
-      // If the endpoint fails, check localStorage
       const storedUser = localStorage.getItem('user');
+
       if (storedUser) {
         return JSON.parse(storedUser);
       }
+
       throw error;
     }
   },
@@ -51,13 +64,15 @@ export const authService = {
 
   getUserFromStorage(): User | null {
     const user = localStorage.getItem('user');
-    if (user) {
-      try {
-        return JSON.parse(user);
-      } catch {
-        return null;
-      }
+
+    if (!user) {
+      return null;
     }
-    return null;
+
+    try {
+      return JSON.parse(user);
+    } catch {
+      return null;
+    }
   },
 };

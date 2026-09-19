@@ -228,13 +228,19 @@ class Permissions:
     # ============================================
     FINANCE_VIEW = "finance.view"
     FINANCE_APPROVE = "finance.approve"
-    
+
     # ============================================
     # USERS & ROLES
     # ============================================
     USERS_MANAGE = "users.manage"
     ROLES_MANAGE = "roles.manage"
-    
+
+    # ============================================
+    # AUDIT
+    # ============================================
+
+    AUDIT_VIEW = "audit.view"
+
     # ============================================
     # EVENTS
     # ============================================
@@ -262,10 +268,5 @@ class Permissions:
     DOCUMENTS_VIEW = "documents.view"
     DOCUMENTS_UPLOAD = "documents.upload"
 
-##Taks
-    TASKS_VIEW = "tasks.view"
-    TASKS_CREATE = "tasks.create"
-    TASKS_EDIT = "tasks.edit"
-    TASKS_DELETE = "tasks.delete"
 
     

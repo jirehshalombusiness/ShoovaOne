@@ -46,6 +46,8 @@ import { HRLeaveRequestsPage } from '@/features/hr/pages/HRLeaveRequestsPage';
 import { HRRecruitmentPage } from '@/features/hr/pages/HRRecruitmentPage';
 import { HRReportsPage } from '@/features/hr/pages/HRReportsPage';
 
+import { AuditLogsPage } from '@/features/audit/pages/AuditLogsPage';
+
 function PageLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -291,6 +293,7 @@ function App() {
               element={<ProjectSettings />}
             />
           </Route>
+
           {/* ===================================================== */}
           {/* WORK                                                   */}
           {/* ===================================================== */}
@@ -379,6 +382,7 @@ function App() {
               </PermissionRoute>
             }
           />
+
           <Route
             path="hr"
             element={
@@ -456,6 +460,19 @@ function App() {
             element={
               <PermissionRoute permission="roles.manage">
                 <Placeholder title="Roles & Permissions" />
+              </PermissionRoute>
+            }
+          />
+
+          {/* ===================================================== */}
+          {/* AUDIT                                                  */}
+          {/* ===================================================== */}
+
+          <Route
+            path="audit"
+            element={
+              <PermissionRoute permission="audit.view">
+                <AuditLogsPage />
               </PermissionRoute>
             }
           />

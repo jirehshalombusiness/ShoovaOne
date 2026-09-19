@@ -21,6 +21,7 @@ import {
   UserCog,
   Network,
   Pin,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -43,98 +44,134 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Main',
     items: [
-      { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-      { icon: Briefcase, label: 'My Work', path: '/my-work' },
+      {
+        icon: LayoutDashboard,
+        label: 'Dashboard',
+        path: '/dashboard',
+      },
+      {
+        icon: Briefcase,
+        label: 'My Work',
+        path: '/my-work',
+      },
     ],
   },
-{
-  label: 'Work',
-  items: [
-    {
-      icon: FolderKanban,
-      label: 'Projects',
-      path: '/projects',
-      permission: 'projects.view',
-    },
-    {
-      icon: CheckSquare,
-      label: 'Tasks',
-      path: '/tasks',
-      permission: 'tasks.view',
-    },
-    {
-      icon: Clock,
-      label: 'Timesheets',
-      path: '/timesheets',
-      permission: 'timesheets.view',
-    },
-    {
-      icon: FileText,
-      label: 'Attendance',
-      path: '/attendance',
-      permission: 'attendance.view',
-    },
-  ],
-},
-{
-  label: 'People & HR',
-  items: [
-    {
-      icon: Users,
-      label: 'People',
-      path: '/people',
-      permission: 'people.view',
-    },
-    {
-      icon: Network,
-      label: 'Org Chart',
-      path: '/people/org-chart',
-      permission: 'people.view',
-    },
-    {
-      icon: Shield,
-      label: 'HR',
-      path: '/hr',
-      permission: 'hr.view_sensitive',
-    },
-  ],
-},
-{
-  label: 'Business',
-  items: [
-    {
-      icon: Building2,
-      label: 'CRM',
-      path: '/organisations',
-      permission: 'crm.view',
-    },
-    {
-      icon: BookOpen,
-      label: 'Programmes',
-      path: '/programmes',
-      permission: 'programmes.view',
-    },
-    {
-      icon: CalendarDays,
-      label: 'Events',
-      path: '/events',
-      permission: 'events.view',
-    },
-    {
-      icon: DollarSign,
-      label: 'Finance',
-      path: '/finance',
-      permission: 'finance.view',
-    },
-  ],
-},
+
+  {
+    label: 'Work',
+    items: [
+      {
+        icon: FolderKanban,
+        label: 'Projects',
+        path: '/projects',
+        permission: 'projects.view',
+      },
+      {
+        icon: CheckSquare,
+        label: 'Tasks',
+        path: '/tasks',
+        permission: 'tasks.view',
+      },
+      {
+        icon: Clock,
+        label: 'Timesheets',
+        path: '/timesheets',
+        permission: 'timesheets.view',
+      },
+      {
+        icon: FileText,
+        label: 'Attendance',
+        path: '/attendance',
+        permission: 'attendance.view',
+      },
+    ],
+  },
+
+  {
+    label: 'People & HR',
+    items: [
+      {
+        icon: Users,
+        label: 'People',
+        path: '/people',
+        permission: 'people.view',
+      },
+      {
+        icon: Network,
+        label: 'Org Chart',
+        path: '/people/org-chart',
+        permission: 'people.view',
+      },
+      {
+        icon: Shield,
+        label: 'HR',
+        path: '/hr',
+        permission: 'hr.view_sensitive',
+      },
+    ],
+  },
+
+  {
+    label: 'Business',
+    items: [
+      {
+        icon: Building2,
+        label: 'CRM',
+        path: '/organisations',
+        permission: 'crm.view',
+      },
+      {
+        icon: BookOpen,
+        label: 'Programmes',
+        path: '/programmes',
+        permission: 'programmes.view',
+      },
+      {
+        icon: CalendarDays,
+        label: 'Events',
+        path: '/events',
+        permission: 'events.view',
+      },
+      {
+        icon: DollarSign,
+        label: 'Finance',
+        path: '/finance',
+        permission: 'finance.view',
+      },
+    ],
+  },
+
   {
     label: 'System',
     items: [
-      { icon: BarChart3, label: 'Reports', path: '/reports' },
-      { icon: Settings, label: 'Settings', path: '/settings' },
-      { icon: UserCog, label: 'User Management', path: '/users', permission: 'users.manage' },
-      { icon: ShieldCheck, label: 'Roles & Permissions', path: '/roles', permission: 'roles.manage' },
+      {
+        icon: BarChart3,
+        label: 'Reports',
+        path: '/reports',
+      },
+      {
+        icon: Settings,
+        label: 'Settings',
+        path: '/settings',
+      },
+      {
+        icon: UserCog,
+        label: 'User Management',
+        path: '/users',
+        permission: 'users.manage',
+      },
+      {
+        icon: ShieldCheck,
+        label: 'Roles & Permissions',
+        path: '/roles',
+        permission: 'roles.manage',
+      },
+      {
+        icon: ClipboardList,
+        label: 'Audit Logs',
+        path: '/audit',
+        permission: 'audit.view',
+      },
     ],
   },
 ];
@@ -161,7 +198,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const filtered = NAV_SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter(
-      (item) => !item.permission || hasPermission(item.permission)
+      (item) => !item.permission || hasPermission(item.permission),
     ),
   })).filter((section) => section.items.length > 0);
 
@@ -176,13 +213,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
     }
+
     setHovered(true);
   };
 
   const handleMouseLeave = () => {
     hoverTimeoutRef.current = setTimeout(() => {
       setHovered(false);
-    }, 100); // small delay to feel smooth
+    }, 100);
   };
 
   return (
@@ -194,24 +232,27 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         'transition-[width] duration-200 ease-out',
         isExpanded ? 'w-[240px]' : 'w-[68px]',
         // Only raise z-index / add shadow when expanded as an overlay (collapsed but hovered)
-        collapsed && hovered && 'shadow-xl z-40'
+        collapsed && hovered && 'shadow-xl z-40',
       )}
     >
       {/* Brand + Pin Toggle */}
       <div
         className={cn(
           'h-14 flex items-center border-b border-gray-100 transition-all duration-200',
-          isExpanded ? 'justify-between px-3' : 'justify-center px-2'
+          isExpanded ? 'justify-between px-3' : 'justify-center px-2',
         )}
       >
         <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
           <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-sm">S</span>
           </div>
+
           <span
             className={cn(
               'font-semibold text-[15px] text-gray-900 tracking-tight whitespace-nowrap transition-all duration-200',
-              isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 ml-0'
+              isExpanded
+                ? 'opacity-100 w-auto'
+                : 'opacity-0 w-0 ml-0',
             )}
           >
             Shoova ONE
@@ -222,18 +263,28 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {isExpanded && (
           <button
             onClick={onToggle}
-            title={collapsed ? 'Pin sidebar open' : 'Unpin sidebar'}
+            title={
+              collapsed
+                ? 'Pin sidebar open'
+                : 'Unpin sidebar'
+            }
             className={cn(
               'p-1.5 rounded-md text-gray-500 hover:text-gray-900 transition-all',
               collapsed
                 ? 'hover:bg-primary/10 text-primary hover:text-primary'
-                : 'hover:bg-gray-100'
+                : 'hover:bg-gray-100',
             )}
           >
             {collapsed ? (
-              <Pin className="w-3.5 h-3.5" strokeWidth={1.75} />
+              <Pin
+                className="w-3.5 h-3.5"
+                strokeWidth={1.75}
+              />
             ) : (
-              <PanelLeftClose className="w-4 h-4" strokeWidth={1.75} />
+              <PanelLeftClose
+                className="w-4 h-4"
+                strokeWidth={1.75}
+              />
             )}
           </button>
         )}
@@ -242,7 +293,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-3">
         {filtered.map((section) => (
-          <div key={section.label} className={cn('mb-4', !isExpanded && 'mb-2')}>
+          <div
+            key={section.label}
+            className={cn(
+              'mb-4',
+              !isExpanded && 'mb-2',
+            )}
+          >
             {/* Section label when expanded; divider when collapsed */}
             {isExpanded ? (
               <div className="px-3 mb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">
@@ -266,7 +323,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                         : 'justify-center px-0 py-2',
                       isActive
                         ? 'bg-gray-100 text-gray-900'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                     )
                   }
                 >
@@ -274,13 +331,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     className="w-4 h-4 flex-shrink-0"
                     strokeWidth={1.75}
                   />
+
                   {isExpanded && (
                     <span className="truncate whitespace-nowrap">
                       {item.label}
                     </span>
                   )}
 
-                  {/* Tooltip when collapsed (unhovered, so briefly appearing) */}
+                  {/* Tooltip when collapsed */}
                   {!isExpanded && (
                     <span className="pointer-events-none absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-[11px] font-medium rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
                       {item.label}
@@ -298,7 +356,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         <div
           className={cn(
             'group flex items-center rounded-md hover:bg-gray-50 transition-colors',
-            isExpanded ? 'gap-2.5 px-3 py-2' : 'justify-center p-1.5'
+            isExpanded
+              ? 'gap-2.5 px-3 py-2'
+              : 'justify-center p-1.5',
           )}
         >
           <Avatar
@@ -314,10 +374,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 <div className="text-[12px] font-medium text-gray-900 truncate">
                   {user?.first_name} {user?.last_name}
                 </div>
+
                 <div className="text-[10px] text-gray-500 truncate">
                   {user?.email}
                 </div>
               </div>
+
               <button
                 onClick={handleLogout}
                 title="Logout"

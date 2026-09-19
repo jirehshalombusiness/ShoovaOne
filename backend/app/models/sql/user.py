@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.models.sql.base import BaseModel, GUID
-from app.models.sql.role import user_roles
+from app.models.sql.role import user_roles, user_permissions
 
 
 class User(BaseModel):
@@ -51,6 +51,14 @@ class User(BaseModel):
         secondary=user_roles,
         back_populates="users",
         lazy="selectin"
+    )
+
+    direct_permissions = relationship(
+        "Permission",
+        secondary=user_permissions,
+        primaryjoin="User.id == user_permissions.c.user_id",
+        secondaryjoin="Permission.id == user_permissions.c.permission_id",
+        lazy="selectin",
     )
 
     notifications = relationship(
