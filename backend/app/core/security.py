@@ -197,6 +197,13 @@ class Permissions:
     TIMESHEETS_SUBMIT = "timesheets.submit"
     TIMESHEETS_APPROVE = "timesheets.approve"
     TIMESHEETS_EDIT_ANY = "timesheets.edit_any"
+
+    # ============================================
+    # ORGANISATION
+    # ============================================
+    ORGANISATION_VIEW = "organisation.view"
+    ORGANISATION_MANAGE = "organisation.manage"
+
    
     
     # ============================================

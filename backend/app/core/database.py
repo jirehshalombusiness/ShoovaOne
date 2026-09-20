@@ -8,6 +8,7 @@ from typing import AsyncGenerator
 
 from app.core.config import settings
 from app.models.sql.base import Base
+from app.models.sql.organisation import Organisation, Department, Programme  # noqa: F401
 
 # Convert database URL for async
 database_url = settings.DATABASE_URL
