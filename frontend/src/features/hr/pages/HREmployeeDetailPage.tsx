@@ -34,17 +34,38 @@ import { cn } from '@/lib/utils';
 
 type Tab = 'overview' | 'contracts' | 'time-off' | 'documents' | 'notes' | 'work' | 'timeline';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function HREmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const access = useHRAccess();
   const [tab, setTab] = useState<Tab>('overview');
+  const isValidId = !!id && UUID_RE.test(id);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['hr', 'employee', id],
-    queryFn: () => hrService.getEmployee(id!),
-    enabled: !!id,
-  });
+const { data, isLoading, error } = useQuery({
+  queryKey: ['hr', 'employee', id],
+  queryFn: () => hrService.getEmployee(id!),
+  enabled: isValidId,
+});
+
+  if (!isValidId) {
+    return (
+      <div className="space-y-4">
+        <button
+          onClick={() => navigate('/hr/employees')}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Employees
+        </button>
+        <div className="text-center py-16">
+          <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-sm font-medium text-gray-700">Page not found</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -96,15 +117,6 @@ export function HREmployeeDetailPage() {
 
   return (
     <div className="space-y-5">
-      {/* Back */}
-      <button
-        onClick={() => navigate('/hr/employees')}
-        className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Employees
-      </button>
-
       {/* Header */}
       <div className="border border-gray-200 rounded-lg bg-white p-6">
         <div className="flex items-start gap-5 flex-wrap lg:flex-nowrap">

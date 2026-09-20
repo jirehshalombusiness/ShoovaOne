@@ -91,7 +91,7 @@ export function HREmployeesPage() {
           className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-dark transition-colors"
         >
           <UserPlus className="w-4 h-4" />
-          Add Employee
+          Add Person to Directory
         </button>
       </div>
 

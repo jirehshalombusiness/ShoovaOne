@@ -386,7 +386,10 @@ async def list_employees(
     """
     Employee list. Requires hr.view_sensitive.
     """
-    filters = [Person.deleted_at.is_(None)]
+    filters = [
+        Person.deleted_at.is_(None),
+        Person.type.in_(["staff", "volunteer"]),
+    ]
 
     if search:
         pattern = f"%{search}%"
@@ -471,7 +474,10 @@ async def employee_stats(
     """Counts by type / status / department for the HR dashboard."""
 
     async def _group(col, extra_filter=None):
-        q = select(col, func.count(Person.id)).where(Person.deleted_at.is_(None))
+        q = select(col, func.count(Person.id)).where(
+            Person.deleted_at.is_(None),
+            Person.type.in_(["staff", "volunteer"]),
+        )
         if extra_filter is not None:
             q = q.where(extra_filter)
         q = q.group_by(col)
@@ -479,7 +485,10 @@ async def employee_stats(
         return {row[0] or "unknown": row[1] for row in result.all()}
 
     total_result = await db.execute(
-        select(func.count(Person.id)).where(Person.deleted_at.is_(None))
+        select(func.count(Person.id)).where(
+            Person.deleted_at.is_(None),
+            Person.type.in_(["staff", "volunteer"]),
+        )
     )
     total = total_result.scalar() or 0
 
@@ -487,6 +496,7 @@ async def employee_stats(
         select(func.count(Person.id)).where(
             Person.deleted_at.is_(None),
             Person.status == "active",
+            Person.type.in_(["staff", "volunteer"]),
         )
     )
     active = active_result.scalar() or 0

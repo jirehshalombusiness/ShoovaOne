@@ -26,6 +26,7 @@ import { TimesheetsPage } from '@/features/timesheets/pages/TimesheetsPage';
 import { TasksPage } from '@/features/tasks/pages/TasksPage';
 import { TaskDetailPage } from '@/features/tasks/pages/TaskDetailPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
+import { NewPersonPage } from '@/features/people/pages/NewPersonPage';
 
 
 
@@ -394,14 +395,22 @@ export function AppRouter() {
               </PermissionRoute>
             }
           />
-          <Route
-            path="people/:id"
-            element={
-              <PermissionRoute permission="people.view">
-                <PersonDetailPage />
-              </PermissionRoute>
-            }
-          />
+        <Route
+          path="people/new"
+          element={
+            <PermissionRoute permission="people.create">
+              <NewPersonPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="people/:id"
+          element={
+            <PermissionRoute permission="people.view">
+              <PersonDetailPage />
+            </PermissionRoute>
+          }
+        />
 
           {/* ---------------- BUSINESS ----------------------------- */}
           <Route

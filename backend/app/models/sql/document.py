@@ -1,7 +1,15 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, BigInteger, Boolean, Date
+from sqlalchemy import (
+    Column,
+    String,
+    Integer,
+    DateTime,
+    ForeignKey,
+    Text,
+    BigInteger,
+    Boolean,
+    Date,
+)
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-
 
 from app.models.sql.base import BaseModel, GUID
 
@@ -9,6 +17,7 @@ from app.models.sql.base import BaseModel, GUID
 class Document(BaseModel):
     __tablename__ = "documents"
 
+    # ---- core fields ----
     name = Column(String(255), nullable=False)
     file_url = Column(Text, nullable=False)
     file_size_bytes = Column(BigInteger)
@@ -21,14 +30,22 @@ class Document(BaseModel):
     version = Column(Integer, default=1)
     deleted_at = Column(DateTime(timezone=True))
 
-    owner = relationship("Person", lazy="selectin")
+    # ---- HR / verification fields ----
+    document_type_id = Column(
+        GUID,
+        ForeignKey("document_types.id", ondelete="SET NULL"),
+    )
+    expiry_date = Column(Date)
+    verified = Column(Boolean, default=False)
+    verified_by = Column(GUID, ForeignKey("people.id", ondelete="SET NULL"))
+    verified_at = Column(DateTime(timezone=True))
 
-    # Add to imports
-
-
-# Add these fields to the Document class:
-document_type_id = Column(GUID, ForeignKey("document_types.id", ondelete="SET NULL"))
-expiry_date = Column(Date)
-verified = Column(Boolean, default=False)
-verified_by = Column(GUID, ForeignKey("people.id"))
-verified_at = Column(DateTime(timezone=True))
+    # ---- relationships ----
+    # Note: foreign_keys is required because Document has two FKs to people
+    # (owner_id and verified_by). Without it, SQLAlchemy cannot resolve
+    # which foreign key defines the relationship.
+    owner = relationship(
+        "Person",
+        foreign_keys=[owner_id],
+        lazy="selectin",
+    )

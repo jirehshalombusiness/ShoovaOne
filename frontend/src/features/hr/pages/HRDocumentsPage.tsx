@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 
 export function HRDocumentsPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const access = useHRAccess();
 
   const [verifiedFilter, setVerifiedFilter] = useState<'all' | 'unverified' | 'verified'>('all');
@@ -81,7 +82,7 @@ export function HRDocumentsPage() {
           </p>
         </div>
         <button
-          onClick={() => navigator('/hr/documents/types')}
+          onClick={() => navigate('/hr/documents/types')}
           className="hidden"
         >
           Document Types

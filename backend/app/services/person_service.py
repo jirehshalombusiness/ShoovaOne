@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, update
+from sqlalchemy import select, or_
 from typing import List, Optional
 
 from app.models.sql.user import Person
@@ -38,7 +38,7 @@ class PersonService:
         result = await db.execute(
             select(Person).where(
                 Person.id == person_id,
-                Person.deleted_at.is_(None)
+                Person.deleted_at.is_(None),
             )
         )
         return result.scalar_one_or_none()
@@ -48,7 +48,7 @@ class PersonService:
         result = await db.execute(
             select(Person).where(
                 Person.email == email,
-                Person.deleted_at.is_(None)
+                Person.deleted_at.is_(None),
             )
         )
         return result.scalar_one_or_none()
@@ -62,7 +62,11 @@ class PersonService:
         return person
 
     @staticmethod
-    async def update(db: AsyncSession, person_id: str, person_data: PersonUpdate) -> Optional[Person]:
+    async def update(
+        db: AsyncSession,
+        person_id: str,
+        person_data: PersonUpdate,
+    ) -> Optional[Person]:
         person = await PersonService.get_by_id(db, person_id)
         if not person:
             return None
@@ -73,13 +77,3 @@ class PersonService:
         await db.commit()
         await db.refresh(person)
         return person
-
-    @staticmethod
-    async def delete(db: AsyncSession, person_id: str) -> bool:
-        person = await PersonService.get_by_id(db, person_id)
-        if not person:
-            return False
-
-        person.deleted_at = func.now()
-        await db.commit()
-        return True
