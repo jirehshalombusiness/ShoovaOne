@@ -67,7 +67,17 @@ import { HRCompensationPage } from '@/features/hr/pages/HRCompensationPage';
 import { HRReportsPage } from '@/features/hr/pages/HRReportsPage';
 import { HRSettingsPage } from '@/features/hr/pages/HRSettingsPage';
 
-
+// ============================================================
+// FINANCE
+// ============================================================
+import { FinanceOverviewPage } from '@/features/finance/pages/FinanceOverviewPage';
+import { FinanceLayout } from '@/features/finance/layouts/FinanceLayout';
+import ExpensesPage from '@/features/finance/pages/ExpensesPage';
+import { ExpenseDetailPage } from '@/features/finance/pages/ExpenseDetailPage';
+import { NewExpensePage } from '@/features/finance/pages/NewExpensePage';
+import { FundRequestsPage } from '@/features/finance/pages/FundRequestsPage';
+import { NewFundRequestPage } from '@/features/finance/pages/NewFundRequestPage';
+import { FundRequestDetailPage } from '@/features/finance/pages/FundRequestDetailPage';
 // AUDIT
 // ============================================================
 import { AuditLogsPage } from '@/features/audit/pages/AuditLogsPage';
@@ -395,22 +405,22 @@ export function AppRouter() {
               </PermissionRoute>
             }
           />
-        <Route
-          path="people/new"
-          element={
-            <PermissionRoute permission="people.create">
-              <NewPersonPage />
-            </PermissionRoute>
-          }
-        />
-        <Route
-          path="people/:id"
-          element={
-            <PermissionRoute permission="people.view">
-              <PersonDetailPage />
-            </PermissionRoute>
-          }
-        />
+          <Route
+            path="people/new"
+            element={
+              <PermissionRoute permission="people.create">
+                <NewPersonPage />
+              </PermissionRoute>
+            }
+          />
+          <Route
+            path="people/:id"
+            element={
+              <PermissionRoute permission="people.view">
+                <PersonDetailPage />
+              </PermissionRoute>
+            }
+          />
 
           {/* ---------------- BUSINESS ----------------------------- */}
           <Route
@@ -437,14 +447,107 @@ export function AppRouter() {
               </PermissionRoute>
             }
           />
+          {/* ---------------- FINANCE ------------------------------- */}
           <Route
             path="finance"
             element={
               <PermissionRoute permission="finance.view">
-                <Placeholder title="Finance" />
+                <FinanceLayout />
               </PermissionRoute>
             }
-          />
+          >
+            {/* Finance Overview */}
+            <Route
+              index
+              element={<FinanceOverviewPage />}
+            />
+
+            {/* Fund Management */}
+            <Route
+              path="fund-requests"
+              element={<FundRequestsPage />}
+            />
+
+            <Route
+              path="fund-requests/:requestId"
+              element={<FundRequestDetailPage />}
+            />
+
+            <Route
+              path="fund-requests/new"
+              element={<NewFundRequestPage />}
+            />
+
+            <Route
+              path="approvals"
+              element={<Placeholder title="Approvals" />}
+            />
+
+            <Route
+              path="disbursements"
+              element={<Placeholder title="Disbursements" />}
+            />
+
+            {/* Expenditure */}
+            <Route
+              path="expenses"
+              element={<ExpensesPage />}
+            />
+
+            <Route
+              path="expenses/new"
+              element={<NewExpensePage />}
+            />
+
+            <Route
+              path="expenses/:expenseId"
+              element={<ExpenseDetailPage />}
+            />
+
+            <Route
+              path="reimbursements"
+              element={<Placeholder title="Reimbursements" />}
+            />
+
+            {/* Receivables */}
+            <Route
+              path="invoices"
+              element={<Placeholder title="Invoices" />}
+            />
+
+            <Route
+              path="payments"
+              element={<Placeholder title="Payments" />}
+            />
+
+            {/* Planning */}
+            <Route
+              path="budgets"
+              element={<Placeholder title="Budgets" />}
+            />
+
+            <Route
+              path="allocations"
+              element={<Placeholder title="Allocations" />}
+            />
+
+            {/* Reporting */}
+            <Route
+              path="reports"
+              element={<Placeholder title="Financial Reports" />}
+            />
+
+            <Route
+              path="reconciliation"
+              element={<Placeholder title="Reconciliation" />}
+            />
+
+            {/* Governance */}
+            <Route
+              path="audit-trail"
+              element={<Placeholder title="Financial Audit Trail" />}
+            />
+          </Route>
 
           {/* ---------------- SYSTEM ------------------------------- */}
           <Route path="reports" element={<Placeholder title="Reports" />} />
@@ -465,14 +568,14 @@ export function AppRouter() {
               </PermissionRoute>
             }
           />
-        <Route
-          path="audit"
-          element={
-            <PermissionRoute permission="audit.view">
-              <AuditLogsPage />
-            </PermissionRoute>
-          }
-        />
+          <Route
+            path="audit"
+            element={
+              <PermissionRoute permission="audit.view">
+                <AuditLogsPage />
+              </PermissionRoute>
+            }
+          />
 
           {/* ---------------- USER MENU SHORTCUTS ------------------ */}
           <Route path="profile" element={<Navigate to="/me/profile" replace />} />
