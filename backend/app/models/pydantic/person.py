@@ -27,6 +27,8 @@ class PersonBase(BaseModel):
     emergency_contact_relationship: Optional[str] = None
     bio: Optional[str] = None
     skills: Optional[str] = None
+    department: Optional[str] = None
+    employee_number: Optional[str] = None
 
 
 class PersonCreate(PersonBase):
