@@ -82,6 +82,8 @@ class Person(BaseModel):
 
     # Org chart fields
     job_title = Column(String(200), nullable=True)
+    department = Column(String(200), nullable=True)
+    employee_number = Column(String(50), nullable=True, index=True)
     location = Column(String(100), nullable=True)
     employment_type = Column(String(50), nullable=True)
     reports_to_id = Column(
