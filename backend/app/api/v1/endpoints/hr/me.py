@@ -313,6 +313,523 @@ async def get_my_home(
         documents_pending=documents_pending,
     )
 
+# ============================================================
+# TIME OFF — READ
+# ============================================================
+
+class MeBalance(BaseModel):
+    id: str
+    leave_type_id: str
+    leave_type_name: str
+    leave_type_code: str
+    leave_type_color: str
+    is_paid: bool
+    year: int
+    total_days: float
+    used_days: float
+    pending_days: float
+    carry_over_days: float
+    remaining_days: float
+
+
+class MeLeaveType(BaseModel):
+    id: str
+    name: str
+    code: str
+    default_days: int
+    is_paid: bool
+    color: str
+    requires_documentation: bool
+    is_active: bool
+
+
+class MeLeaveRequest(BaseModel):
+    id: str
+    leave_type_id: str
+    leave_type_name: str
+    leave_type_color: str
+    start_date: str
+    end_date: str
+    total_days: float
+    reason: Optional[str]
+    status: str
+    approved_at: Optional[str]
+    rejection_reason: Optional[str]
+    created_at: str
+    approval_id: Optional[str] = None
+
+
+class MeLeaveRequestCreate(BaseModel):
+    leave_type_id: str
+    start_date: date
+    end_date: date
+    reason: Optional[str] = Field(None, max_length=2000)
+    attachment_ids: Optional[List[str]] = Field(default_factory=list)
+
+    @field_validator("end_date")
+    @classmethod
+    def end_after_start(cls, v, info):
+        start = info.data.get("start_date")
+        if start and v < start:
+            raise ValueError("end_date must be on or after start_date")
+        return v
+
+
+@router.get("/time-off/balances", response_model=List[MeBalance])
+async def get_my_balances(
+    year: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    person: Person = Depends(_require_person),
+):
+    """
+    My leave balances for the given year.
+
+    Defaults to the current calendar year.
+    """
+    if year is None:
+        year = date.today().year
+
+    balances = await leave_service.list_my_balances(
+        db, person_id=person.id, year=year
+    )
+
+    return [
+        MeBalance(
+            id=b.id,
+            leave_type_id=b.leave_type_id,
+            leave_type_name=b.leave_type.name if b.leave_type else "Unknown",
+            leave_type_code=b.leave_type.code if b.leave_type else "unknown",
+            leave_type_color=b.leave_type.color if b.leave_type else "#176b4d",
+            is_paid=bool(b.leave_type.is_paid) if b.leave_type else True,
+            year=b.year,
+            total_days=_dec(b.total_days),
+            used_days=_dec(b.used_days),
+            pending_days=_dec(b.pending_days),
+            carry_over_days=_dec(b.carry_over_days),
+            remaining_days=(
+                _dec(b.total_days) - _dec(b.used_days) - _dec(b.pending_days)
+            ),
+        )
+        for b in balances
+    ]
+
+
+@router.get("/time-off/types", response_model=List[MeLeaveType])
+async def get_leave_types(
+    db: AsyncSession = Depends(get_db),
+    person: Person = Depends(_require_person),
+):
+    """All active leave types available to me."""
+    result = await db.execute(
+        select(LeaveType)
+        .where(LeaveType.is_active.is_(True))
+        .order_by(LeaveType.name)
+    )
+    types = list(result.scalars().all())
+
+    return [
+        MeLeaveType(
+            id=t.id,
+            name=t.name,
+            code=t.code,
+            default_days=t.default_days or 0,
+            is_paid=bool(t.is_paid),
+            color=t.color or "#176b4d",
+            requires_documentation=bool(t.requires_documentation),
+            is_active=bool(t.is_active),
+        )
+        for t in types
+    ]
+
+
+@router.get("/time-off/requests", response_model=List[MeLeaveRequest])
+async def get_my_leave_requests(
+    status_filter: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+    person: Person = Depends(_require_person),
+):
+    """
+    My leave request history.
+
+    Optional status filter: pending / approved / rejected / cancelled.
+    """
+    requests = await leave_service.list_my_leave_requests(
+        db, person_id=person.id, limit=limit, offset=offset
+    )
+
+    if status_filter:
+        requests = [r for r in requests if r.status == status_filter]
+
+    # Pull linked approval ids so the UI can deep-link to the inbox item.
+    approval_map: dict[str, str] = {}
+    if requests:
+        approval_result = await db.execute(
+            select(ApprovalRequest.entity_id, ApprovalRequest.id).where(
+                ApprovalRequest.entity_type == "leave_request",
+                ApprovalRequest.entity_id.in_([r.id for r in requests]),
+            )
+        )
+        approval_map = {row[0]: row[1] for row in approval_result.all()}
+
+    return [
+        MeLeaveRequest(
+            id=r.id,
+            leave_type_id=r.leave_type_id,
+            leave_type_name=r.leave_type.name if r.leave_type else "Unknown",
+            leave_type_color=r.leave_type.color if r.leave_type else "#176b4d",
+            start_date=r.start_date.isoformat(),
+            end_date=r.end_date.isoformat(),
+            total_days=_dec(r.total_days),
+            reason=r.reason,
+            status=r.status,
+            approved_at=r.approved_at.isoformat() if r.approved_at else None,
+            rejection_reason=r.rejection_reason,
+            created_at=r.created_at.isoformat() if r.created_at else "",
+            approval_id=approval_map.get(r.id),
+        )
+        for r in requests
+    ]
+
+
+@router.get("/time-off/requests/{request_id}", response_model=MeLeaveRequest)
+async def get_my_leave_request(
+    request_id: str,
+    db: AsyncSession = Depends(get_db),
+    person: Person = Depends(_require_person),
+):
+    """Single leave request. Only the requester can fetch their own."""
+    result = await db.execute(
+        select(LeaveRequest)
+        .options(selectinload(LeaveRequest.leave_type))
+        .where(
+            LeaveRequest.id == request_id,
+            LeaveRequest.person_id == person.id,
+        )
+    )
+    leave_request = result.scalar_one_or_none()
+
+    if not leave_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Leave request not found",
+        )
+
+    approval_result = await db.execute(
+        select(ApprovalRequest.id).where(
+            ApprovalRequest.entity_type == "leave_request",
+            ApprovalRequest.entity_id == leave_request.id,
+        )
+    )
+    approval_id = approval_result.scalar_one_or_none()
+
+    return MeLeaveRequest(
+        id=leave_request.id,
+        leave_type_id=leave_request.leave_type_id,
+        leave_type_name=(
+            leave_request.leave_type.name if leave_request.leave_type else "Unknown"
+        ),
+        leave_type_color=(
+            leave_request.leave_type.color if leave_request.leave_type else "#176b4d"
+        ),
+        start_date=leave_request.start_date.isoformat(),
+        end_date=leave_request.end_date.isoformat(),
+        total_days=_dec(leave_request.total_days),
+        reason=leave_request.reason,
+        status=leave_request.status,
+        approved_at=(
+            leave_request.approved_at.isoformat()
+            if leave_request.approved_at
+            else None
+        ),
+        rejection_reason=leave_request.rejection_reason,
+        created_at=(
+            leave_request.created_at.isoformat()
+            if leave_request.created_at
+            else ""
+        ),
+        approval_id=approval_id,
+    )
+
+
+# ============================================================
+# TIME OFF — CREATE
+# ============================================================
+
+@router.post(
+    "/time-off/requests",
+    response_model=MeLeaveRequest,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_my_leave_request(
+    payload: MeLeaveRequestCreate,
+    db: AsyncSession = Depends(get_db),
+    person: Person = Depends(_require_person),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Submit a new leave request.
+
+    Side effects, all in one transaction:
+    - LeaveRequest created (status=pending)
+    - LeaveBalance.pending_days incremented
+    - ApprovalRequest created and routed to the approver
+    - Audit log entry written
+
+    All validation errors surface as 400/409 with a human message.
+    """
+    leave_request = await leave_service.create_leave_request(
+        db=db,
+        actor=current_user,
+        leave_type_id=payload.leave_type_id,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        reason=payload.reason,
+        attachment_ids=payload.attachment_ids or None,
+    )
+
+    await db.commit()
+    await db.refresh(leave_request)
+
+    # Reload with relationships for the response.
+    result = await db.execute(
+        select(LeaveRequest)
+        .options(selectinload(LeaveRequest.leave_type))
+        .where(LeaveRequest.id == leave_request.id)
+    )
+    leave_request = result.scalar_one()
+
+    approval_result = await db.execute(
+        select(ApprovalRequest.id).where(
+            ApprovalRequest.entity_type == "leave_request",
+            ApprovalRequest.entity_id == leave_request.id,
+        )
+    )
+    approval_id = approval_result.scalar_one_or_none()
+
+    return MeLeaveRequest(
+        id=leave_request.id,
+        leave_type_id=leave_request.leave_type_id,
+        leave_type_name=(
+            leave_request.leave_type.name if leave_request.leave_type else "Unknown"
+        ),
+        leave_type_color=(
+            leave_request.leave_type.color if leave_request.leave_type else "#176b4d"
+        ),
+        start_date=leave_request.start_date.isoformat(),
+        end_date=leave_request.end_date.isoformat(),
+        total_days=_dec(leave_request.total_days),
+        reason=leave_request.reason,
+        status=leave_request.status,
+        approved_at=None,
+        rejection_reason=None,
+        created_at=(
+            leave_request.created_at.isoformat()
+            if leave_request.created_at
+            else ""
+        ),
+        approval_id=approval_id,
+    )
+
+
+# ============================================================
+# TIME OFF — CANCEL
+# ============================================================
+
+@router.post(
+    "/time-off/requests/{request_id}/cancel",
+    response_model=MeLeaveRequest,
+)
+async def cancel_my_leave_request(
+    request_id: str,
+    db: AsyncSession = Depends(get_db),
+    person: Person = Depends(_require_person),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Withdraw a pending leave request.
+
+    Balance.pending_days is released and the linked approval
+    request is marked cancelled.
+    """
+    leave_request = await leave_service.cancel_leave_request(
+        db=db,
+        actor=current_user,
+        leave_request_id=request_id,
+    )
+
+    await db.commit()
+    await db.refresh(leave_request)
+
+    result = await db.execute(
+        select(LeaveRequest)
+        .options(selectinload(LeaveRequest.leave_type))
+        .where(LeaveRequest.id == leave_request.id)
+    )
+    leave_request = result.scalar_one()
+
+    approval_result = await db.execute(
+        select(ApprovalRequest.id).where(
+            ApprovalRequest.entity_type == "leave_request",
+            ApprovalRequest.entity_id == leave_request.id,
+        )
+    )
+    approval_id = approval_result.scalar_one_or_none()
+
+    return MeLeaveRequest(
+        id=leave_request.id,
+        leave_type_id=leave_request.leave_type_id,
+        leave_type_name=(
+            leave_request.leave_type.name if leave_request.leave_type else "Unknown"
+        ),
+        leave_type_color=(
+            leave_request.leave_type.color if leave_request.leave_type else "#176b4d"
+        ),
+        start_date=leave_request.start_date.isoformat(),
+        end_date=leave_request.end_date.isoformat(),
+        total_days=_dec(leave_request.total_days),
+        reason=leave_request.reason,
+        status=leave_request.status,
+        approved_at=(
+            leave_request.approved_at.isoformat()
+            if leave_request.approved_at
+            else None
+        ),
+        rejection_reason=leave_request.rejection_reason,
+        created_at=(
+            leave_request.created_at.isoformat()
+            if leave_request.created_at
+            else ""
+        ),
+        approval_id=approval_id,
+    )
+
+
+# ============================================================
+# TIME OFF — HOLIDAYS
+# ============================================================
+
+class MeHoliday(BaseModel):
+    id: str
+    name: str
+    holiday_date: str
+    country: str
+    is_paid: bool
+
+
+@router.get("/time-off/holidays", response_model=List[MeHoliday])
+async def get_my_upcoming_holidays(
+    days_ahead: int = 365,
+    db: AsyncSession = Depends(get_db),
+    person: Person = Depends(_require_person),
+):
+    """Upcoming public holidays for the org."""
+    today = date.today()
+
+    result = await db.execute(
+        select(PublicHoliday)
+        .where(
+            PublicHoliday.holiday_date >= today,
+            PublicHoliday.holiday_date <= today + timedelta(days=days_ahead),
+        )
+        .order_by(PublicHoliday.holiday_date)
+    )
+    holidays = list(result.scalars().all())
+
+    return [
+        MeHoliday(
+            id=h.id,
+            name=h.name,
+            holiday_date=h.holiday_date.isoformat(),
+            country=h.country,
+            is_paid=bool(h.is_paid),
+        )
+        for h in holidays
+    ]
+
+
+# ============================================================
+# TIME OFF — APPROVALS PREVIEW
+# ============================================================
+
+class MeApprovalItem(BaseModel):
+    id: str
+    entity_type: str
+    entity_id: str
+    title: str
+    summary: Optional[str] = None
+    priority: str
+    status: str
+    due_at: Optional[str]
+    created_at: str
+    requested_by_id: str
+    requested_by_name: str
+    requested_by_image: Optional[str] = None
+    assigned_to_id: Optional[str]
+    assigned_to_name: Optional[str] = None
+
+
+@router.get("/approvals", response_model=List[MeApprovalItem])
+async def get_my_pending_approvals(
+    status_filter: str = "pending",
+    limit: int = 100,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+    person: Person = Depends(_require_person),
+):
+    """
+    Approvals currently assigned to me.
+
+    This is a lightweight preview that powers the sidebar badge and
+    the dashboard widget. The full inbox lives at /hr/approvals.
+    """
+    result = await db.execute(
+        select(ApprovalRequest)
+        .options(
+            selectinload(ApprovalRequest.requested_by),
+            selectinload(ApprovalRequest.assigned_to),
+        )
+        .where(
+            ApprovalRequest.assigned_to_id == person.id,
+            ApprovalRequest.status == status_filter,
+        )
+        .order_by(
+            ApprovalRequest.priority.desc(),
+            ApprovalRequest.due_at.asc().nullslast(),
+            ApprovalRequest.created_at.desc(),
+        )
+        .offset(offset)
+        .limit(limit)
+    )
+    rows = list(result.scalars().all())
+
+    def _name(p: Optional[Person]) -> str:
+        if not p:
+            return "Unknown"
+        return f"{p.first_name} {p.last_name}".strip()
+
+    return [
+        MeApprovalItem(
+            id=a.id,
+            entity_type=a.entity_type,
+            entity_id=a.entity_id,
+            title=a.title,
+            summary=a.summary,
+            priority=a.priority,
+            status=a.status,
+            due_at=a.due_at.isoformat() if a.due_at else None,
+            created_at=a.created_at.isoformat() if a.created_at else "",
+            requested_by_id=a.requested_by_id,
+            requested_by_name=_name(a.requested_by),
+            requested_by_image=(
+                a.requested_by.profile_image_url if a.requested_by else None
+            ),
+            assigned_to_id=a.assigned_to_id,
+            assigned_to_name=_name(a.assigned_to) if a.assigned_to else None,
+        )
+        for a in rows
+    ]
 
 # ============================================================
 # GET /me/profile
@@ -550,3 +1067,130 @@ async def get_my_org_position(
             else None
         ),
     )
+
+# ============================================================
+# DEVICES
+# ============================================================
+
+class MeDevice(BaseModel):
+    id: str
+    assignment_id: str
+    name: str
+    category: str
+    serial_number: Optional[str] = None
+    brand: Optional[str] = None
+    model: Optional[str] = None
+    condition: str
+    assigned_at: Optional[str] = None
+
+
+@router.get("/devices", response_model=List[MeDevice])
+async def get_my_devices(
+    db: AsyncSession = Depends(get_db),
+    person: Person = Depends(_require_person),
+):
+    """
+    Devices currently assigned to me.
+
+    Only returns assignments that have not been returned
+    (returned_at is null).
+    """
+    from app.models.sql.device import DeviceAssignment
+
+    result = await db.execute(
+        select(DeviceAssignment)
+        .options(selectinload(DeviceAssignment.device))
+        .where(
+            DeviceAssignment.person_id == person.id,
+            DeviceAssignment.returned_at.is_(None),
+        )
+        .order_by(DeviceAssignment.assigned_at.desc())
+    )
+    assignments = list(result.scalars().all())
+
+    return [
+        MeDevice(
+            id=a.device.id if a.device else "",
+            assignment_id=a.id,
+            name=a.device.name if a.device else "",
+            category=a.device.category if a.device else "",
+            serial_number=a.device.serial_number if a.device else None,
+            brand=a.device.brand if a.device else None,
+            model=a.device.model if a.device else None,
+            condition=a.device.condition if a.device else "good",
+            assigned_at=(
+                a.assigned_at.isoformat()
+                if a.assigned_at
+                else None
+            ),
+        )
+        for a in assignments
+    ]
+
+
+# ============================================================
+# CONTRACTS
+# ============================================================
+
+class MeContract(BaseModel):
+    id: str
+    contract_type: str
+    position: Optional[str] = None
+    department: Optional[str] = None
+    start_date: str
+    end_date: Optional[str] = None
+    reports_to_id: Optional[str] = None
+    reports_to_name: Optional[str] = None
+    compensation_amount: Optional[float] = None
+    compensation_currency: Optional[str] = None
+    compensation_frequency: Optional[str] = None
+    document_id: Optional[str] = None
+    is_current: bool
+
+
+@router.get("/contracts", response_model=List[MeContract])
+async def get_my_contracts(
+    db: AsyncSession = Depends(get_db),
+    person: Person = Depends(_require_person),
+):
+    """
+    All my employment contracts, current first, then historical.
+    """
+    result = await db.execute(
+        select(EmploymentContract)
+        .options(selectinload(EmploymentContract.reports_to))
+        .where(EmploymentContract.person_id == person.id)
+        .order_by(
+            EmploymentContract.is_current.desc(),
+            EmploymentContract.start_date.desc(),
+        )
+    )
+    contracts = list(result.scalars().all())
+
+    def _name(p: Optional[Person]) -> Optional[str]:
+        if not p:
+            return None
+        return f"{p.first_name} {p.last_name}".strip()
+
+    return [
+        MeContract(
+            id=c.id,
+            contract_type=c.contract_type,
+            position=c.position,
+            department=c.department,
+            start_date=c.start_date.isoformat(),
+            end_date=c.end_date.isoformat() if c.end_date else None,
+            reports_to_id=c.reports_to_id,
+            reports_to_name=_name(c.reports_to),
+            compensation_amount=(
+                float(c.compensation_amount)
+                if c.compensation_amount is not None
+                else None
+            ),
+            compensation_currency=c.compensation_currency,
+            compensation_frequency=c.compensation_frequency,
+            document_id=c.document_id,
+            is_current=bool(c.is_current),
+        )
+        for c in contracts
+    ]

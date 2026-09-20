@@ -1,5 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
-import { hrService } from '@/services/hr.service';
+﻿import { useQuery } from '@tanstack/react-query';
 import {
   FileSignature,
   Briefcase,
@@ -11,12 +10,37 @@ import {
   Clock,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { api } from '@/services/api';
 import { cn } from '@/lib/utils';
 
-export function HRContractPage() {
+interface MeContract {
+  id: string;
+  contract_type: string;
+  position: string | null;
+  department: string | null;
+  start_date: string;
+  end_date: string | null;
+  reports_to_id: string | null;
+  reports_to_name: string | null;
+  compensation_amount: number | null;
+  compensation_currency: string;
+  compensation_frequency: string;
+  document_id: string | null;
+  is_current: boolean;
+}
+
+export function MeContractPage() {
   const { data: contracts, isLoading } = useQuery({
-    queryKey: ['hr', 'my-contracts'],
-    queryFn: () => hrService.getMyContracts(),
+    queryKey: ['me', 'contracts'],
+    queryFn: async (): Promise<MeContract[]> => {
+      try {
+        const { data } = await api.get<MeContract[]>('/me/contracts');
+        return data;
+      } catch (e: any) {
+        if (e?.response?.status === 404) return [];
+        throw e;
+      }
+    },
   });
 
   if (isLoading) {
@@ -29,20 +53,21 @@ export function HRContractPage() {
     );
   }
 
-  const current = contracts?.find((c) => c.is_current);
-  const history = contracts?.filter((c) => !c.is_current) || [];
+  const list = contracts ?? [];
+  const current = list.find((c) => c.is_current);
+  const history = list.filter((c) => !c.is_current);
 
   return (
-    <div className="space-y-5 max-w-4xl">
+    <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">My Contract</h1>
+        <h2 className="text-xl font-bold text-gray-900">My Contract</h2>
         <p className="text-sm text-gray-500 mt-0.5">
           Employment details and contract history
         </p>
       </div>
 
-      {!contracts || contracts.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-lg text-center py-16">
+      {list.length === 0 ? (
+        <div className="border border-gray-200 rounded-lg bg-white text-center py-16">
           <FileSignature className="w-12 h-12 text-gray-300 mx-auto mb-3" strokeWidth={1.5} />
           <p className="text-sm font-medium text-gray-700">No contract on file</p>
           <p className="text-xs text-gray-400 mt-1">
@@ -51,9 +76,8 @@ export function HRContractPage() {
         </div>
       ) : (
         <>
-          {/* Current Contract */}
           {current && (
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="border border-gray-200 rounded-lg bg-white p-6">
               <div className="flex items-start justify-between gap-4 mb-5">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -61,9 +85,9 @@ export function HRContractPage() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-base font-semibold text-gray-900">
+                      <h3 className="text-base font-semibold text-gray-900 capitalize">
                         {current.contract_type.replace(/_/g, ' ')}
-                      </h2>
+                      </h3>
                       <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-700">
                         Active
                       </span>
@@ -76,27 +100,15 @@ export function HRContractPage() {
                 {current.document_id && (
                   <button className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 rounded-md text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                     <Download className="w-3.5 h-3.5" />
-                    Download PDF
+                    Download
                   </button>
                 )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-5 border-t border-gray-100">
-                <DetailItem
-                  icon={Briefcase}
-                  label="Position"
-                  value={current.position || '—'}
-                />
-                <DetailItem
-                  icon={Briefcase}
-                  label="Department"
-                  value={current.department || '—'}
-                />
-                <DetailItem
-                  icon={User}
-                  label="Reports To"
-                  value={current.reports_to_name || '—'}
-                />
+                <DetailItem icon={Briefcase} label="Position" value={current.position || '—'} />
+                <DetailItem icon={Briefcase} label="Department" value={current.department || '—'} />
+                <DetailItem icon={User} label="Reports To" value={current.reports_to_name || '—'} />
                 <DetailItem
                   icon={Calendar}
                   label="Start Date"
@@ -120,9 +132,8 @@ export function HRContractPage() {
             </div>
           )}
 
-          {/* Contract History */}
           {history.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="border border-gray-200 rounded-lg bg-white p-6">
               <h3 className="text-sm font-semibold text-gray-900 mb-4">
                 Contract History
               </h3>
@@ -141,8 +152,7 @@ export function HRContractPage() {
                       </div>
                       <div className="text-[11px] text-gray-500 mt-0.5">
                         {format(new Date(c.start_date), 'MMM d, yyyy')}
-                        {c.end_date &&
-                          ` – ${format(new Date(c.end_date), 'MMM d, yyyy')}`}
+                        {c.end_date && ` – ${format(new Date(c.end_date), 'MMM d, yyyy')}`}
                         {c.position && ` · ${c.position}`}
                       </div>
                     </div>

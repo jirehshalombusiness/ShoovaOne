@@ -1,8 +1,4 @@
-from fastapi import APIRouter
-
-from app.api.v1.endpoints import auth, people
-
-api_router = APIRouter()
-
-api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
-api_router.include_router(people.router, prefix="/people", tags=["people"])
+# app.api package marker.
+#
+# The real API router lives in app.api.v1.__init__ and is
+# exported as `api_router`. Do not import or define routers here.

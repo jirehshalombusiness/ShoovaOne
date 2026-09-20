@@ -8,7 +8,6 @@ from typing import AsyncGenerator
 
 from app.core.config import settings
 from app.models.sql.base import Base
-from app.models.sql.approval import ApprovalRequest, ApprovalComment  # noqa: F401
 
 # Convert database URL for async
 database_url = settings.DATABASE_URL
@@ -17,20 +16,16 @@ is_sqlite = database_url.startswith("sqlite://")
 if is_sqlite:
     database_url = database_url.replace("sqlite://", "sqlite+aiosqlite://")
 elif database_url.startswith("postgres://"):
-    # Render uses postgres:// but SQLAlchemy needs postgresql://
     database_url = database_url.replace("postgres://", "postgresql+asyncpg://")
 elif database_url.startswith("postgresql://"):
     database_url = database_url.replace("postgresql://", "postgresql+asyncpg://")
 
-# Create async engine with appropriate parameters
 if is_sqlite:
-    # SQLite doesn't support connection pooling
     engine: AsyncEngine = create_async_engine(
         database_url,
         echo=settings.DEBUG,
     )
 else:
-    # PostgreSQL with connection pooling
     engine: AsyncEngine = create_async_engine(
         database_url,
         echo=settings.DEBUG,
@@ -41,7 +36,6 @@ else:
         pool_recycle=300,
     )
 
-# Async session factory
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
@@ -51,13 +45,6 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
-# =============================================
-# IMPORT ALL MODELS TO REGISTER WITH SQLALCHEMY
-# =============================================
-# This is CRITICAL — without importing all models, SQLAlchemy
-# won't know about their tables when creating them, and foreign
-# keys will fail with NoReferencedTableError.
-# =============================================
 # =============================================
 # IMPORT ALL MODELS TO REGISTER WITH SQLALCHEMY
 # =============================================
@@ -116,3 +103,16 @@ from app.models.sql.document_type import DocumentType  # noqa: F401
 # --- Audit & approvals ---
 from app.models.sql.audit_log import AuditLog  # noqa: F401
 from app.models.sql.approval import ApprovalRequest, ApprovalComment  # noqa: F401
+
+
+# =============================================
+# DEPENDENCY
+# =============================================
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """FastAPI dependency: yield an AsyncSession, close it on exit."""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
