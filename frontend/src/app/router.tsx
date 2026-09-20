@@ -27,6 +27,8 @@ import { TasksPage } from '@/features/tasks/pages/TasksPage';
 import { TaskDetailPage } from '@/features/tasks/pages/TaskDetailPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
 
+
+
 import { ProjectsPage } from '@/features/projects/pages/ProjectsPage';
 import { ProjectLayout } from '@/features/projects/layouts/ProjectLayout';
 import { ProjectOverview } from '@/features/projects/pages/ProjectOverview';
@@ -63,6 +65,11 @@ import { HRDocumentsPage } from '@/features/hr/pages/HRDocumentsPage';
 import { HRCompensationPage } from '@/features/hr/pages/HRCompensationPage';
 import { HRReportsPage } from '@/features/hr/pages/HRReportsPage';
 import { HRSettingsPage } from '@/features/hr/pages/HRSettingsPage';
+
+
+// AUDIT
+// ============================================================
+import { AuditLogsPage } from '@/features/audit/pages/AuditLogsPage';
 
 // ============================================================
 // PLACEHOLDER (used for pages that don't exist yet)
@@ -449,14 +456,14 @@ export function AppRouter() {
               </PermissionRoute>
             }
           />
-          <Route
-            path="audit"
-            element={
-              <PermissionRoute permission="audit.view">
-                <Placeholder title="Audit Logs" />
-              </PermissionRoute>
-            }
-          />
+        <Route
+          path="audit"
+          element={
+            <PermissionRoute permission="audit.view">
+              <AuditLogsPage />
+            </PermissionRoute>
+          }
+        />
 
           {/* ---------------- USER MENU SHORTCUTS ------------------ */}
           <Route path="profile" element={<Navigate to="/me/profile" replace />} />
