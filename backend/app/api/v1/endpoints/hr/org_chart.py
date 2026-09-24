@@ -86,7 +86,7 @@ async def _would_create_cycle(
 # GET /hr/org-chart
 # ============================================================
 
-@router.get("/org-chart", response_model=OrgChartResponse)
+@router.get("", response_model=OrgChartResponse)
 async def get_org_chart(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -145,7 +145,7 @@ async def get_org_chart(
 # ============================================================
 
 @router.patch(
-    "/org-chart/{person_id}/reports-to",
+    "/{person_id}/reports-to",
     response_model=OrgChartNode,
 )
 async def update_reports_to(
