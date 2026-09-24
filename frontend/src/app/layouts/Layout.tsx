@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils';
 import { sessionService } from '@/services/session.service';
 import { useIdleDetection } from '@/hooks/useIdleDetection';
 import { CheckInModal } from '@/features/attendance/components/CheckInModal';
+import { useAuth } from '@/lib/auth';
+import { attendanceService } from '@/services/attendance.service';
 
 export function Layout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -19,6 +21,7 @@ export function Layout() {
   const [showCheckInModal, setShowCheckInModal] = useState(false);
 
   const queryClient = useQueryClient();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
 
   const toggleSidebar = () => {
     setSidebarCollapsed((prev) => {
@@ -28,23 +31,38 @@ export function Layout() {
     });
   };
 
-  // Fetch today's session status
-  const { data: sessionStatus } = useQuery({
+  // Fetch today's session status.
+  // Gated on auth being fully resolved AND user being present.
+  const {
+    data: sessionStatus,
+    isLoading: sessionLoading,
+  } = useQuery({
     queryKey: ['session', 'status'],
     queryFn: () => sessionService.getStatus(),
+    enabled: isAuthenticated && !authLoading && !!user,
     refetchInterval: 60_000,
+    // Don't retry 401/403 — they're auth errors, not transient
+    retry: (failureCount, error: any) => {
+      const status = error?.response?.status;
+      if (status === 401 || status === 403) return false;
+      return failureCount < 2;
+    },
+    // Don't refetch on every mount when prefetched data is fresh
+    staleTime: 10_000,
   });
 
-  // Show check-in modal if no attendance yet today
+  // Show modal on first meaningful session-status read.
   useEffect(() => {
-    if (sessionStatus && !sessionStatus.has_attendance) {
+    if (authLoading || sessionLoading) return;
+    if (!isAuthenticated) return;
+    if (!sessionStatus) return;
+
+    if (!sessionStatus.has_attendance) {
       setShowCheckInModal(true);
-    }
-    // Hide modal if they already checked in
-    if (sessionStatus?.has_attendance) {
+    } else {
       setShowCheckInModal(false);
     }
-  }, [sessionStatus]);
+  }, [sessionStatus, authLoading, sessionLoading, isAuthenticated]);
 
   // Idle detection
   useIdleDetection({
@@ -79,17 +97,23 @@ export function Layout() {
     return () => clearInterval(interval);
   }, [sessionStatus?.status]);
 
+  useEffect(() => {
+  if (!showCheckInModal) return;
+  queryClient.prefetchQuery({
+    queryKey: ['attendance', 'today'],
+    queryFn: () => attendanceService.getToday(),
+    staleTime: 10_000,
+  });
+}, [showCheckInModal, queryClient]);
+
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
-      {/* Desktop Sidebar */}
       <div className="hidden lg:block">
         <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
       </div>
 
-      {/* Mobile Menu Drawer */}
       <MobileMenuDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
-      {/* Main column */}
       <div
         className={cn(
           'flex-1 min-w-0 flex flex-col transition-[margin] duration-300 ease-in-out',
@@ -107,7 +131,6 @@ export function Layout() {
         <MobileBottomNav onMoreClick={() => setDrawerOpen(true)} />
       </div>
 
-      {/* Check-in modal */}
       {showCheckInModal && (
         <CheckInModal
           onCheckedIn={() => {

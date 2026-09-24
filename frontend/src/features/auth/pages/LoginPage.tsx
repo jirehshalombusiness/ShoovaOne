@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { Mail, Lock, LogIn, Eye, EyeOff, Shield, Users, Zap } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { sessionService } from '@/services/session.service';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
@@ -13,24 +15,27 @@ export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
 
-    try {
-      const user = await login(email, password);
 
-      if (rememberMe) {
-        localStorage.setItem('remember_me', 'true');
-      }
+const queryClient = useQueryClient();
 
-      if (user.must_change_password) {
-        navigate('/change-password', { replace: true });
-        return;
-      }
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError('');
+  setLoading(true);
 
-      navigate('/dashboard');
+  try {
+    const user = await login(email, password);
+
+    // Prefetch session status in the background.
+    // The modal will render instantly when Layout mounts.
+    queryClient.prefetchQuery({
+      queryKey: ['session', 'status'],
+      queryFn: () => sessionService.getStatus(),
+      staleTime: 0,  // always fresh on login
+    });
+
+    navigate(user.must_change_password ? '/change-password' : '/dashboard');
     } catch (error: any) {
       const message =
         error?.response?.data?.detail || "Unable to sign in. Please try again.";
