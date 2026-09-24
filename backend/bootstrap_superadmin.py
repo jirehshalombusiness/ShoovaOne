@@ -21,7 +21,7 @@ async def bootstrap_superadmin() -> None:
         raise RuntimeError("DATABASE_URL is required")
 
     if not password or len(password) < 12:
-        raise RuntimeError(
+        raise RuntimeError( 
             "SUPERADMIN_PASSWORD must be set and contain at least 12 characters"
         )
 
