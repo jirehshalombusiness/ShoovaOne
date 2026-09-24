@@ -1,10 +1,14 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { peopleService, OrgNode } from '@/services/people.service';
 import { Avatar } from '@/components/ui/Avatar';
 import { ChevronDown, ChevronRight, Users, AlertCircle, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Pencil, X } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { api } from '@/services/api';
 
 interface TreeNode extends OrgNode {
   children: TreeNode[];
@@ -40,12 +44,14 @@ function OrgNodeCard({
   hasChildren,
   onToggle,
   onSelect,
+  onEdit,
 }: {
   node: TreeNode;
   expanded: boolean;
   hasChildren: boolean;
   onToggle: () => void;
   onSelect: () => void;
+  onEdit?: () => void;
 }) {
   return (
     <div className="flex flex-col items-center">
@@ -85,6 +91,20 @@ function OrgNodeCard({
             {node.direct_reports_count}
           </div>
         )}
+
+        {/* Edit button — HR only */}
+        {onEdit && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+            title="Change manager"
+            className="absolute top-1 right-1 p-1 rounded-md bg-white/90 border border-gray-200 opacity-0 group-hover:opacity-100 hover:bg-primary hover:text-white transition-all"
+          >
+            <Pencil className="w-3 h-3" />
+          </button>
+        )}
       </div>
 
       {hasChildren && (
@@ -120,10 +140,12 @@ function OrgNodeCard({
 function OrgSubTree({
   node,
   onSelect,
+  onEdit,
   horizontalGap,
 }: {
   node: TreeNode;
   onSelect: (id: string) => void;
+  onEdit?: (id: string) => void;
   horizontalGap: number;
 }) {
   const [expanded, setExpanded] = useState(true);
@@ -137,6 +159,7 @@ function OrgSubTree({
         hasChildren={hasChildren}
         onToggle={() => setExpanded((v) => !v)}
         onSelect={() => onSelect(node.id)}
+        onEdit={onEdit ? () => onEdit(node.id) : undefined}
       />
 
       {hasChildren && expanded && (
@@ -162,6 +185,7 @@ function OrgSubTree({
                 <OrgSubTree
                   node={child}
                   onSelect={onSelect}
+                  onEdit={onEdit}
                   horizontalGap={horizontalGap}
                 />
               </div>
@@ -172,14 +196,18 @@ function OrgSubTree({
     </div>
   );
 }
-
 export function OrgChartPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { hasPermission } = usePermissions();
+  const canEdit = hasPermission('hr.edit_employment');
+
   const [zoom, setZoom] = useState(100);
+  const [editingPersonId, setEditingPersonId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['org-chart'],
-    queryFn: () => peopleService.getOrgChart(),
+    queryFn: () => api.get('/hr/org-chart').then((r) => r.data),
   });
 
   const tree = useMemo(() => {
@@ -265,6 +293,12 @@ export function OrgChartPage() {
         </div>
         <span className="text-gray-300">·</span>
         <span>Click a card to view profile</span>
+        {canEdit && (
+          <>
+            <span className="text-gray-300">·</span>
+            <span>Hover a card → click pencil to change manager</span>
+          </>
+        )}
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-6 overflow-auto">
@@ -281,9 +315,127 @@ export function OrgChartPage() {
                 key={root.id}
                 node={root}
                 onSelect={(id) => navigate(`/people/${id}`)}
+                onEdit={canEdit ? (id) => setEditingPersonId(id) : undefined}
                 horizontalGap={horizontalGap}
               />
             ))}
+          </div>
+        </div>
+      </div>
+
+      {editingPersonId && (
+        <ChangeManagerModal
+          personId={editingPersonId}
+          people={data.nodes}
+          onClose={() => setEditingPersonId(null)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['org-chart'] });
+            setEditingPersonId(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ChangeManagerModal({
+  personId,
+  people,
+  onClose,
+  onSuccess,
+}: {
+  personId: string;
+  people: any[];
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const person = people.find((p) => p.id === personId);
+  const [selectedManagerId, setSelectedManagerId] = useState<string>(
+    person?.reports_to_id ?? '',
+  );
+
+  const mutation = useMutation({
+    mutationFn: (managerId: string | null) =>
+      api
+        .patch(`/hr/org-chart/${personId}/reports-to`, {
+          reports_to_id: managerId,
+        })
+        .then((r) => r.data),
+    onSuccess: () => {
+      toast.success('Manager updated');
+      onSuccess();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail ?? 'Failed to update manager');
+    },
+  });
+
+  if (!person) return null;
+
+  // Exclude the person themselves and their descendants from the picker
+  // (basic guard; the backend also rejects cycles)
+  const candidates = people.filter((p) => p.id !== personId);
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg max-w-md w-full shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">
+              Change Manager
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {person.first_name} {person.last_name}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-md hover:bg-gray-100"
+          >
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+              Reports To
+            </label>
+            <select
+              value={selectedManagerId}
+              onChange={(e) => setSelectedManagerId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">— No manager (top of chart) —</option>
+              {candidates.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.first_name} {p.last_name}
+                  {p.job_title ? ` — ${p.job_title}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-200 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => mutation.mutate(selectedManagerId || null)}
+              disabled={mutation.isPending}
+              className="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-dark disabled:opacity-50"
+            >
+              {mutation.isPending ? 'Saving…' : 'Save'}
+            </button>
           </div>
         </div>
       </div>

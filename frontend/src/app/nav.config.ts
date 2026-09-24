@@ -111,7 +111,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Network,
         label: 'Org Chart',
         path: '/people/org-chart',
-        permission: 'people.view',
+        // permission: 'people.view',
       },
       {
         icon: Shield,

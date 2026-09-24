@@ -397,14 +397,7 @@ export function AppRouter() {
               </PermissionRoute>
             }
           />
-          <Route
-            path="people/org-chart"
-            element={
-              <PermissionRoute permission="people.view">
-                <OrgChartPage />
-              </PermissionRoute>
-            }
-          />
+     <Route path="people/org-chart" element={<OrgChartPage />} />
           <Route
             path="people/new"
             element={
