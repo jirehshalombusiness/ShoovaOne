@@ -41,10 +41,14 @@ class TimesheetEntry(BaseModel):
     description = Column(Text)
     is_billable = Column(String(10), default="yes")
 
-    # NEW COLUMNS — in the right place now
+    # Source / origin
     source = Column(String(20), default="manual")
     attendance_id = Column(GUID, ForeignKey("attendance.id", ondelete="SET NULL"), nullable=True)
     is_locked = Column(Boolean, default=False)
+
+    # Overtime tracking
+    is_overtime = Column(Boolean, default=False)
+    overtime_minutes = Column(Integer, default=0)
 
     # Relationships
     timesheet = relationship("Timesheet", back_populates="entries")
