@@ -215,6 +215,46 @@ export const meService = {
     return data;
   },
 
+  // Compensation — stubs, real endpoints in backend message D
+  async getMyCompensation(): Promise<{
+    base_amount: number | null;
+    currency: string;
+    frequency: string;
+    effective_from: string | null;
+    is_set: boolean;
+  }> {
+    const { data } = await api.get('/me/compensation/current');
+    return data;
+  },
+
+  async getMyCompensationRequests(): Promise<
+    Array<{
+      id: string;
+      requested_amount: number | null;
+      currency: string;
+      frequency: string;
+      reason: string;
+      status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+      created_at: string;
+      decided_at: string | null;
+      decision_note: string | null;
+      approval_id: string | null;
+    }>
+  > {
+    const { data } = await api.get('/me/compensation/requests');
+    return data;
+  },
+
+  async requestCompensationChange(payload: {
+    requested_amount?: number;
+    currency?: string;
+    frequency?: string;
+    reason: string;
+  }): Promise<{ id: string; approval_id: string | null; status: string }> {
+    const { data } = await api.post('/me/compensation/requests', payload);
+    return data;
+  },
+
   // ---------------- PROFILE ----------------
   async getProfile(): Promise<MeProfile> {
     const { data } = await api.get<MeProfile>('/me/profile');
@@ -287,3 +327,5 @@ export const meService = {
     return data;
   },
 };
+
+

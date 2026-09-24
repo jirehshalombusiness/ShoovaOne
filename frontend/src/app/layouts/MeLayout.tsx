@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation, Navigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { ME_TABS, type NavItem } from '@/app/nav.config';
 

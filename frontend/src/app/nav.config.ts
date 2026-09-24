@@ -54,11 +54,23 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: LayoutDashboard,
         label: 'Dashboard',
         path: '/dashboard',
+        permission: 'dashboard.executive',
       },
       {
         icon: Briefcase,
         label: 'My Work',
         path: '/my-work',
+      },
+    ],
+  },
+
+  {
+    label: 'Self',
+    items: [
+      {
+        icon: UserCircle2,
+        label: 'My HR',
+        path: '/me',
       },
     ],
   },
@@ -97,21 +109,16 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'People & HR',
     items: [
       {
-        icon: UserCircle2,
-        label: 'My HR',
-        path: '/me',
+        icon: Network,
+        label: 'Org Chart',
+        path: '/people/org-chart',
+        // everyone — no permission gate
       },
       {
         icon: Users,
         label: 'Directory',
         path: '/people',
         permission: 'people.view',
-      },
-      {
-        icon: Network,
-        label: 'Org Chart',
-        path: '/people/org-chart',
-        // permission: 'people.view',
       },
       {
         icon: Shield,
@@ -159,6 +166,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: BarChart3,
         label: 'Reports',
         path: '/reports',
+        permission: 'reports.view',
       },
       {
         icon: Settings,
@@ -173,7 +181,7 @@ export const NAV_SECTIONS: NavSection[] = [
       },
       {
         icon: ShieldCheck,
-        label: 'Roles & Permissions',
+        label: 'Roles',
         path: '/roles',
         permission: 'roles.manage',
       },
@@ -194,9 +202,11 @@ export const NAV_SECTIONS: NavSection[] = [
 export const ME_TABS: NavItem[] = [
   { icon: LayoutDashboard, label: 'Home', path: '/me', exact: true },
   { icon: CalendarDays, label: 'Time Off', path: '/me/time-off' },
-  { icon: Laptop, label: 'Devices', path: '/me/devices' },
-  { icon: FileSignature, label: 'Contract', path: '/me/contract' },
+  { icon: DollarSign, label: 'Compensation', path: '/me/compensation' },
   { icon: FileText, label: 'Documents', path: '/me/documents' },
+  { icon: FileSignature, label: 'Contract', path: '/me/contract' },
+  { icon: Laptop, label: 'Devices', path: '/me/devices' },
+  { icon: UserCircle2, label: 'Profile', path: '/me/profile' },
 ];
 
 export const HR_TABS: NavItem[] = [

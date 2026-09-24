@@ -11,6 +11,7 @@ from app.api.v1.endpoints.hr import celebrations
 from app.api.v1.endpoints.hr import documents
 from app.api.v1.endpoints.hr import reports
 from app.api.v1.endpoints.hr import org_chart
+from app.api.v1.endpoints.hr import me_compensation
 
 
 router = APIRouter()
@@ -30,3 +31,4 @@ router.include_router(celebrations.router,  prefix="/hr/celebrations",  tags=["h
 router.include_router(documents.router,     prefix="/hr/documents",     tags=["hr-documents"])
 router.include_router(reports.router,       prefix="/hr/reports",       tags=["hr-reports"])
 router.include_router(org_chart.router,     prefix="/hr/org-chart",     tags=["hr-org-chart"])
+router.include_router(me_compensation.router, prefix="/me",             tags=["hr-me"])

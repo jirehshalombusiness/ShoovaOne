@@ -66,6 +66,7 @@ from app.models.sql.role import (  # noqa: F401
     user_permissions,
 )
 from app.models.sql.password_reset_token import PasswordResetToken  # noqa: F401
+from app.models.sql.compensation_request import CompensationRequest  # noqa: F401
 
 # --- Core operations ---
 from app.models.sql.attendance import Attendance  # noqa: F401

@@ -4,6 +4,7 @@ import { Layout } from '@/app/layouts/Layout';
 import { MeLayout } from '@/app/layouts/MeLayout';
 import { HRLayout } from '@/app/layouts/HRLayout';
 import { useHRAccess } from '@/hooks/useHRAccess';
+import { landingPath } from '@/lib/landing';
 
 // ============================================================
 // AUTH PAGES
@@ -21,14 +22,12 @@ import { MyWorkPage } from '@/features/mywork/pages/MyWorkPage';
 import { PeoplePage } from '@/features/people/pages/PeoplePage';
 import { PersonDetailPage } from '@/features/people/pages/PersonDetailPage';
 import { OrgChartPage } from '@/features/people/pages/OrgChartPage';
+import { NewPersonPage } from '@/features/people/pages/NewPersonPage';
 import { AttendancePage } from '@/features/attendance/pages/AttendancePage';
 import { TimesheetsPage } from '@/features/timesheets/pages/TimesheetsPage';
 import { TasksPage } from '@/features/tasks/pages/TasksPage';
 import { TaskDetailPage } from '@/features/tasks/pages/TaskDetailPage';
 import { UsersPage } from '@/features/users/pages/UsersPage';
-import { NewPersonPage } from '@/features/people/pages/NewPersonPage';
-
-
 
 import { ProjectsPage } from '@/features/projects/pages/ProjectsPage';
 import { ProjectLayout } from '@/features/projects/layouts/ProjectLayout';
@@ -43,17 +42,18 @@ import { ProjectSettings } from '@/features/projects/pages/ProjectSettings';
 import { NewProjectPage } from '@/features/projects/pages/NewProjectPage';
 
 // ============================================================
-// /me PAGES  (self-service)
+// /me PAGES (self-service)
 // ============================================================
 import { MeHomePage } from '@/features/me/pages/MeHomePage';
 import { MeTimeOffPage } from '@/features/me/pages/MeTimeOffPage';
+import { MeCompensationPage } from '@/features/me/pages/MeCompensationPage';
 import { MeDevicesPage } from '@/features/me/pages/MeDevicesPage';
 import { MeContractPage } from '@/features/me/pages/MeContractPage';
 import { MeDocumentsPage } from '@/features/me/pages/MeDocumentsPage';
 import { MeProfilePage } from '@/features/me/pages/MeProfilePage';
 
 // ============================================================
-// /hr PAGES  (admin)
+// /hr PAGES (admin)
 // ============================================================
 import { HROverviewPage } from '@/features/hr/pages/HROverviewPage';
 import { HRApprovalsPage } from '@/features/hr/pages/HRApprovalsPage';
@@ -68,23 +68,14 @@ import { HRReportsPage } from '@/features/hr/pages/HRReportsPage';
 import { HRSettingsPage } from '@/features/hr/pages/HRSettingsPage';
 
 // ============================================================
-// FINANCE
-// ============================================================
-import { FinanceOverviewPage } from '@/features/finance/pages/FinanceOverviewPage';
-import { FinanceLayout } from '@/features/finance/layouts/FinanceLayout';
-import ExpensesPage from '@/features/finance/pages/ExpensesPage';
-import { ExpenseDetailPage } from '@/features/finance/pages/ExpenseDetailPage';
-import { NewExpensePage } from '@/features/finance/pages/NewExpensePage';
-import { FundRequestsPage } from '@/features/finance/pages/FundRequestsPage';
-import { NewFundRequestPage } from '@/features/finance/pages/NewFundRequestPage';
-import { FundRequestDetailPage } from '@/features/finance/pages/FundRequestDetailPage';
 // AUDIT
 // ============================================================
 import { AuditLogsPage } from '@/features/audit/pages/AuditLogsPage';
 
 // ============================================================
-// PLACEHOLDER (used for pages that don't exist yet)
+// HELPERS
 // ============================================================
+
 function Placeholder({ title }: { title: string }) {
   return (
     <div className="p-8">
@@ -129,12 +120,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   if (loading) return <PageLoader />;
   if (!isAuthenticated) return <>{children}</>;
 
-  return (
-    <Navigate
-      to={user?.must_change_password ? '/change-password' : '/dashboard'}
-      replace
-    />
-  );
+  // Already authenticated — send them to their proper landing page
+  return <Navigate to={landingPath(user)} replace />;
 }
 
 function PermissionRoute({
@@ -151,7 +138,7 @@ function PermissionRoute({
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   const allowed = access.has(permission);
-  return allowed ? <>{children}</> : <Navigate to="/dashboard" replace />;
+  return allowed ? <>{children}</> : <Navigate to="/me" replace />;
 }
 
 // ============================================================
@@ -159,6 +146,8 @@ function PermissionRoute({
 // ============================================================
 
 export function AppRouter() {
+  const { user } = useAuth();
+
   return (
     <BrowserRouter>
       <Routes>
@@ -182,10 +171,7 @@ export function AppRouter() {
             </PublicRoute>
           }
         />
-        <Route
-          path="/reset-password/:token"
-          element={<ResetPasswordPage />}
-        />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
         {/* ========================================================= */}
         {/* AUTHENTICATED (pre-app)                                   */}
@@ -212,114 +198,55 @@ export function AppRouter() {
             </PrivateRoute>
           }
         >
-          <Route index element={<Navigate to="/dashboard" replace />} />
+          {/* Root redirect: land on the user's proper home */}
+          <Route index element={<Navigate to={landingPath(user)} replace />} />
 
-          <Route path="dashboard" element={<DashboardPage />} />
+          {/* Executive dashboard — CEO, exec_director, director only */}
+          <Route
+            path="dashboard"
+            element={
+              <PermissionRoute permission="dashboard.executive">
+                <DashboardPage />
+              </PermissionRoute>
+            }
+          />
+
           <Route path="my-work" element={<MyWorkPage />} />
 
-          {/* ---------------- /me ---------------------------------- */}
+          {/* ---------------- /me  (self-service) ------------------ */}
           <Route path="me" element={<MeLayout />}>
             <Route index element={<MeHomePage />} />
             <Route path="time-off" element={<MeTimeOffPage />} />
-            <Route path="devices" element={<MeDevicesPage />} />
-            <Route path="contract" element={<MeContractPage />} />
+            <Route path="compensation" element={<MeCompensationPage />} />
             <Route path="documents" element={<MeDocumentsPage />} />
+            <Route path="contract" element={<MeContractPage />} />
+            <Route path="devices" element={<MeDevicesPage />} />
             <Route path="profile" element={<MeProfilePage />} />
           </Route>
 
-          {/* ---------------- /hr ---------------------------------- */}
-          <Route path="hr" element={<HRLayout />}>
-            <Route
-              index
-              element={
-                <PermissionRoute permission="hr.view_sensitive">
-                  <HROverviewPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="approvals"
-              element={
-                <PermissionRoute permission="hr.view_leave">
-                  <HRApprovalsPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="approvals/:id"
-              element={
-                <PermissionRoute permission="hr.view_leave">
-                  <HRApprovalDetailPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="employees"
-              element={
-                <PermissionRoute permission="hr.view_sensitive">
-                  <HREmployeesPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="employees/:id"
-              element={
-                <PermissionRoute permission="hr.view_sensitive">
-                  <HREmployeeDetailPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="time-off"
-              element={
-                <PermissionRoute permission="hr.view_leave">
-                  <HRTimeOffPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="celebrations"
-              element={
-                <PermissionRoute permission="hr.view_sensitive">
-                  <HRCelebrationsPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="documents"
-              element={
-                <PermissionRoute permission="hr.view_sensitive">
-                  <HRDocumentsPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="compensation"
-              element={
-                <PermissionRoute permission="hr.view_compensation">
-                  <HRCompensationPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="reports"
-              element={
-                <PermissionRoute permission="hr.view_sensitive">
-                  <HRReportsPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="settings"
-              element={
-                <PermissionRoute permission="hr.view_sensitive">
-                  <HRSettingsPage />
-                </PermissionRoute>
-              }
-            />
+          {/* ---------------- /hr  (HR admin) ---------------------- */}
+          <Route
+            path="hr"
+            element={
+              <PermissionRoute permission="hr.view_sensitive">
+                <HRLayout />
+              </PermissionRoute>
+            }
+          >
+            <Route index element={<HROverviewPage />} />
+            <Route path="approvals" element={<HRApprovalsPage />} />
+            <Route path="approvals/:id" element={<HRApprovalDetailPage />} />
+            <Route path="employees" element={<HREmployeesPage />} />
+            <Route path="employees/:id" element={<HREmployeeDetailPage />} />
+            <Route path="time-off" element={<HRTimeOffPage />} />
+            <Route path="celebrations" element={<HRCelebrationsPage />} />
+            <Route path="documents" element={<HRDocumentsPage />} />
+            <Route path="compensation" element={<HRCompensationPage />} />
+            <Route path="reports" element={<HRReportsPage />} />
+            <Route path="settings" element={<HRSettingsPage />} />
           </Route>
 
-          {/* ---------------- PROJECTS ---------------------------- */}
+          {/* ---------------- PROJECTS ----------------------------- */}
           <Route
             path="projects"
             element={
@@ -388,7 +315,8 @@ export function AppRouter() {
             }
           />
 
-          {/* ---------------- PEOPLE ------------------------------- */}
+          {/* ---------------- PEOPLE -------------------------------- */}
+          {/* Directory — system_admin only (people.view) */}
           <Route
             path="people"
             element={
@@ -397,7 +325,9 @@ export function AppRouter() {
               </PermissionRoute>
             }
           />
-     <Route path="people/org-chart" element={<OrgChartPage />} />
+          {/* Org chart — everyone (no permission gate) */}
+          <Route path="people/org-chart" element={<OrgChartPage />} />
+          {/* Add person — system_admin only */}
           <Route
             path="people/new"
             element={
@@ -406,6 +336,7 @@ export function AppRouter() {
               </PermissionRoute>
             }
           />
+          {/* Person detail — system_admin only */}
           <Route
             path="people/:id"
             element={
@@ -440,110 +371,24 @@ export function AppRouter() {
               </PermissionRoute>
             }
           />
-          {/* ---------------- FINANCE ------------------------------- */}
           <Route
             path="finance"
             element={
               <PermissionRoute permission="finance.view">
-                <FinanceLayout />
+                <Placeholder title="Finance" />
               </PermissionRoute>
             }
-          >
-            {/* Finance Overview */}
-            <Route
-              index
-              element={<FinanceOverviewPage />}
-            />
-
-            {/* Fund Management */}
-            <Route
-              path="fund-requests"
-              element={<FundRequestsPage />}
-            />
-
-            <Route
-              path="fund-requests/:requestId"
-              element={<FundRequestDetailPage />}
-            />
-
-            <Route
-              path="fund-requests/new"
-              element={<NewFundRequestPage />}
-            />
-
-            <Route
-              path="approvals"
-              element={<Placeholder title="Approvals" />}
-            />
-
-            <Route
-              path="disbursements"
-              element={<Placeholder title="Disbursements" />}
-            />
-
-            {/* Expenditure */}
-            <Route
-              path="expenses"
-              element={<ExpensesPage />}
-            />
-
-            <Route
-              path="expenses/new"
-              element={<NewExpensePage />}
-            />
-
-            <Route
-              path="expenses/:expenseId"
-              element={<ExpenseDetailPage />}
-            />
-
-            <Route
-              path="reimbursements"
-              element={<Placeholder title="Reimbursements" />}
-            />
-
-            {/* Receivables */}
-            <Route
-              path="invoices"
-              element={<Placeholder title="Invoices" />}
-            />
-
-            <Route
-              path="payments"
-              element={<Placeholder title="Payments" />}
-            />
-
-            {/* Planning */}
-            <Route
-              path="budgets"
-              element={<Placeholder title="Budgets" />}
-            />
-
-            <Route
-              path="allocations"
-              element={<Placeholder title="Allocations" />}
-            />
-
-            {/* Reporting */}
-            <Route
-              path="reports"
-              element={<Placeholder title="Financial Reports" />}
-            />
-
-            <Route
-              path="reconciliation"
-              element={<Placeholder title="Reconciliation" />}
-            />
-
-            {/* Governance */}
-            <Route
-              path="audit-trail"
-              element={<Placeholder title="Financial Audit Trail" />}
-            />
-          </Route>
+          />
 
           {/* ---------------- SYSTEM ------------------------------- */}
-          <Route path="reports" element={<Placeholder title="Reports" />} />
+          <Route
+            path="reports"
+            element={
+              <PermissionRoute permission="reports.view">
+                <Placeholder title="Reports" />
+              </PermissionRoute>
+            }
+          />
           <Route path="settings" element={<Placeholder title="Settings" />} />
           <Route
             path="users"
@@ -572,7 +417,10 @@ export function AppRouter() {
 
           {/* ---------------- USER MENU SHORTCUTS ------------------ */}
           <Route path="profile" element={<Navigate to="/me/profile" replace />} />
-          <Route path="notifications" element={<Placeholder title="Notifications" />} />
+          <Route
+            path="notifications"
+            element={<Placeholder title="Notifications" />}
+          />
           <Route path="help" element={<Placeholder title="Help & Support" />} />
         </Route>
 
