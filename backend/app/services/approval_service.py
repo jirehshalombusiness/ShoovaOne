@@ -719,3 +719,65 @@ async def inbox_stats(
         "overdue": overdue,
         "by_type": by_type,
     }
+
+# ============================================================
+# CEO ESCALATION
+# ============================================================
+
+async def _find_ceo_approver(db: AsyncSession) -> Optional[str]:
+    """Find the first active user with the CEO role. Returns person_id."""
+    result = await db.execute(
+        select(User.person_id)
+        .join(User.roles)
+        .where(
+            Role.name == "ceo",
+            User.is_active.is_(True),
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def escalate_to_ceo(
+    db: AsyncSession,
+    *,
+    request_id: str,
+    actor: User,
+) -> ApprovalRequest:
+    """
+    Move an approval to the CEO (level 1).
+
+    Called when the current approver is ready to hand off to CEO.
+    Updates assignment, escalation_level, and gives a fresh SLA window.
+    """
+    request = await get_request(db, request_id)
+    if not request:
+        raise HTTPException(404, "Approval request not found")
+
+    ceo_person_id = await _find_ceo_approver(db)
+    if not ceo_person_id:
+        raise HTTPException(
+            status_code=500,
+            detail="No CEO user is configured. Contact system administrator.",
+        )
+
+    old_approver = request.assigned_to_id
+    request.assigned_to_id = ceo_person_id
+    request.escalation_level = 1
+    request.escalated_at = datetime.now(timezone.utc)
+
+    # Fresh SLA for the CEO
+    request.due_at = datetime.now(timezone.utc) + timedelta(days=7)
+
+    await AuditService.log(
+        db=db,
+        actor=actor,
+        action="APPROVAL_ESCALATED_TO_CEO",
+        entity_type=request.entity_type,
+        entity_id=request.entity_id,
+        description=f"Escalated '{request.title}' to CEO",
+        old_values={"assigned_to_id": old_approver},
+        new_values={"assigned_to_id": ceo_person_id},
+    )
+
+    return request

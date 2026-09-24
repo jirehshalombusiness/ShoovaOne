@@ -445,6 +445,7 @@ async def approve_request(
 
     # Route to the correct domain handler.
     # Route to the correct domain handler.
+    # Route to the correct domain handler.
     if request.entity_type == "leave_request":
         await leave_service.approve_leave_request(
             db,
@@ -454,15 +455,42 @@ async def approve_request(
         )
         await db.flush()
 
+    elif request.entity_type == "compensation_request":
+        # Two-stage flow: HR approves → moves to CEO → CEO approves → done
+        from app.services import compensation_request_service
+
+        result = await compensation_request_service.approve_stage(
+            db,
+            request=request,
+            actor=current_user,
+            note=payload.note,
+        )
+
+        if result["next_stage"] == "ceo":
+            # Escalate the approval inbox item to CEO
+            await approval_service.escalate_to_ceo(
+                db,
+                request_id=request_id,
+                actor=current_user,
+            )
+            # Approval stays pending (now assigned to CEO)
+        else:
+            # CEO approved — finalize the approval record too
+            await approval_service.approve(
+                db,
+                request_id=request_id,
+                actor=current_user,
+                note=payload.note,
+            )
+
     elif request.entity_type == "compensation_change":
-        # First flip the approval record
+        # HR-initiated compensation change (existing flow)
         await approval_service.approve(
             db,
             request_id=request_id,
             actor=current_user,
             note=payload.note,
         )
-        # Then finalize the compensation change
         from app.api.v1.endpoints.hr.compensation import (
             finalize_compensation_change,
         )
@@ -510,11 +538,26 @@ async def reject_request(
         )
         await db.flush()
 
+    elif request.entity_type == "compensation_request":
+        # Two-stage: reject at either stage ends the request
+        from app.services import compensation_request_service
+
+        await compensation_request_service.reject_stage(
+            db,
+            request=request,
+            actor=current_user,
+            note=payload.note,
+        )
+        # Mark the approval record as rejected too
+        await approval_service.reject(
+            db,
+            request_id=request_id,
+            actor=current_user,
+            note=payload.note,
+        )
+
     elif request.entity_type == "compensation_change":
-        # For compensation, rejecting the approval just means the change
-        # is not applied. The CompensationChange row stays in the DB with
-        # approved_at = NULL. HR can edit or delete it, or submit a new
-        # one later. Nothing needs to be rolled back.
+        # HR-initiated compensation change (existing flow)
         await approval_service.reject(
             db,
             request_id=request_id,
