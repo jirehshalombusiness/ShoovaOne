@@ -322,7 +322,7 @@ async def leave_usage_report(
                     ).label("approved_days"),
             func.coalesce(
                 func.sum(
-                    func.case(
+                    case(
                         (LeaveRequest.status == "pending", LeaveRequest.total_days),
                         else_=0,
                     )
@@ -331,7 +331,7 @@ async def leave_usage_report(
             ).label("pending_days"),
             func.coalesce(
                 func.sum(
-                    func.case(
+                    case(
                         (LeaveRequest.status == "rejected", LeaveRequest.total_days),
                         else_=0,
                     )
