@@ -4,6 +4,7 @@ import { hrService, type ContractExpiryRow } from '@/services/hr.service';
 import { FileWarning, CheckCircle2, ArrowRight, AlertCircle, Clock } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { ExecutiveApprovalsQueue } from './ExecutiveApprovalsQueue';
 
 export function ContractAlerts() {
   const navigate = useNavigate();
@@ -22,7 +23,7 @@ export function ContractAlerts() {
   const allAlerts = [...within30, ...within60];
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg h-full flex flex-col">
+    <div className="flex flex-col rounded-lg border border-gray-100 bg-white">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2">

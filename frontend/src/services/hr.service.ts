@@ -1238,6 +1238,37 @@ export const hrService = {
     return data;
   },
 
+  async getAttendanceRoster(): Promise<{
+    date: string;
+    checked_in: Array<{
+      person_id: string;
+      first_name: string;
+      last_name: string;
+      job_title: string | null;
+      department: string | null;
+      profile_image_url: string | null;
+      check_in: string | null;
+      check_out: string | null;
+      minutes_worked: number;
+      status: 'checked_in' | 'checked_out' | 'not_checked_in';
+    }>;
+    not_checked_in: Array<{
+      person_id: string;
+      first_name: string;
+      last_name: string;
+      job_title: string | null;
+      department: string | null;
+      profile_image_url: string | null;
+      check_in: string | null;
+      check_out: string | null;
+      minutes_worked: number;
+      status: 'checked_in' | 'checked_out' | 'not_checked_in';
+    }>;
+  }> {
+    const { data } = await api.get('/hr/reports/attendance-today/roster');
+    return data;
+  },
+
   async getAttendanceToday(): Promise<{
     total_active: number;
     checked_in: number;

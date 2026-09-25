@@ -172,8 +172,8 @@ export function OrgActivityFeed() {
               : `No ${filter} activity in the recent log`}
           </p>
         </div>
-      ) : (
-        <div className="divide-y divide-gray-100">
+         ) : (
+        <div className="max-h-[420px] overflow-y-auto divide-y divide-gray-100">
           {events.map((log) => (
             <EventRow key={log.id} log={log} />
           ))}

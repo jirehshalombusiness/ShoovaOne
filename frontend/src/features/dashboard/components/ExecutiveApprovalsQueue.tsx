@@ -67,7 +67,7 @@ export function ExecutiveApprovalsQueue() {
           </p>
         </div>
       ) : (
-        <div className="divide-y divide-gray-100">
+        <div className="max-h-[420px] overflow-y-auto divide-y divide-gray-100">
           {items.map((item) => (
             <ApprovalRow
               key={item.id}
