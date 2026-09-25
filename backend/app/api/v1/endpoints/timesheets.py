@@ -6,6 +6,10 @@ from typing import List, Optional
 from datetime import datetime, date, timedelta, timezone
 from decimal import Decimal
 import uuid
+from app.models.sql.user import User, Person
+from app.models.sql.role import Role
+
+
 
 from app.core.database import get_db
 from app.core.security import require_permission, Permissions
@@ -699,6 +703,49 @@ async def submit_timesheet(
     )
 
     await db.commit()
+    # Notify the approver
+    submitter_result = await db.execute(
+        select(Person).where(Person.id == current_user.person_id)
+    )
+    submitter = submitter_result.scalar_one_or_none()
+
+    approver_person_id: Optional[str] = None
+    if submitter and submitter.reports_to_id:
+        approver_person_id = submitter.reports_to_id
+    else:
+        # No manager → route to Head of HR
+        hr_result = await db.execute(
+            select(User.person_id)
+            .join(User.roles)
+            .where(Role.name == "head_of_hr", User.is_active.is_(True))
+            .limit(1)
+        )
+        approver_person_id = hr_result.scalar_one_or_none()
+
+    if approver_person_id:
+        # Find that person's user account
+        approver_user_result = await db.execute(
+            select(User).where(User.person_id == approver_person_id)
+        )
+        approver_user = approver_user_result.scalar_one_or_none()
+
+        if approver_user:
+            from app.models.sql.notification import Notification
+
+            notification = Notification(
+                id=str(uuid.uuid4()),
+                user_id=approver_user.id,
+                title="Timesheet awaiting your approval",
+                body=(
+                    f"{submitter.first_name} {submitter.last_name} submitted "
+                    f"a timesheet for week beginning "
+                    f"{timesheet.week_start_date.isoformat()}"
+                ),
+                type="info",
+                link="/timesheets?tab=team",
+            )
+            db.add(notification)
+            await db.commit()
 
     return await _get_timesheet_with_entries(
         db,
@@ -791,7 +838,29 @@ async def approve_timesheet(
                 "your own timesheet"
             ),
         )
+    # Verify the actor is authorized to approve THIS timesheet
+    is_hr_admin = await PermissionService.has_permission(
+        db,
+        current_user.id,
+        Permissions.HR_VIEW_SENSITIVE,
+    )
+    is_ceo = await PermissionService.has_permission(
+        db,
+        current_user.id,
+        Permissions.USERS_MANAGE,
+    )
 
+    if not (is_hr_admin or is_ceo):
+        submitter_result = await db.execute(
+            select(Person).where(Person.id == timesheet.person_id)
+        )
+        submitter = submitter_result.scalar_one_or_none()
+
+        if not submitter or str(submitter.reports_to_id) != str(current_user.person_id):
+            raise HTTPException(
+                status_code=403,
+                detail="You can only approve timesheets from your direct reports",
+            )
     if timesheet.status != "submitted":
         raise HTTPException(
             status_code=400,
@@ -894,7 +963,30 @@ async def return_timesheet(
             status_code=400,
             detail="Timesheet is not submitted",
         )
+    # Verify the actor is authorized to return THIS timesheet
+    is_hr_admin = await PermissionService.has_permission(
+        db,
+        current_user.id,
+        Permissions.HR_VIEW_SENSITIVE,
+    )
+    is_ceo = await PermissionService.has_permission(
+        db,
+        current_user.id,
+        Permissions.USERS_MANAGE,
+    )
 
+    if not (is_hr_admin or is_ceo):
+        submitter_result = await db.execute(
+            select(Person).where(Person.id == timesheet.person_id)
+        )
+        submitter = submitter_result.scalar_one_or_none()
+
+        if not submitter or str(submitter.reports_to_id) != str(current_user.person_id):
+            raise HTTPException(
+                status_code=403,
+                detail="You can only return timesheets from your direct reports",
+            )
+        
     old_status = timesheet.status
 
     timesheet.status = "rejected"
