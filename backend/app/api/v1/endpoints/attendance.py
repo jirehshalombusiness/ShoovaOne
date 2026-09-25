@@ -380,7 +380,6 @@ async def check_out(
 
     attendance.check_out = now
     attendance.confirmed_at = now
-
     check_in = _to_aware(attendance.check_in)
 
     total_minutes = int(
@@ -388,6 +387,14 @@ async def check_out(
     )
 
     attendance.duration_minutes = total_minutes
+
+    # Compute standard vs overtime.
+    STANDARD_MINUTES = 480  # 8 hours
+    overtime = max(0, total_minutes - STANDARD_MINUTES)
+    standard = min(total_minutes, STANDARD_MINUTES)
+
+    attendance.standard_minutes = standard
+    attendance.overtime_minutes = overtime
 
     checkout_notes = payload.get("notes")
 
@@ -446,9 +453,7 @@ async def check_out(
         )
 
         db.add(timesheet)
-
         await db.flush()
-
         timesheet_created = True
 
     completed_task_ids = []
@@ -466,7 +471,9 @@ async def check_out(
             description = item.get("description")
 
             if task_id:
-                task_result = await db.execute(select(Task).where(Task.id == task_id))
+                task_result = await db.execute(
+                    select(Task).where(Task.id == task_id)
+                )
                 task = task_result.scalar_one_or_none()
                 if task:
                     project_id = task.project_id
@@ -477,49 +484,80 @@ async def check_out(
                         completed_task_ids.append(str(task.id))
 
             ts_entry = TimesheetEntry(
-                id=str(uuid.uuid4()), timesheet_id=timesheet.id, date=today,
-                project_id=project_id, task_id=task_id, duration=Decimal(str(hours)),
-                description=description or "General work", is_billable="yes",
-                source="attendance", attendance_id=attendance.id, is_locked=True,
-                is_overtime=False, overtime_minutes=0,
-            )
-            db.add(ts_entry)
-            await db.flush()
-            created_timesheet_entries.append({
-                "id": str(ts_entry.id), "task_id": str(task_id) if task_id else None,
-                "hours": hours, "description": description or "General work",
-            })
-
-    # Overtime entry, if any.
-    if overtime > 0:
-        ts_entry = TimesheetEntry(
-            id=str(uuid.uuid4()), timesheet_id=timesheet.id, date=today,
-            project_id=None, task_id=None, duration=Decimal(str(round(overtime / 60, 2))),
-            description="Overtime", is_billable="yes", source="attendance",
-            attendance_id=attendance.id, is_locked=True, is_overtime=True,
-            overtime_minutes=overtime,
-        )
-        db.add(ts_entry)
-        await db.flush()
-        created_timesheet_entries.append({
-            "id": str(ts_entry.id), "task_id": None,
-            "hours": round(overtime / 60, 2), "description": "Overtime",
-        })
-    elif not task_breakdown:
-        hours = total_minutes / 60
-        if hours > 0:
-            ts_entry = TimesheetEntry(
-                id=str(uuid.uuid4()), timesheet_id=timesheet.id, date=today,
-                project_id=None, task_id=None, duration=Decimal(str(round(hours, 2))),
-                description="General work", is_billable="yes", source="attendance",
-                attendance_id=attendance.id, is_locked=True, is_overtime=False,
+                id=str(uuid.uuid4()),
+                timesheet_id=timesheet.id,
+                date=today,
+                project_id=project_id,
+                task_id=task_id,
+                duration=Decimal(str(hours)),
+                description=description or "General work",
+                is_billable="yes",
+                source="attendance",
+                attendance_id=attendance.id,
+                is_locked=True,
+                is_overtime=False,
                 overtime_minutes=0,
             )
             db.add(ts_entry)
             await db.flush()
             created_timesheet_entries.append({
-                "id": str(ts_entry.id), "task_id": None,
-                "hours": round(hours, 2), "description": "General work",
+                "id": str(ts_entry.id),
+                "task_id": str(task_id) if task_id else None,
+                "hours": hours,
+                "description": description or "General work",
+            })
+
+    # Overtime entry, if any.
+    if overtime > 0:
+        ts_entry = TimesheetEntry(
+            id=str(uuid.uuid4()),
+            timesheet_id=timesheet.id,
+            date=today,
+            project_id=None,
+            task_id=None,
+            duration=Decimal(str(round(overtime / 60, 2))),
+            description="Overtime",
+            is_billable="yes",
+            source="attendance",
+            attendance_id=attendance.id,
+            is_locked=True,
+            is_overtime=True,
+            overtime_minutes=overtime,
+        )
+        db.add(ts_entry)
+        await db.flush()
+        created_timesheet_entries.append({
+            "id": str(ts_entry.id),
+            "task_id": None,
+            "hours": round(overtime / 60, 2),
+            "description": "Overtime",
+        })
+
+    elif not task_breakdown:
+        hours = total_minutes / 60
+        if hours > 0:
+            ts_entry = TimesheetEntry(
+                id=str(uuid.uuid4()),
+                timesheet_id=timesheet.id,
+                date=today,
+                project_id=None,
+                task_id=None,
+                duration=Decimal(str(round(hours, 2))),
+                description="General work",
+                is_billable="yes",
+                source="attendance",
+                attendance_id=attendance.id,
+                is_locked=True,
+                is_overtime=False,
+                overtime_minutes=0,
+            )
+            db.add(ts_entry)
+            await db.flush()
+            created_timesheet_entries.append({
+                "id": str(ts_entry.id),
+                "task_id": None,
+                "hours": round(hours, 2),
+                "description": "General work",
             })
 
     attendance.completed_task_ids = (
