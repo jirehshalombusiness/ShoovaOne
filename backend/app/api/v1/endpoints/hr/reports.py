@@ -291,14 +291,14 @@ async def leave_usage_report(
             LeaveType.color,
             func.count(LeaveRequest.id),
             func.coalesce(
-                func.sum(
-                    func.case(
-                        (LeaveRequest.status == "approved", LeaveRequest.total_days),
-                        else_=0,
-                    )
-                ),
-                0,
-            ).label("approved_days"),
+                        func.sum(
+                            case(
+                                (LeaveRequest.status == "approved", LeaveRequest.total_days),
+                                else_=0,
+                            )
+                        ),
+                        0,
+                    ).label("approved_days"),
             func.coalesce(
                 func.sum(
                     func.case(
