@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List, Optional
 
@@ -40,6 +40,13 @@ class HeadcountReport(BaseModel):
     hired_this_year: int
     left_this_year: int
 
+class AttendanceTodayReport(BaseModel):
+    total_active: int
+    checked_in: int
+    checked_out: int
+    not_checked_in: int
+    percentage_checked_in: float
+    as_of: str
 
 class TurnoverMonth(BaseModel):
     month: str
@@ -493,4 +500,69 @@ async def contracts_expiring(
         within_30=rows_30,
         within_60=rows_60,
         within_90=rows_90,
+    )
+
+# ============================================================
+# ATTENDANCE TODAY
+# ============================================================
+
+@router.get("/attendance-today", response_model=AttendanceTodayReport)
+async def attendance_today_report(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permissions.HR_VIEW_SENSITIVE)),
+):
+    """
+    Live count of who has checked in today.
+
+    - total_active:      active staff + volunteers
+    - checked_in:        has an attendance row for today with check_in set
+    - checked_out:       has both check_in and check_out set
+    - not_checked_in:    no attendance row yet for today
+    - percentage_checked_in: checked_in / total_active * 100
+    """
+    today = date.today()
+
+    # Count active staff + volunteers
+    total_result = await db.execute(
+        select(func.count(Person.id)).where(
+            Person.deleted_at.is_(None),
+            Person.status == "active",
+            Person.type.in_(["staff", "volunteer"]),
+        )
+    )
+    total_active = total_result.scalar() or 0
+
+    # Count checked in today
+    checked_in_result = await db.execute(
+        select(func.count(Attendance.id)).where(
+            Attendance.date == today,
+            Attendance.check_in.is_not(None),
+        )
+    )
+    checked_in = checked_in_result.scalar() or 0
+
+    # Count checked out today
+    checked_out_result = await db.execute(
+        select(func.count(Attendance.id)).where(
+            Attendance.date == today,
+            Attendance.check_out.is_not(None),
+        )
+    )
+    checked_out = checked_out_result.scalar() or 0
+
+    not_checked_in = max(0, total_active - checked_in)
+
+    percentage = (
+        round((checked_in / total_active) * 100, 1)
+        if total_active > 0
+        else 0.0
+    )
+
+    return AttendanceTodayReport(
+        total_active=total_active,
+        checked_in=checked_in,
+        checked_out=checked_out,
+        not_checked_in=not_checked_in,
+        percentage_checked_in=percentage,
+        as_of=datetime.now(timezone.utc).isoformat(),
     )

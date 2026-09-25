@@ -1,49 +1,38 @@
-import { useAuth } from '@/lib/auth';
-import { DashboardHeader } from '../components/DashboardHeader';
-import { DashboardKpis } from '../components/DashboardKpis';
-import { ActionRequired } from '../components/ActionRequired';
-import { MyWork } from '../components/MyWork';
-import { ActiveProjects } from '../components/ActiveProjects';
-import { PeopleOverview } from '../components/PeopleOverview';
-import { UpcomingOverview } from '../components/UpcomingOverview';
-import { RecentActivity } from '../components/RecentActivity';
-import { PartnershipsOverview } from '../components/PartnershipsOverview';
-import { ProgrammesOverview } from '../components/ProgrammesOverview';
+import { ExecutiveHeader } from '../components/ExecutiveHeader';
+import { ExecutiveKpis } from '../components/ExecutiveKpis';
+import { ExecutiveApprovalsQueue } from '../components/ExecutiveApprovalsQueue';
+import { ContractAlerts } from '../components/ContractAlerts';
+import { WorkforceOverview } from '../components/WorkforceOverview';
+import { CompensationSnapshot } from '../components/CompensationSnapshot';
+import { OrgActivityFeed } from '../components/OrgActivityFeed';
 
 export function DashboardPage() {
-  const { user } = useAuth();
-
   return (
     <div className="space-y-6">
-      {/* Level 1: Header */}
-      <DashboardHeader user={user} />
+      {/* Row 1 — Header */}
+      <ExecutiveHeader />
 
-      {/* Level 2: KPI Row */}
-      <DashboardKpis />
+      {/* Row 2 — KPI strip */}
+      <ExecutiveKpis />
 
-      {/* Level 3 & 4: Action Required + My Work */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ActionRequired />
-        <MyWork />
+      {/* Row 3 — Approvals (2/3) + Contract alerts (1/3) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2">
+          <ExecutiveApprovalsQueue />
+        </div>
+        <div>
+          <ContractAlerts />
+        </div>
       </div>
 
-      {/* Level 5 & 6: Active Projects + People */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ActiveProjects />
-        <PeopleOverview />
+      {/* Row 4 — Workforce + Compensation */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <WorkforceOverview />
+        <CompensationSnapshot />
       </div>
 
-      {/* Level 7 & 8: Partnerships + Programmes */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <PartnershipsOverview />
-        <ProgrammesOverview />
-      </div>
-
-      {/* Level 9 & 10: Upcoming + Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <UpcomingOverview />
-        <RecentActivity />
-      </div>
+      {/* Row 5 — Activity feed (full width) */}
+      <OrgActivityFeed />
     </div>
   );
 }

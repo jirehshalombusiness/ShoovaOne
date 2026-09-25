@@ -1238,6 +1238,18 @@ export const hrService = {
     return data;
   },
 
+  async getAttendanceToday(): Promise<{
+    total_active: number;
+    checked_in: number;
+    checked_out: number;
+    not_checked_in: number;
+    percentage_checked_in: number;
+    as_of: string;
+  }> {
+    const { data } = await api.get('/hr/reports/attendance-today');
+    return data;
+  },
+
   async getContractsExpiring(): Promise<ContractExpiryReport> {
     const { data } = await api.get<ContractExpiryReport>(
       '/hr/reports/contracts-expiring',
