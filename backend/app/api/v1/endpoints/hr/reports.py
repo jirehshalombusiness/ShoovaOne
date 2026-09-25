@@ -13,7 +13,10 @@ from app.models.sql.user import User, Person
 from app.models.sql.employment_contract import EmploymentContract
 from app.models.sql.leave import LeaveRequest, LeaveType, LeaveBalance
 from app.models.sql.compensation import CompensationChange
+
+
 from app.models.sql.attendance import Attendance
+
 
 
 router = APIRouter()
@@ -22,6 +25,24 @@ router = APIRouter()
 # ============================================================
 # SCHEMAS
 # ============================================================
+class AttendanceRosterPerson(BaseModel):
+    person_id: str
+    first_name: str
+    last_name: str
+    job_title: Optional[str] = None
+    department: Optional[str] = None
+    profile_image_url: Optional[str] = None
+    check_in: Optional[str] = None
+    check_out: Optional[str] = None
+    minutes_worked: int = 0
+    status: str  # "checked_in" | "checked_out" | "not_checked_in"
+
+
+class AttendanceRosterReport(BaseModel):
+    date: str
+    checked_in: List[AttendanceRosterPerson]
+    not_checked_in: List[AttendanceRosterPerson]
+
 
 class HeadcountBucket(BaseModel):
     label: str
@@ -565,4 +586,97 @@ async def attendance_today_report(
         not_checked_in=not_checked_in,
         percentage_checked_in=percentage,
         as_of=datetime.now(timezone.utc).isoformat(),
+    )
+
+@router.get("/attendance-today/roster", response_model=AttendanceRosterReport)
+async def attendance_today_roster(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permissions.HR_VIEW_SENSITIVE)),
+):
+    """
+    Full roster for today's attendance.
+
+    Returns two lists:
+    - checked_in:     people with an attendance row for today
+    - not_checked_in: active staff/volunteers with no attendance row today
+
+    Includes minutes worked so far (check_in to check_out, or check_in to now).
+    """
+    from datetime import datetime, timezone
+
+    today = date.today()
+    now = datetime.now(timezone.utc)
+
+    # All active staff + volunteers
+    people_result = await db.execute(
+        select(Person).where(
+            Person.deleted_at.is_(None),
+            Person.status == "active",
+            Person.type.in_(["staff", "volunteer"]),
+        ).order_by(Person.first_name)
+    )
+    people = list(people_result.scalars().all())
+    people_by_id = {p.id: p for p in people}
+
+    # Today's attendance rows
+    att_result = await db.execute(
+        select(Attendance).where(Attendance.date == today)
+    )
+    attendance_rows = list(att_result.scalars().all())
+    attendance_by_person = {a.person_id: a for a in attendance_rows}
+
+    checked_in: List[AttendanceRosterPerson] = []
+    not_checked_in: List[AttendanceRosterPerson] = []
+
+    for person in people:
+        att = attendance_by_person.get(person.id)
+
+        if att and att.check_in:
+            # Compute minutes worked
+            check_in_dt = att.check_in
+            if check_in_dt.tzinfo is None:
+                check_in_dt = check_in_dt.replace(tzinfo=timezone.utc)
+
+            end_dt = att.check_out or now
+            if end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=timezone.utc)
+
+            minutes = int((end_dt - check_in_dt).total_seconds() / 60)
+
+            status = "checked_out" if att.check_out else "checked_in"
+
+            checked_in.append(
+                AttendanceRosterPerson(
+                    person_id=person.id,
+                    first_name=person.first_name,
+                    last_name=person.last_name,
+                    job_title=person.job_title,
+                    department=person.department,
+                    profile_image_url=person.profile_image_url,
+                    check_in=att.check_in.isoformat(),
+                    check_out=att.check_out.isoformat() if att.check_out else None,
+                    minutes_worked=minutes,
+                    status=status,
+                )
+            )
+        else:
+            not_checked_in.append(
+                AttendanceRosterPerson(
+                    person_id=person.id,
+                    first_name=person.first_name,
+                    last_name=person.last_name,
+                    job_title=person.job_title,
+                    department=person.department,
+                    profile_image_url=person.profile_image_url,
+                    status="not_checked_in",
+                )
+            )
+
+    # Sort checked_in by most recent check-in
+    checked_in.sort(key=lambda p: p.check_in or "", reverse=True)
+
+    return AttendanceRosterReport(
+        date=today.isoformat(),
+        checked_in=checked_in,
+        not_checked_in=not_checked_in,
     )
