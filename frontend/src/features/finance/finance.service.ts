@@ -77,11 +77,8 @@ export const financeService = {
   ): Promise<FundRequest> {
     const response = await api.post<FundRequest>(
       `/finance/fund-requests/${requestId}/review`,
-      null,
       {
-        params: {
-          review_notes: reviewNotes || undefined,
-        },
+        review_notes: reviewNotes || undefined,
       }
     );
 
