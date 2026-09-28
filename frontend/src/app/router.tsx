@@ -91,7 +91,7 @@ import { NewExpensePage } from '@/features/finance/pages/NewExpensePage';
 import { FundRequestsPage } from '@/features/finance/pages/FundRequestsPage';
 import { NewFundRequestPage } from '@/features/finance/pages/NewFundRequestPage';
 import { FundRequestDetailPage } from '@/features/finance/pages/FundRequestDetailPage';
-
+import { ApprovalsPage } from '@/features/finance/pages/ApprovalsPage';
 // ============================================================
 // AUDIT
 // ============================================================
@@ -745,9 +745,7 @@ export function AppRouter() {
 
             <Route
               path="approvals"
-              element={
-                <Placeholder title="Approvals" />
-              }
+              element={<ApprovalsPage />}
             />
 
             <Route
