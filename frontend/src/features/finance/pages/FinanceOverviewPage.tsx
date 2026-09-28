@@ -338,6 +338,32 @@ function CurrencyMetricSummary({
   return `${entries.length} currencies`;
 }
 
+function CurrencyAmountSummary({
+  totals,
+  field,
+  emptyLabel,
+}: {
+  totals: Record<string, FinanceCurrencyTotals>;
+  field: 'approved' | 'disbursed';
+  emptyLabel: string;
+}) {
+  const entries = Object.entries(totals).filter(
+    ([, values]) => values[field] > 0
+  );
+
+  if (entries.length === 0) {
+    return emptyLabel;
+  }
+
+  if (entries.length === 1) {
+    const [currency, values] = entries[0];
+
+    return formatCurrency(values[field], currency);
+  }
+
+  return `${entries.length} currencies`;
+}
+
 export function FinanceOverviewPage() {
   const [overview, setOverview] =
     useState<FinanceOverview | null>(null);
@@ -500,14 +526,11 @@ export function FinanceOverviewPage() {
 
           <MetricCard
             label="Funds Approved"
-            value={
-              currencyEntries.length === 1
-                ? formatCurrency(
-                    currencyEntries[0][1].approved,
-                    currencyEntries[0][0]
-                  )
-                : `${currencyEntries.length} currencies`
-            }
+            value={CurrencyAmountSummary({
+              totals: overview.fund_totals_by_currency,
+              field: 'approved',
+              emptyLabel: 'No approved funding',
+            })}
             description={`${formatNumber(
               overview.approved_fund_requests
             )} approved requests`}
@@ -518,14 +541,11 @@ export function FinanceOverviewPage() {
 
           <MetricCard
             label="Funds Disbursed"
-            value={
-              currencyEntries.length === 1
-                ? formatCurrency(
-                    currencyEntries[0][1].disbursed,
-                    currencyEntries[0][0]
-                  )
-                : `${currencyEntries.length} currencies`
-            }
+            value={CurrencyAmountSummary({
+              totals: overview.fund_totals_by_currency,
+              field: 'disbursed',
+              emptyLabel: 'No disbursements',
+            })}
             description="See funding analysis for currency-level totals"
             icon={Banknote}
             tone="accent"
