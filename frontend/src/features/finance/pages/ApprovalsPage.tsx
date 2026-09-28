@@ -442,7 +442,7 @@ export function ApprovalsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="w-full table-fixed">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/70">
                   <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
