@@ -4,7 +4,6 @@ import {
   ArrowUpRight,
   Banknote,
   BarChart3,
-  Briefcase,
   CheckCircle2,
   ChevronRight,
   CircleDollarSign,
@@ -16,21 +15,34 @@ import {
   Receipt,
   RefreshCcw,
   ShieldCheck,
-  AlertTriangle,
   Wallet,
+  AlertTriangle,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { financeService } from '../finance.service';
-import type { FinanceOverview } from '../finance.types';
+import type {
+  FinanceCurrencyTotals,
+  FinanceOverview,
+} from '../finance.types';
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('en-GH', {
-    style: 'currency',
-    currency: 'GHS',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+const currencyLocales: Record<string, string> = {
+  GHS: 'en-GH',
+  USD: 'en-US',
+  GBP: 'en-GB',
+  EUR: 'de-DE',
+};
+
+function formatCurrency(value: number, currency: string) {
+  return new Intl.NumberFormat(
+    currencyLocales[currency] ?? 'en-US',
+    {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }
+  ).format(value);
 }
 
 function formatNumber(value: number) {
@@ -164,7 +176,9 @@ function AttentionItem({
       </div>
 
       <div className="flex items-center gap-2">
-        <span className={`text-xl font-semibold ${styles[tone].count}`}>
+        <span
+          className={`text-xl font-semibold ${styles[tone].count}`}
+        >
           {formatNumber(count)}
         </span>
 
@@ -252,9 +266,84 @@ function QuickAccessCard({
   );
 }
 
+function CurrencyTotalsList({
+  totals,
+}: {
+  totals: Record<string, FinanceCurrencyTotals>;
+}) {
+  const entries = Object.entries(totals);
+
+  if (entries.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500">
+        No funding transactions have been recorded yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200">
+      <div className="grid grid-cols-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <span>Currency</span>
+        <span className="text-right">Requested</span>
+        <span className="text-right">Approved</span>
+        <span className="text-right">Disbursed</span>
+      </div>
+
+      <div className="divide-y divide-slate-100">
+        {entries.map(([currency, values]) => (
+          <div
+            key={currency}
+            className="grid grid-cols-4 items-center px-4 py-4 text-sm"
+          >
+            <div className="font-semibold text-slate-900">
+              {currency}
+            </div>
+
+            <div className="text-right font-medium text-slate-700">
+              {formatCurrency(values.requested, currency)}
+            </div>
+
+            <div className="text-right font-medium text-emerald-700">
+              {formatCurrency(values.approved, currency)}
+            </div>
+
+            <div className="text-right font-medium text-blue-700">
+              {formatCurrency(values.disbursed, currency)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CurrencyMetricSummary({
+  totals,
+}: {
+  totals: Record<string, FinanceCurrencyTotals>;
+}) {
+  const entries = Object.entries(totals);
+
+  if (entries.length === 0) {
+    return 'No funding recorded';
+  }
+
+  if (entries.length === 1) {
+    const [currency, values] = entries[0];
+
+    return formatCurrency(values.requested, currency);
+  }
+
+  return `${entries.length} currencies`;
+}
+
 export function FinanceOverviewPage() {
-  const [overview, setOverview] = useState<FinanceOverview | null>(null);
+  const [overview, setOverview] =
+    useState<FinanceOverview | null>(null);
+
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState<string | null>(null);
 
   async function loadOverview() {
@@ -266,7 +355,11 @@ export function FinanceOverviewPage() {
 
       setOverview(data);
     } catch (err) {
-      console.error('Failed to load finance overview:', err);
+      console.error(
+        'Failed to load finance overview:',
+        err
+      );
+
       setError(
         'We could not load the financial overview. Please try again.'
       );
@@ -279,32 +372,18 @@ export function FinanceOverviewPage() {
     loadOverview();
   }, []);
 
-  const utilizationRate = useMemo(() => {
-    if (!overview || overview.total_funds_approved <= 0) {
-      return 0;
+  const currencyEntries = useMemo(() => {
+    if (!overview) {
+      return [];
     }
 
-    return Math.min(
-      100,
-      Math.round(
-        (overview.total_funds_disbursed /
-          overview.total_funds_approved) *
-        100
-      )
+    return Object.entries(
+      overview.fund_totals_by_currency ?? {}
     );
   }, [overview]);
 
-  const approvalRate = useMemo(() => {
-    if (!overview || overview.total_funds_requested <= 0) {
-      return 0;
-    }
-
-    return Math.round(
-      (overview.total_funds_approved /
-        overview.total_funds_requested) *
-      100
-    );
-  }, [overview]);
+  const hasMultipleCurrencies =
+    currencyEntries.length > 1;
 
   if (loading) {
     return (
@@ -409,7 +488,9 @@ export function FinanceOverviewPage() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Funds Requested"
-            value={formatCurrency(overview.total_funds_requested)}
+            value={CurrencyMetricSummary({
+              totals: overview.fund_totals_by_currency,
+            })}
             description={`${formatNumber(
               overview.total_fund_requests
             )} fund requests recorded`}
@@ -419,7 +500,14 @@ export function FinanceOverviewPage() {
 
           <MetricCard
             label="Funds Approved"
-            value={formatCurrency(overview.total_funds_approved)}
+            value={
+              currencyEntries.length === 1
+                ? formatCurrency(
+                    currencyEntries[0][1].approved,
+                    currencyEntries[0][0]
+                  )
+                : `${currencyEntries.length} currencies`
+            }
             description={`${formatNumber(
               overview.approved_fund_requests
             )} approved requests`}
@@ -430,8 +518,15 @@ export function FinanceOverviewPage() {
 
           <MetricCard
             label="Funds Disbursed"
-            value={formatCurrency(overview.total_funds_disbursed)}
-            description={`${utilizationRate}% of approved funds disbursed`}
+            value={
+              currencyEntries.length === 1
+                ? formatCurrency(
+                    currencyEntries[0][1].disbursed,
+                    currencyEntries[0][0]
+                  )
+                : `${currencyEntries.length} currencies`
+            }
+            description="See funding analysis for currency-level totals"
             icon={Banknote}
             tone="accent"
             href="/finance/disbursements"
@@ -439,7 +534,10 @@ export function FinanceOverviewPage() {
 
           <MetricCard
             label="Paid Expenses"
-            value={formatCurrency(overview.total_paid_expenses)}
+            value={formatCurrency(
+              overview.total_paid_expenses,
+              'GHS'
+            )}
             description={`${formatNumber(
               overview.total_expenses
             )} expense records recorded`}
@@ -515,7 +613,7 @@ export function FinanceOverviewPage() {
               </div>
 
               <p className="mt-1 text-sm text-slate-500">
-                Requested, approved, and disbursed funding.
+                Funding totals are displayed separately by currency.
               </p>
             </div>
 
@@ -528,65 +626,25 @@ export function FinanceOverviewPage() {
             </Link>
           </div>
 
-          <div className="mt-8 space-y-6">
-            <div>
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="font-medium text-slate-700">
-                  Approval coverage
-                </span>
-
-                <span className="font-semibold text-slate-900">
-                  {approvalRate}%
-                </span>
-              </div>
-
-              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full bg-slate-800 transition-all"
-                  style={{ width: `${approvalRate}%` }}
-                />
-              </div>
-
-              <div className="mt-2 flex justify-between text-xs text-slate-400">
-                <span>
-                  Requested: {formatCurrency(overview.total_funds_requested)}
-                </span>
-
-                <span>
-                  Approved: {formatCurrency(overview.total_funds_approved)}
-                </span>
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="font-medium text-slate-700">
-                  Disbursement utilization
-                </span>
-
-                <span className="font-semibold text-slate-900">
-                  {utilizationRate}%
-                </span>
-              </div>
-
-              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full bg-emerald-600 transition-all"
-                  style={{ width: `${utilizationRate}%` }}
-                />
-              </div>
-
-              <div className="mt-2 flex justify-between text-xs text-slate-400">
-                <span>
-                  Approved: {formatCurrency(overview.total_funds_approved)}
-                </span>
-
-                <span>
-                  Disbursed: {formatCurrency(overview.total_funds_disbursed)}
-                </span>
-              </div>
-            </div>
+          <div className="mt-8">
+            <CurrencyTotalsList
+              totals={overview.fund_totals_by_currency}
+            />
           </div>
+
+          {hasMultipleCurrencies && (
+            <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-medium text-amber-900">
+                Multiple currencies detected
+              </p>
+
+              <p className="mt-1 text-xs leading-5 text-amber-800">
+                Funding amounts are intentionally not combined across
+                currencies. Each currency is reported separately to avoid
+                misleading financial totals.
+              </p>
+            </div>
+          )}
 
           <div className="mt-8 grid grid-cols-1 gap-3 border-t border-slate-100 pt-6 sm:grid-cols-3">
             <div>
@@ -641,7 +699,10 @@ export function FinanceOverviewPage() {
 
           <div className="mt-8">
             <p className="text-3xl font-semibold tracking-tight text-slate-950">
-              {formatCurrency(overview.total_expense_amount)}
+              {formatCurrency(
+                overview.total_expense_amount,
+                'GHS'
+              )}
             </p>
 
             <p className="mt-1 text-sm text-slate-500">
@@ -685,7 +746,10 @@ export function FinanceOverviewPage() {
               </div>
 
               <span className="font-semibold text-slate-900">
-                {formatCurrency(overview.total_paid_expenses)}
+                {formatCurrency(
+                  overview.total_paid_expenses,
+                  'GHS'
+                )}
               </span>
             </div>
           </div>
@@ -732,7 +796,9 @@ export function FinanceOverviewPage() {
           <WorkflowStage
             label="Disbursed"
             count={
-              overview.total_funds_disbursed > 0
+              currencyEntries.some(
+                ([, values]) => values.disbursed > 0
+              )
                 ? overview.approved_fund_requests
                 : 0
             }

@@ -30,7 +30,11 @@ class FundRequestUpdate(BaseModel):
     department_id: Optional[str] = None
 
     amount_requested: Optional[Decimal] = Field(None, gt=0)
-    currency: Optional[str] = Field(None, min_length=3, max_length=3)
+    currency: Optional[str] = Field(
+        None,
+        min_length=3,
+        max_length=3,
+    )
 
     required_by_date: Optional[date] = None
 
@@ -79,6 +83,7 @@ class FundRequestResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
 class FundRequestReview(BaseModel):
     review_notes: Optional[str] = None
 
@@ -107,15 +112,21 @@ class FundRequestDisbursement(BaseModel):
 
 
 class FundRequestReconciliation(BaseModel):
-    reconciliation_notes: Optional[str] = None    
+    reconciliation_notes: Optional[str] = None
+
+
+class FinanceCurrencyTotals(BaseModel):
+    requested: Decimal
+    approved: Decimal
+    disbursed: Decimal
+
 
 class FinanceOverviewResponse(BaseModel):
     total_fund_requests: int
     pending_fund_requests: int
     approved_fund_requests: int
-    total_funds_requested: Decimal
-    total_funds_approved: Decimal
-    total_funds_disbursed: Decimal
+
+    fund_totals_by_currency: dict[str, FinanceCurrencyTotals]
 
     total_expenses: int
     pending_expenses: int
@@ -124,4 +135,4 @@ class FinanceOverviewResponse(BaseModel):
     total_paid_expenses: Decimal
 
     expenses_requiring_reconciliation: int
-    fund_requests_requiring_reconciliation: int    
+    fund_requests_requiring_reconciliation: int

@@ -59,14 +59,18 @@ async def get_finance_overview(
         fund_request_conditions = [
             or_(
                 FundRequest.requester_id == current_user.person_id,
-                FundRequest.project_id.in_(project_manager_subquery),
+                FundRequest.project_id.in_(
+                    project_manager_subquery
+                ),
             )
         ]
 
         expense_conditions = [
             or_(
                 Expense.requester_id == current_user.person_id,
-                Expense.project_id.in_(project_manager_subquery),
+                Expense.project_id.in_(
+                    project_manager_subquery
+                ),
             )
         ]
 
@@ -74,8 +78,40 @@ async def get_finance_overview(
     # Fund Request metrics
     # ---------------------------------------------------------
 
-    fund_request_query = select(
-        func.count(FundRequest.id),
+    # Total number of fund requests.
+    fund_request_count_query = select(
+        func.count(FundRequest.id)
+    )
+
+    if fund_request_conditions:
+        fund_request_count_query = (
+            fund_request_count_query.where(
+                *fund_request_conditions
+            )
+        )
+
+    fund_request_count_result = await db.execute(
+        fund_request_count_query
+    )
+
+    total_fund_requests = (
+        fund_request_count_result.scalar() or 0
+    )
+
+    # Currency-specific fund totals.
+    #
+    # We must never add amounts from different currencies
+    # together. For example:
+    #
+    # GHS 50,000 + USD 2,000
+    #
+    # must remain:
+    #
+    # GHS -> 50,000
+    # USD -> 2,000
+    #
+    fund_totals_query = select(
+        FundRequest.currency,
         func.coalesce(
             func.sum(FundRequest.amount_requested),
             0,
@@ -88,23 +124,38 @@ async def get_finance_overview(
             func.sum(FundRequest.amount_disbursed),
             0,
         ),
+    ).group_by(
+        FundRequest.currency
     )
 
     if fund_request_conditions:
-        fund_request_query = fund_request_query.where(
+        fund_totals_query = fund_totals_query.where(
             *fund_request_conditions
         )
 
-    fund_request_result = await db.execute(
-        fund_request_query
+    fund_totals_result = await db.execute(
+        fund_totals_query
     )
 
-    (
-        total_fund_requests,
-        total_funds_requested,
-        total_funds_approved,
-        total_funds_disbursed,
-    ) = fund_request_result.one()
+    fund_totals_by_currency = {}
+
+    for (
+        currency,
+        requested,
+        approved,
+        disbursed,
+    ) in fund_totals_result.all():
+        currency_code = (
+            currency.upper()
+            if currency
+            else "UNKNOWN"
+        )
+
+        fund_totals_by_currency[currency_code] = {
+            "requested": requested or 0,
+            "approved": approved or 0,
+            "disbursed": disbursed or 0,
+        }
 
     # Pending fund requests
     pending_fund_request_query = select(
@@ -300,17 +351,15 @@ async def get_finance_overview(
     # ---------------------------------------------------------
 
     return FinanceOverviewResponse(
-        total_fund_requests=total_fund_requests or 0,
+        total_fund_requests=total_fund_requests,
         pending_fund_requests=pending_fund_requests,
         approved_fund_requests=approved_fund_requests,
-        total_funds_requested=total_funds_requested,
-        total_funds_approved=total_funds_approved,
-        total_funds_disbursed=total_funds_disbursed,
+        fund_totals_by_currency=fund_totals_by_currency,
         total_expenses=total_expenses or 0,
         pending_expenses=pending_expenses,
         approved_expenses=approved_expenses,
-        total_expense_amount=total_expense_amount,
-        total_paid_expenses=total_paid_expenses,
+        total_expense_amount=total_expense_amount or 0,
+        total_paid_expenses=total_paid_expenses or 0,
         expenses_requiring_reconciliation=(
             expenses_requiring_reconciliation
         ),
