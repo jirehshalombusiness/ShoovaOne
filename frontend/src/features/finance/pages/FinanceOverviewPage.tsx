@@ -80,7 +80,7 @@ function MetricCard({
           </p>
 
           <p
-            className={`mt-2 text-2xl font-semibold tracking-tight ${toneClasses[tone].value}`}
+            className={`mt-2 break-words text-2xl font-semibold tracking-tight ${toneClasses[tone].value}`}
           >
             {value}
           </p>
@@ -289,7 +289,7 @@ export function FinanceOverviewPage() {
       Math.round(
         (overview.total_funds_disbursed /
           overview.total_funds_approved) *
-          100
+        100
       )
     );
   }, [overview]);
@@ -302,7 +302,7 @@ export function FinanceOverviewPage() {
     return Math.round(
       (overview.total_funds_approved /
         overview.total_funds_requested) *
-        100
+      100
     );
   }, [overview]);
 
@@ -504,8 +504,8 @@ export function FinanceOverviewPage() {
       {/* Funding analysis */}
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm xl:col-span-2">
-          <div className="flex items-start justify-between gap-4">
-            <div>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-slate-500" />
 
