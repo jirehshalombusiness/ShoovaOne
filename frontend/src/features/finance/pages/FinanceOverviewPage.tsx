@@ -73,8 +73,8 @@ function MetricCard({
 
   const content = (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="grid grid-cols-[minmax(0,1fr)_2.5rem] items-start gap-3">
+        <div className="min-w-0">
           <p className="text-sm font-medium text-slate-500">
             {label}
           </p>
