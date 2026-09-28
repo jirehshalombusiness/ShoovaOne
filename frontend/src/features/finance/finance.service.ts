@@ -18,6 +18,28 @@ export interface CreateFundRequestPayload {
   required_by_date?: string;
 }
 
+export interface FundRequestReviewPayload {
+  review_notes?: string;
+}
+
+export interface FundRequestApprovalPayload {
+  approved_amount?: number;
+  approval_notes?: string;
+}
+
+export interface FundRequestRejectionPayload {
+  rejection_reason: string;
+}
+
+export interface FundRequestDisbursementPayload {
+  amount_disbursed: number;
+  disbursement_notes?: string;
+}
+
+export interface FundRequestReconciliationPayload {
+  reconciliation_notes?: string;
+}
+
 export const financeService = {
   async getOverview(): Promise<FinanceOverview> {
     const response = await api.get<FinanceOverview>(
@@ -75,11 +97,13 @@ export const financeService = {
     requestId: string,
     reviewNotes?: string
   ): Promise<FundRequest> {
+    const payload: FundRequestReviewPayload = {
+      review_notes: reviewNotes?.trim() || undefined,
+    };
+
     const response = await api.post<FundRequest>(
       `/finance/fund-requests/${requestId}/review`,
-      {
-        review_notes: reviewNotes || undefined,
-      }
+      payload
     );
 
     return response.data;
@@ -90,15 +114,15 @@ export const financeService = {
     approvedAmount?: number,
     approvalNotes?: string
   ): Promise<FundRequest> {
+    const payload: FundRequestApprovalPayload = {
+      approved_amount: approvedAmount,
+      approval_notes:
+        approvalNotes?.trim() || undefined,
+    };
+
     const response = await api.post<FundRequest>(
       `/finance/fund-requests/${requestId}/approve`,
-      null,
-      {
-        params: {
-          approved_amount: approvedAmount,
-          approval_notes: approvalNotes || undefined,
-        },
-      }
+      payload
     );
 
     return response.data;
@@ -108,14 +132,13 @@ export const financeService = {
     requestId: string,
     rejectionReason: string
   ): Promise<FundRequest> {
+    const payload: FundRequestRejectionPayload = {
+      rejection_reason: rejectionReason.trim(),
+    };
+
     const response = await api.post<FundRequest>(
       `/finance/fund-requests/${requestId}/reject`,
-      null,
-      {
-        params: {
-          rejection_reason: rejectionReason,
-        },
-      }
+      payload
     );
 
     return response.data;
@@ -126,16 +149,15 @@ export const financeService = {
     amountDisbursed: number,
     disbursementNotes?: string
   ): Promise<FundRequest> {
+    const payload: FundRequestDisbursementPayload = {
+      amount_disbursed: amountDisbursed,
+      disbursement_notes:
+        disbursementNotes?.trim() || undefined,
+    };
+
     const response = await api.post<FundRequest>(
       `/finance/fund-requests/${requestId}/disburse`,
-      null,
-      {
-        params: {
-          amount_disbursed: amountDisbursed,
-          disbursement_notes:
-            disbursementNotes || undefined,
-        },
-      }
+      payload
     );
 
     return response.data;
@@ -145,15 +167,14 @@ export const financeService = {
     requestId: string,
     reconciliationNotes?: string
   ): Promise<FundRequest> {
+    const payload: FundRequestReconciliationPayload = {
+      reconciliation_notes:
+        reconciliationNotes?.trim() || undefined,
+    };
+
     const response = await api.post<FundRequest>(
       `/finance/fund-requests/${requestId}/reconcile`,
-      null,
-      {
-        params: {
-          reconciliation_notes:
-            reconciliationNotes || undefined,
-        },
-      }
+      payload
     );
 
     return response.data;
