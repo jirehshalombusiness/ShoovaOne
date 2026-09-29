@@ -93,6 +93,7 @@ import { NewFundRequestPage } from '@/features/finance/pages/NewFundRequestPage'
 import { FundRequestDetailPage } from '@/features/finance/pages/FundRequestDetailPage';
 import { ApprovalsPage } from '@/features/finance/pages/ApprovalsPage';
 import { DisbursementsPage } from '@/features/finance/pages/DisbursementsPage';
+import ReconciliationPage from '@/features/finance/pages/ReconciliationPage';
 // ============================================================
 // AUDIT
 // ============================================================
@@ -829,9 +830,7 @@ export function AppRouter() {
 
             <Route
               path="reconciliation"
-              element={
-                <Placeholder title="Reconciliation" />
-              }
+              element={<ReconciliationPage />}
             />
 
             {/* ----------------------------------------------------- */}
