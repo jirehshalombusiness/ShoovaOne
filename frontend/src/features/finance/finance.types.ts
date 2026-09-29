@@ -4,6 +4,13 @@ export interface FinanceCurrencyTotals {
   disbursed: number;
 }
 
+export interface FinanceReportingTotals {
+  currency: string;
+  requested: number;
+  approved: number;
+  disbursed: number;
+}
+
 export interface FinanceOverview {
   total_fund_requests: number;
 
@@ -15,6 +22,8 @@ export interface FinanceOverview {
     string,
     FinanceCurrencyTotals
   >;
+
+  reporting_totals: FinanceReportingTotals;
 
   total_expenses: number;
 

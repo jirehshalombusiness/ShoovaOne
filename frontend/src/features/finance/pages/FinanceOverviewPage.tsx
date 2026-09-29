@@ -318,52 +318,6 @@ function CurrencyTotalsList({
   );
 }
 
-function CurrencyMetricSummary({
-  totals,
-}: {
-  totals: Record<string, FinanceCurrencyTotals>;
-}) {
-  const entries = Object.entries(totals);
-
-  if (entries.length === 0) {
-    return 'No funding recorded';
-  }
-
-  if (entries.length === 1) {
-    const [currency, values] = entries[0];
-
-    return formatCurrency(values.requested, currency);
-  }
-
-  return `${entries.length} currencies`;
-}
-
-function CurrencyAmountSummary({
-  totals,
-  field,
-  emptyLabel,
-}: {
-  totals: Record<string, FinanceCurrencyTotals>;
-  field: 'approved' | 'disbursed';
-  emptyLabel: string;
-}) {
-  const entries = Object.entries(totals).filter(
-    ([, values]) => values[field] > 0
-  );
-
-  if (entries.length === 0) {
-    return emptyLabel;
-  }
-
-  if (entries.length === 1) {
-    const [currency, values] = entries[0];
-
-    return formatCurrency(values[field], currency);
-  }
-
-  return `${entries.length} currencies`;
-}
-
 export function FinanceOverviewPage() {
   const [overview, setOverview] =
     useState<FinanceOverview | null>(null);
@@ -469,6 +423,18 @@ export function FinanceOverviewPage() {
     );
   }
 
+  const reportingCurrency =
+    overview.reporting_totals.currency;
+
+  const reportingRequested =
+    overview.reporting_totals.requested;
+
+  const reportingApproved =
+    overview.reporting_totals.approved;
+
+  const reportingDisbursed =
+    overview.reporting_totals.disbursed;
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -514,26 +480,26 @@ export function FinanceOverviewPage() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Funds Requested"
-            value={CurrencyMetricSummary({
-              totals: overview.fund_totals_by_currency,
-            })}
+            value={formatCurrency(
+              reportingRequested,
+              reportingCurrency
+            )}
             description={`${formatNumber(
               overview.total_fund_requests
-            )} fund requests recorded`}
+            )} fund requests · USD reporting value`}
             icon={CircleDollarSign}
             href="/finance/fund-requests"
           />
 
           <MetricCard
             label="Funds Approved"
-            value={CurrencyAmountSummary({
-              totals: overview.fund_totals_by_currency,
-              field: 'approved',
-              emptyLabel: 'No approved funding',
-            })}
+            value={formatCurrency(
+              reportingApproved,
+              reportingCurrency
+            )}
             description={`${formatNumber(
               overview.approved_fund_requests
-            )} approved requests`}
+            )} approved requests · USD reporting value`}
             icon={CheckCircle2}
             tone="positive"
             href="/finance/approvals"
@@ -541,12 +507,11 @@ export function FinanceOverviewPage() {
 
           <MetricCard
             label="Funds Disbursed"
-            value={CurrencyAmountSummary({
-              totals: overview.fund_totals_by_currency,
-              field: 'disbursed',
-              emptyLabel: 'No disbursements',
-            })}
-            description="See funding analysis for currency-level totals"
+            value={formatCurrency(
+              reportingDisbursed,
+              reportingCurrency
+            )}
+            description="USD reporting value across all funding currencies"
             icon={Banknote}
             tone="accent"
             href="/finance/disbursements"
@@ -633,7 +598,7 @@ export function FinanceOverviewPage() {
               </div>
 
               <p className="mt-1 text-sm text-slate-500">
-                Funding totals are displayed separately by currency.
+                Original funding totals are displayed separately by currency.
               </p>
             </div>
 
@@ -653,15 +618,15 @@ export function FinanceOverviewPage() {
           </div>
 
           {hasMultipleCurrencies && (
-            <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
-              <p className="text-sm font-medium text-amber-900">
+            <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <p className="text-sm font-medium text-blue-900">
                 Multiple currencies detected
               </p>
 
-              <p className="mt-1 text-xs leading-5 text-amber-800">
-                Funding amounts are intentionally not combined across
-                currencies. Each currency is reported separately to avoid
-                misleading financial totals.
+              <p className="mt-1 text-xs leading-5 text-blue-800">
+                Original funding amounts remain separated by currency.
+                The Financial Position cards use USD reporting equivalents
+                so funding can be viewed as a single comparable figure.
               </p>
             </div>
           )}

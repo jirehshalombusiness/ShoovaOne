@@ -15,13 +15,21 @@ class FundRequestCreate(BaseModel):
     department_id: Optional[str] = None
 
     amount_requested: Decimal = Field(..., gt=0)
-    currency: str = Field(default="GHS", min_length=3, max_length=3)
+    currency: str = Field(
+        default="GHS",
+        min_length=3,
+        max_length=3,
+    )
 
     required_by_date: Optional[date] = None
 
 
 class FundRequestUpdate(BaseModel):
-    title: Optional[str] = Field(None, min_length=3, max_length=200)
+    title: Optional[str] = Field(
+        None,
+        min_length=3,
+        max_length=200,
+    )
     description: Optional[str] = None
     justification: Optional[str] = None
 
@@ -29,7 +37,11 @@ class FundRequestUpdate(BaseModel):
     programme_id: Optional[str] = None
     department_id: Optional[str] = None
 
-    amount_requested: Optional[Decimal] = Field(None, gt=0)
+    amount_requested: Optional[Decimal] = Field(
+        None,
+        gt=0,
+    )
+
     currency: Optional[str] = Field(
         None,
         min_length=3,
@@ -121,12 +133,21 @@ class FinanceCurrencyTotals(BaseModel):
     disbursed: Decimal
 
 
+class FinanceReportingTotals(BaseModel):
+    currency: str
+    requested: Decimal
+    approved: Decimal
+    disbursed: Decimal
+
+
 class FinanceOverviewResponse(BaseModel):
     total_fund_requests: int
     pending_fund_requests: int
     approved_fund_requests: int
 
     fund_totals_by_currency: dict[str, FinanceCurrencyTotals]
+
+    reporting_totals: FinanceReportingTotals
 
     total_expenses: int
     pending_expenses: int

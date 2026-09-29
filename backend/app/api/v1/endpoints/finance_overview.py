@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +12,11 @@ from app.models.sql.project import Project
 from app.models.sql.user import User
 from app.schemas.finance import FinanceOverviewResponse
 from app.services.finance_access_service import FinanceAccessService
+from app.services.currency_service import (
+    REPORTING_CURRENCY,
+    CurrencyConversionError,
+    get_exchange_rate,
+)
 
 
 router = APIRouter(tags=["finance"])
@@ -98,18 +105,26 @@ async def get_finance_overview(
         fund_request_count_result.scalar() or 0
     )
 
-    # Currency-specific fund totals.
+    # ---------------------------------------------------------
+    # Currency-specific fund totals
+    # ---------------------------------------------------------
     #
     # We must never add amounts from different currencies
-    # together. For example:
+    # directly together.
+    #
+    # Example:
     #
     # GHS 50,000 + USD 2,000
     #
-    # must remain:
+    # remains:
     #
     # GHS -> 50,000
     # USD -> 2,000
     #
+    # These original currency totals are preserved for
+    # transparency and detailed reporting.
+    # ---------------------------------------------------------
+
     fund_totals_query = select(
         FundRequest.currency,
         func.coalesce(
@@ -157,7 +172,71 @@ async def get_finance_overview(
             "disbursed": disbursed or 0,
         }
 
+    # ---------------------------------------------------------
+    # USD reporting totals
+    # ---------------------------------------------------------
+    #
+    # The original currency amounts above remain unchanged.
+    #
+    # Here we convert each currency into the configured
+    # reporting currency (currently USD), then combine the
+    # converted values.
+    #
+    # This gives the dashboard a single comparable figure
+    # without corrupting the original transaction amounts.
+    # ---------------------------------------------------------
+
+    reporting_requested = Decimal("0.00")
+    reporting_approved = Decimal("0.00")
+    reporting_disbursed = Decimal("0.00")
+
+    for currency, values in fund_totals_by_currency.items():
+        if currency == REPORTING_CURRENCY:
+            rate = Decimal("1")
+        else:
+            try:
+                rate = await get_exchange_rate(
+                    currency,
+                    REPORTING_CURRENCY,
+                )
+            except CurrencyConversionError as exc:
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        f"Unable to convert {currency} "
+                        f"funding totals to "
+                        f"{REPORTING_CURRENCY}."
+                    ),
+                ) from exc
+
+        reporting_requested += (
+            Decimal(str(values["requested"])) * rate
+        )
+
+        reporting_approved += (
+            Decimal(str(values["approved"])) * rate
+        )
+
+        reporting_disbursed += (
+            Decimal(str(values["disbursed"])) * rate
+        )
+
+    reporting_requested = reporting_requested.quantize(
+        Decimal("0.01")
+    )
+
+    reporting_approved = reporting_approved.quantize(
+        Decimal("0.01")
+    )
+
+    reporting_disbursed = reporting_disbursed.quantize(
+        Decimal("0.01")
+    )
+
+    # ---------------------------------------------------------
     # Pending fund requests
+    # ---------------------------------------------------------
+
     pending_fund_request_query = select(
         func.count(FundRequest.id)
     ).where(
@@ -181,7 +260,10 @@ async def get_finance_overview(
         pending_fund_request_result.scalar() or 0
     )
 
+    # ---------------------------------------------------------
     # Approved fund requests
+    # ---------------------------------------------------------
+
     approved_fund_request_query = select(
         func.count(FundRequest.id)
     ).where(
@@ -203,7 +285,10 @@ async def get_finance_overview(
         approved_fund_request_result.scalar() or 0
     )
 
+    # ---------------------------------------------------------
     # Fund requests requiring reconciliation
+    # ---------------------------------------------------------
+
     fund_reconciliation_query = select(
         func.count(FundRequest.id)
     ).where(
@@ -251,7 +336,10 @@ async def get_finance_overview(
         total_expense_amount,
     ) = expense_result.one()
 
+    # ---------------------------------------------------------
     # Pending expenses
+    # ---------------------------------------------------------
+
     pending_expense_query = select(
         func.count(Expense.id)
     ).where(
@@ -275,7 +363,10 @@ async def get_finance_overview(
         pending_expense_result.scalar() or 0
     )
 
+    # ---------------------------------------------------------
     # Approved expenses
+    # ---------------------------------------------------------
+
     approved_expense_query = select(
         func.count(Expense.id)
     ).where(
@@ -297,7 +388,10 @@ async def get_finance_overview(
         approved_expense_result.scalar() or 0
     )
 
+    # ---------------------------------------------------------
     # Paid expenses
+    # ---------------------------------------------------------
+
     paid_expense_query = select(
         func.coalesce(
             func.sum(Expense.amount),
@@ -324,7 +418,10 @@ async def get_finance_overview(
         paid_expense_result.scalar() or 0
     )
 
+    # ---------------------------------------------------------
     # Expenses requiring reconciliation
+    # ---------------------------------------------------------
+
     expense_reconciliation_query = select(
         func.count(Expense.id)
     ).where(
@@ -355,6 +452,12 @@ async def get_finance_overview(
         pending_fund_requests=pending_fund_requests,
         approved_fund_requests=approved_fund_requests,
         fund_totals_by_currency=fund_totals_by_currency,
+        reporting_totals={
+            "currency": REPORTING_CURRENCY,
+            "requested": reporting_requested,
+            "approved": reporting_approved,
+            "disbursed": reporting_disbursed,
+        },
         total_expenses=total_expenses or 0,
         pending_expenses=pending_expenses,
         approved_expenses=approved_expenses,
