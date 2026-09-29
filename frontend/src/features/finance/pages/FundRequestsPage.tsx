@@ -5,12 +5,12 @@ import {
   Search,
   ShieldCheck,
   AlertTriangle,
-
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { financeService } from '../finance.service';
 import type {
+  FinanceOverview,
   FundRequest,
   FundRequestListParams,
 } from '../finance.types';
@@ -29,6 +29,8 @@ function formatCurrency(amount: number, currency = 'GHS') {
 
 export function FundRequestsPage() {
   const [requests, setRequests] = useState<FundRequest[]>([]);
+  const [overview, setOverview] = useState<FinanceOverview | null>(null);
+
   const [filters, setFilters] = useState<FundRequestListParams>({
     page: 1,
     page_size: 25,
@@ -36,6 +38,7 @@ export function FundRequestsPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const navigate = useNavigate();
 
   const loadRequests = useCallback(async () => {
@@ -43,9 +46,13 @@ export function FundRequestsPage() {
       setLoading(true);
       setError(null);
 
-      const data = await financeService.getFundRequests(filters);
+      const [requestsData, overviewData] = await Promise.all([
+        financeService.getFundRequests(filters),
+        financeService.getOverview(),
+      ]);
 
-      setRequests(data);
+      setRequests(requestsData);
+      setOverview(overviewData);
     } catch (err) {
       console.error('Failed to load fund requests:', err);
 
@@ -77,25 +84,21 @@ export function FundRequestsPage() {
         request.status === 'reconciled'
     ).length;
 
-    const requestedAmount = requests.reduce(
-      (sum, request) => sum + Number(request.amount_requested),
-      0
-    );
-
-    const approvedAmount = requests.reduce(
-      (sum, request) =>
-        sum + Number(request.approved_amount ?? 0),
-      0
-    );
-
     return {
       total,
       pending,
       approved,
-      requestedAmount,
-      approvedAmount,
     };
   }, [requests]);
+
+  const reportingCurrency =
+    overview?.reporting_totals.currency ?? 'USD';
+
+  const reportingRequested =
+    overview?.reporting_totals.requested ?? 0;
+
+  const reportingApproved =
+    overview?.reporting_totals.approved ?? 0;
 
   const handleFiltersChange = (
     nextFilters: FundRequestListParams
@@ -138,8 +141,9 @@ export function FundRequestsPage() {
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCcw
-              className={`h-4 w-4 ${loading ? 'animate-spin' : ''
-                }`}
+              className={`h-4 w-4 ${
+                loading ? 'animate-spin' : ''
+              }`}
             />
 
             Refresh
@@ -205,11 +209,22 @@ export function FundRequestsPage() {
           </p>
 
           <p className="mt-2 text-xl font-semibold text-slate-900">
-            {formatCurrency(summary.requestedAmount)}
+            {formatCurrency(
+              reportingRequested,
+              reportingCurrency
+            )}
           </p>
 
           <p className="mt-1 text-xs text-slate-500">
-            Approved: {formatCurrency(summary.approvedAmount)}
+            Approved:{' '}
+            {formatCurrency(
+              reportingApproved,
+              reportingCurrency
+            )}
+          </p>
+
+          <p className="mt-1 text-xs text-slate-400">
+            USD reporting value
           </p>
         </div>
       </section>
