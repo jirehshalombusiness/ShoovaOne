@@ -18,6 +18,8 @@ export interface FinanceOverview {
 
   approved_fund_requests: number;
 
+  disbursed_fund_requests: number;
+
   fund_totals_by_currency: Record<
     string,
     FinanceCurrencyTotals

@@ -144,6 +144,7 @@ class FinanceOverviewResponse(BaseModel):
     total_fund_requests: int
     pending_fund_requests: int
     approved_fund_requests: int
+    disbursed_fund_requests: int
 
     fund_totals_by_currency: dict[str, FinanceCurrencyTotals]
 

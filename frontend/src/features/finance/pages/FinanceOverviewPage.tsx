@@ -511,7 +511,9 @@ export function FinanceOverviewPage() {
               reportingDisbursed,
               reportingCurrency
             )}
-            description="USD reporting value across all funding currencies"
+            description={`${formatNumber(
+              overview.disbursed_fund_requests
+            )} disbursed requests · USD reporting value`}
             icon={Banknote}
             tone="accent"
             href="/finance/disbursements"
@@ -780,14 +782,8 @@ export function FinanceOverviewPage() {
 
           <WorkflowStage
             label="Disbursed"
-            count={
-              currencyEntries.some(
-                ([, values]) => values.disbursed > 0
-              )
-                ? overview.approved_fund_requests
-                : 0
-            }
-            description="Approved funding progressing through disbursement."
+            count={overview.disbursed_fund_requests}
+            description="Requests that have reached the disbursement stage."
             icon={Banknote}
             tone="blue"
           />

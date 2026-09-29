@@ -108,6 +108,7 @@ async def get_finance_overview(
     # ---------------------------------------------------------
     # Currency-specific fund totals
     # ---------------------------------------------------------
+
     #
     # We must never add amounts from different currencies
     # directly together.
@@ -175,6 +176,7 @@ async def get_finance_overview(
     # ---------------------------------------------------------
     # USD reporting totals
     # ---------------------------------------------------------
+
     #
     # The original currency amounts above remain unchanged.
     #
@@ -264,10 +266,15 @@ async def get_finance_overview(
     # Approved fund requests
     # ---------------------------------------------------------
 
+    # A request remains part of the approved lifecycle once
+    # it has reached approval, even after it moves into
+    # disbursement or reconciliation.
     approved_fund_request_query = select(
         func.count(FundRequest.id)
     ).where(
-        FundRequest.status == "approved"
+        FundRequest.status.in_(
+            ["approved", "disbursed", "reconciled"]
+        )
     )
 
     if fund_request_conditions:
@@ -283,6 +290,35 @@ async def get_finance_overview(
 
     approved_fund_requests = (
         approved_fund_request_result.scalar() or 0
+    )
+
+    # ---------------------------------------------------------
+    # Disbursed fund requests
+    # ---------------------------------------------------------
+
+    # A request remains part of the disbursed lifecycle once
+    # it has been disbursed, including after reconciliation.
+    disbursed_fund_request_query = select(
+        func.count(FundRequest.id)
+    ).where(
+        FundRequest.status.in_(
+            ["disbursed", "reconciled"]
+        )
+    )
+
+    if fund_request_conditions:
+        disbursed_fund_request_query = (
+            disbursed_fund_request_query.where(
+                *fund_request_conditions
+            )
+        )
+
+    disbursed_fund_request_result = await db.execute(
+        disbursed_fund_request_query
+    )
+
+    disbursed_fund_requests = (
+        disbursed_fund_request_result.scalar() or 0
     )
 
     # ---------------------------------------------------------
@@ -451,6 +487,7 @@ async def get_finance_overview(
         total_fund_requests=total_fund_requests,
         pending_fund_requests=pending_fund_requests,
         approved_fund_requests=approved_fund_requests,
+        disbursed_fund_requests=disbursed_fund_requests,
         fund_totals_by_currency=fund_totals_by_currency,
         reporting_totals={
             "currency": REPORTING_CURRENCY,
