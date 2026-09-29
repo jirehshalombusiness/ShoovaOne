@@ -92,6 +92,7 @@ import { FundRequestsPage } from '@/features/finance/pages/FundRequestsPage';
 import { NewFundRequestPage } from '@/features/finance/pages/NewFundRequestPage';
 import { FundRequestDetailPage } from '@/features/finance/pages/FundRequestDetailPage';
 import { ApprovalsPage } from '@/features/finance/pages/ApprovalsPage';
+import { DisbursementsPage } from '@/features/finance/pages/DisbursementsPage';
 // ============================================================
 // AUDIT
 // ============================================================
@@ -750,9 +751,7 @@ export function AppRouter() {
 
             <Route
               path="disbursements"
-              element={
-                <Placeholder title="Disbursements" />
-              }
+              element={<DisbursementsPage />}
             />
 
             {/* ----------------------------------------------------- */}
