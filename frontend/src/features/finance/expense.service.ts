@@ -60,11 +60,8 @@ export const expenseService = {
   ): Promise<Expense> {
     const response = await api.post<Expense>(
       `/finance/expenses/${expenseId}/review`,
-      null,
       {
-        params: {
-          review_notes: reviewNotes || undefined,
-        },
+        review_notes: reviewNotes || undefined,
       }
     );
 
@@ -77,11 +74,8 @@ export const expenseService = {
   ): Promise<Expense> {
     const response = await api.post<Expense>(
       `/finance/expenses/${expenseId}/approve`,
-      null,
       {
-        params: {
-          approval_notes: approvalNotes || undefined,
-        },
+        approval_notes: approvalNotes || undefined,
       }
     );
 
@@ -94,11 +88,8 @@ export const expenseService = {
   ): Promise<Expense> {
     const response = await api.post<Expense>(
       `/finance/expenses/${expenseId}/reject`,
-      null,
       {
-        params: {
-          rejection_reason: rejectionReason,
-        },
+        rejection_reason: rejectionReason,
       }
     );
 
@@ -111,11 +102,8 @@ export const expenseService = {
   ): Promise<Expense> {
     const response = await api.post<Expense>(
       `/finance/expenses/${expenseId}/pay`,
-      null,
       {
-        params: {
-          payment_notes: paymentNotes || undefined,
-        },
+        payment_notes: paymentNotes || undefined,
       }
     );
 
@@ -128,12 +116,9 @@ export const expenseService = {
   ): Promise<Expense> {
     const response = await api.post<Expense>(
       `/finance/expenses/${expenseId}/reconcile`,
-      null,
       {
-        params: {
-          reconciliation_notes:
-            reconciliationNotes || undefined,
-        },
+        reconciliation_notes:
+          reconciliationNotes || undefined,
       }
     );
 
