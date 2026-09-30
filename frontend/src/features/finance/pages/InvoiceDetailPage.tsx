@@ -984,8 +984,8 @@ export default function InvoiceDetailPage() {
 
           html,
           body {
-            width: 210mm;
-            min-height: 297mm;
+            width: 100%;
+            min-height: 100%;
             margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
@@ -996,20 +996,65 @@ export default function InvoiceDetailPage() {
             print-color-adjust: exact;
           }
 
+          /*
+           * The Finance layout lives outside this page component.
+           * Hide the entire application shell during printing, then
+           * explicitly reveal only the invoice document.
+           */
+          body * {
+            visibility: hidden !important;
+          }
+
           .invoice-screen {
             display: none !important;
           }
 
+          .invoice-print,
+          .invoice-print * {
+            visibility: visible !important;
+          }
+
           .invoice-print {
             display: block !important;
-            width: 100%;
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100% !important;
+            height: auto !important;
             margin: 0 !important;
             padding: 0 !important;
+            background: #ffffff !important;
+            overflow: visible !important;
           }
 
           .print-invoice {
-            max-width: none;
-            width: 100%;
+            display: block !important;
+            box-sizing: border-box;
+            width: 100% !important;
+            max-width: none !important;
+            min-height: 273mm;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+          }
+
+          .print-invoice__header,
+          .print-meta,
+          .print-items,
+          .print-totals,
+          .print-notes,
+          .print-footer {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          .print-items tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          .print-footer {
+            break-inside: avoid;
+            page-break-inside: avoid;
           }
         }
       `}</style>
