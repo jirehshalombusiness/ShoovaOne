@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -165,6 +165,7 @@ async def ensure_invoice_access(
 )
 async def create_invoice(
     body: InvoiceCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
         require_permission("finance.create")
@@ -240,14 +241,16 @@ async def create_invoice(
         db=db,
         actor=current_user,
         action="INVOICE_CREATED",
-        entity_type="invoice",
+        entity_type="Invoice",
         entity_id=record.id,
-        details={
+        description=f"Invoice {record.invoice_number} created.",
+        new_values={
             "invoice_number": record.invoice_number,
             "customer_name": record.customer_name,
             "amount": str(record.amount),
             "currency": record.currency,
         },
+        request=request,
     )
 
     await db.commit()
@@ -371,6 +374,7 @@ async def get_invoice(
 async def update_invoice(
     invoice_id: UUID,
     body: InvoiceUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
         require_permission("finance.edit")
@@ -489,11 +493,13 @@ async def update_invoice(
         db=db,
         actor=current_user,
         action="INVOICE_UPDATED",
-        entity_type="invoice",
+        entity_type="Invoice",
         entity_id=record.id,
-        details={
+        description=f"Invoice {record.invoice_number} updated.",
+        new_values={
             "invoice_number": record.invoice_number,
         },
+        request=request,
     )
 
     await db.commit()
@@ -507,6 +513,7 @@ async def update_invoice(
 )
 async def issue_invoice(
     invoice_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
         require_permission("finance.create")
@@ -548,14 +555,18 @@ async def issue_invoice(
         db=db,
         actor=current_user,
         action="INVOICE_ISSUED",
-        entity_type="invoice",
+        entity_type="Invoice",
         entity_id=record.id,
-        details={
+        description=f"Invoice {record.invoice_number} issued.",
+        new_values={
+            "status": record.status,
+            "issued_at": record.issued_at.isoformat(),
             "invoice_number": record.invoice_number,
             "amount": str(record.amount),
             "currency": record.currency,
             "due_date": record.due_date.isoformat(),
         },
+        request=request,
     )
 
     await db.commit()
@@ -571,6 +582,7 @@ async def issue_invoice(
 async def cancel_invoice(
     invoice_id: UUID,
     body: InvoiceCancellation,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
         require_permission("finance.edit")
@@ -615,12 +627,16 @@ async def cancel_invoice(
         db=db,
         actor=current_user,
         action="INVOICE_CANCELLED",
-        entity_type="invoice",
+        entity_type="Invoice",
         entity_id=record.id,
-        details={
+        description=f"Invoice {record.invoice_number} cancelled.",
+        new_values={
+            "status": record.status,
+            "cancelled_at": record.cancelled_at.isoformat(),
             "invoice_number": record.invoice_number,
             "reason": body.cancellation_reason,
         },
+        request=request,
     )
 
     await db.commit()
