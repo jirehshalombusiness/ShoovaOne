@@ -103,6 +103,10 @@ import InvoiceDetailPage from '@/features/finance/pages/InvoiceDetailPage';
 import PaymentsPage from '@/features/finance/pages/PaymentsPage';
 import NewPaymentPage from '@/features/finance/pages/NewPaymentPage';
 import PaymentDetailPage from '@/features/finance/pages/PaymentDetailPage';
+import BudgetsPage from '@/features/finance/pages/BudgetsPage';
+import NewBudgetPage from '@/features/finance/pages/NewBudgetPage';
+import BudgetDetailPage from '@/features/finance/pages/BudgetDetailPage';
+import EditBudgetPage from '@/features/finance/pages/EditBudgetPage';
 // ============================================================
 // AUDIT
 // ============================================================
@@ -814,14 +818,22 @@ export function AppRouter() {
             {/* ----------------------------------------------------- */}
             {/* PLANNING                                              */}
             {/* ----------------------------------------------------- */}
-
             <Route
-              path="budgets"
-              element={
-                <Placeholder title="Budgets" />
-              }
+              path= '/finance/budgets'
+              element={<BudgetsPage />}
             />
-
+            <Route
+              path= '/finance/budgets/new'
+              element={<NewBudgetPage />}
+            />
+            <Route
+              path= '/finance/budgets/:budgetId'
+              element={<BudgetDetailPage />}
+            />
+            <Route
+              path= '/finance/budgets/:budgetId/edit'
+              element={<EditBudgetPage />}
+            />
             <Route
               path="allocations"
               element={
