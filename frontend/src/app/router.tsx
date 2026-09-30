@@ -94,6 +94,9 @@ import { FundRequestDetailPage } from '@/features/finance/pages/FundRequestDetai
 import { ApprovalsPage } from '@/features/finance/pages/ApprovalsPage';
 import { DisbursementsPage } from '@/features/finance/pages/DisbursementsPage';
 import ReconciliationPage from '@/features/finance/pages/ReconciliationPage';
+import ReimbursementsPage from '@/features/finance/pages/ReimbursementsPage';
+import { NewReimbursementPage } from '@/features/finance/pages/NewReimbursementPage';
+import { ReimbursementDetailPage } from '@/features/finance/pages/ReimbursementDetailPage';
 // ============================================================
 // AUDIT
 // ============================================================
@@ -776,9 +779,17 @@ export function AppRouter() {
 
             <Route
               path="reimbursements"
-              element={
-                <Placeholder title="Reimbursements" />
-              }
+              element={<ReimbursementsPage />}
+            />
+
+            <Route
+              path="reimbursements/new"
+              element={<NewReimbursementPage />}
+            />
+
+            <Route
+              path="reimbursements/:reimbursementId"
+              element={<ReimbursementDetailPage />}
             />
 
             {/* ----------------------------------------------------- */}

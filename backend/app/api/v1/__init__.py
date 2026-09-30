@@ -16,6 +16,7 @@ from app.api.v1.endpoints import (
     hr,
     finance,
     expenses,
+    reimbursements,
     finance_overview,
     organisation,
 )
@@ -117,6 +118,11 @@ api_router.include_router(
 )
 api_router.include_router(
     expenses.router,
+    prefix="/finance",
+    tags=["finance"],
+)
+api_router.include_router(
+    reimbursements.router,
     prefix="/finance",
     tags=["finance"],
 )
