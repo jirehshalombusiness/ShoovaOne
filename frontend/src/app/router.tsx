@@ -97,6 +97,9 @@ import ReconciliationPage from '@/features/finance/pages/ReconciliationPage';
 import ReimbursementsPage from '@/features/finance/pages/ReimbursementsPage';
 import { NewReimbursementPage } from '@/features/finance/pages/NewReimbursementPage';
 import { ReimbursementDetailPage } from '@/features/finance/pages/ReimbursementDetailPage';
+import InvoicesPage from '@/features/finance/pages/InvoicesPage';
+import NewInvoicePage from '@/features/finance/pages/NewInvoicePage';
+import InvoiceDetailPage from '@/features/finance/pages/InvoiceDetailPage';
 // ============================================================
 // AUDIT
 // ============================================================
@@ -796,12 +799,9 @@ export function AppRouter() {
             {/* RECEIVABLES                                           */}
             {/* ----------------------------------------------------- */}
 
-            <Route
-              path="invoices"
-              element={
-                <Placeholder title="Invoices" />
-              }
-            />
+            <Route path="invoices" element={<InvoicesPage />} />
+            <Route path="invoices/new" element={<NewInvoicePage />} />
+            <Route path="invoices/:invoiceId" element={<InvoiceDetailPage />} />
 
             <Route
               path="payments"
