@@ -280,9 +280,8 @@ export default function InvoiceDetailPage() {
 
   return (
     <>
-      {/* Screen-only page */}
-      <div className="space-y-6 print:hidden">
-        {/* Header */}
+      {/* Screen-only invoice management page */}
+      <div className="invoice-screen space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <Link
@@ -300,7 +299,6 @@ export default function InvoiceDetailPage() {
                 <h1 className="text-2xl font-semibold text-slate-900">
                   {invoice.invoice_number}
                 </h1>
-
                 <p className="mt-1 text-sm text-slate-500">
                   {invoice.title}
                 </p>
@@ -341,18 +339,14 @@ export default function InvoiceDetailPage() {
                 className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />
-                {actionLoading
-                  ? 'Issuing...'
-                  : 'Issue Invoice'}
+                {actionLoading ? 'Issuing...' : 'Issue Invoice'}
               </button>
             )}
 
             {canCancel && (
               <button
                 type="button"
-                onClick={() =>
-                  setShowCancelForm(true)
-                }
+                onClick={() => setShowCancelForm(true)}
                 className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-700 hover:bg-red-50"
               >
                 <Ban className="h-4 w-4" />
@@ -365,36 +359,23 @@ export default function InvoiceDetailPage() {
         {error && (
           <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-
             <div>
-              <p className="font-medium">
-                Invoice action failed
-              </p>
-
+              <p className="font-medium">Invoice action failed</p>
               <p className="mt-1">{error}</p>
             </div>
           </div>
         )}
 
-        {/* Cancel form */}
         {showCancelForm && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-5">
-            <h2 className="font-semibold text-red-900">
-              Cancel Invoice
-            </h2>
-
+            <h2 className="font-semibold text-red-900">Cancel Invoice</h2>
             <p className="mt-1 text-sm text-red-700">
-              This invoice has no recorded payment and
-              can be cancelled.
+              This invoice has no recorded payment and can be cancelled.
             </p>
 
             <textarea
               value={cancellationReason}
-              onChange={(event) =>
-                setCancellationReason(
-                  event.target.value
-                )
-              }
+              onChange={(event) => setCancellationReason(event.target.value)}
               rows={3}
               placeholder="Enter cancellation reason..."
               className="mt-4 w-full rounded-lg border border-red-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-200"
@@ -418,57 +399,35 @@ export default function InvoiceDetailPage() {
                 onClick={() => void handleCancel()}
                 className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
               >
-                {actionLoading
-                  ? 'Cancelling...'
-                  : 'Confirm Cancellation'}
+                {actionLoading ? 'Cancelling...' : 'Confirm Cancellation'}
               </button>
             </div>
           </div>
         )}
 
-        {/* Financial summary */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">
-              Invoice Amount
-            </p>
-
+            <p className="text-sm text-slate-500">Invoice Amount</p>
             <p className="mt-2 text-2xl font-semibold text-slate-900">
-              {formatAmount(
-                invoice.amount,
-                invoice.currency
-              )}
+              {formatAmount(invoice.amount, invoice.currency)}
             </p>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">
-              Amount Paid
-            </p>
-
+            <p className="text-sm text-slate-500">Amount Paid</p>
             <p className="mt-2 text-2xl font-semibold text-emerald-700">
-              {formatAmount(
-                invoice.amount_paid,
-                invoice.currency
-              )}
+              {formatAmount(invoice.amount_paid, invoice.currency)}
             </p>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">
-              Outstanding
-            </p>
-
+            <p className="text-sm text-slate-500">Outstanding</p>
             <p className="mt-2 text-2xl font-semibold text-slate-900">
-              {formatAmount(
-                outstanding,
-                invoice.currency
-              )}
+              {formatAmount(outstanding, invoice.currency)}
             </p>
           </div>
         </div>
 
-        {/* Invoice information */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -483,7 +442,6 @@ export default function InvoiceDetailPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Invoice Number
                   </p>
-
                   <p className="mt-1 font-medium text-slate-900">
                     {invoice.invoice_number}
                   </p>
@@ -493,7 +451,6 @@ export default function InvoiceDetailPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Title
                   </p>
-
                   <p className="mt-1 font-medium text-slate-900">
                     {invoice.title}
                   </p>
@@ -503,7 +460,6 @@ export default function InvoiceDetailPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Issue Date
                   </p>
-
                   <p className="mt-1 text-sm text-slate-700">
                     {formatDate(invoice.issue_date)}
                   </p>
@@ -513,7 +469,6 @@ export default function InvoiceDetailPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Due Date
                   </p>
-
                   <p className="mt-1 text-sm text-slate-700">
                     {formatDate(invoice.due_date)}
                   </p>
@@ -523,7 +478,6 @@ export default function InvoiceDetailPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Description
                   </p>
-
                   <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
                     {invoice.description || '—'}
                   </p>
@@ -534,7 +488,6 @@ export default function InvoiceDetailPage() {
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                       Notes
                     </p>
-
                     <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
                       {invoice.notes}
                     </p>
@@ -544,12 +497,9 @@ export default function InvoiceDetailPage() {
             </div>
           </div>
 
-          {/* Customer */}
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 px-6 py-4">
-              <h2 className="font-semibold text-slate-900">
-                Bill To
-              </h2>
+              <h2 className="font-semibold text-slate-900">Bill To</h2>
             </div>
 
             <div className="space-y-4 p-6">
@@ -564,7 +514,6 @@ export default function InvoiceDetailPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Email
                   </p>
-
                   <p className="mt-1 break-all text-sm text-slate-700">
                     {invoice.customer_email}
                   </p>
@@ -576,7 +525,6 @@ export default function InvoiceDetailPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Phone
                   </p>
-
                   <p className="mt-1 text-sm text-slate-700">
                     {invoice.customer_phone}
                   </p>
@@ -588,7 +536,6 @@ export default function InvoiceDetailPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Address
                   </p>
-
                   <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
                     {invoice.customer_address}
                   </p>
@@ -598,21 +545,15 @@ export default function InvoiceDetailPage() {
           </div>
         </div>
 
-        {/* Dates / status */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 px-6 py-4">
-              <h2 className="font-semibold text-slate-900">
-                Workflow
-              </h2>
+              <h2 className="font-semibold text-slate-900">Workflow</h2>
             </div>
 
             <div className="space-y-5 p-6">
               {timeline.map((item, index) => (
-                <div
-                  key={item.label}
-                  className="flex items-start gap-3"
-                >
+                <div key={item.label} className="flex items-start gap-3">
                   <div className="flex flex-col items-center">
                     {item.completed ? (
                       <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -620,8 +561,7 @@ export default function InvoiceDetailPage() {
                       <Clock3 className="h-5 w-5 text-slate-300" />
                     )}
 
-                    {index <
-                      timeline.length - 1 && (
+                    {index < timeline.length - 1 && (
                       <div className="mt-1 h-8 w-px bg-slate-200" />
                     )}
                   </div>
@@ -630,7 +570,6 @@ export default function InvoiceDetailPage() {
                     <p className="text-sm font-medium text-slate-900">
                       {item.label}
                     </p>
-
                     <p className="mt-0.5 text-xs text-slate-500">
                       {formatDateTime(item.date)}
                     </p>
@@ -652,11 +591,8 @@ export default function InvoiceDetailPage() {
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                   Created
                 </p>
-
                 <p className="mt-1 text-sm text-slate-700">
-                  {formatDateTime(
-                    invoice.created_at
-                  )}
+                  {formatDateTime(invoice.created_at)}
                 </p>
               </div>
 
@@ -664,11 +600,8 @@ export default function InvoiceDetailPage() {
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                   Last Updated
                 </p>
-
                 <p className="mt-1 text-sm text-slate-700">
-                  {formatDateTime(
-                    invoice.updated_at
-                  )}
+                  {formatDateTime(invoice.updated_at)}
                 </p>
               </div>
 
@@ -677,11 +610,8 @@ export default function InvoiceDetailPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                     Cancelled
                   </p>
-
                   <p className="mt-1 text-sm text-slate-700">
-                    {formatDateTime(
-                      invoice.cancelled_at
-                    )}
+                    {formatDateTime(invoice.cancelled_at)}
                   </p>
 
                   {invoice.cancellation_reason && (
@@ -696,10 +626,7 @@ export default function InvoiceDetailPage() {
                 <Calendar className="h-4 w-4 shrink-0" />
                 Outstanding:
                 <span className="font-semibold text-slate-900">
-                  {formatAmount(
-                    outstanding,
-                    invoice.currency
-                  )}
+                  {formatAmount(outstanding, invoice.currency)}
                 </span>
               </div>
             </div>
@@ -707,224 +634,381 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {/* Printable invoice */}
-      <div className="hidden print:block">
-        <div className="mx-auto max-w-[800px] bg-white px-10 py-8 text-slate-900">
-          {/* Invoice header */}
-          <div className="flex items-start justify-between border-b-2 border-slate-900 pb-6">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">
-                SHOOVA INITIATIVE
-              </h1>
-
-              <p className="mt-1 text-sm text-slate-500">
+      {/* Print-only standard invoice */}
+      <div className="invoice-print">
+        <div className="print-invoice">
+          <header className="print-invoice__header">
+            <div className="print-company">
+              <div className="print-company__name">SHOOVA INITIATIVE</div>
+              <div className="print-company__tagline">
                 Restoration • Education • Research
-              </p>
+              </div>
             </div>
 
-            <div className="text-right">
-              <p className="text-2xl font-bold">
-                INVOICE
-              </p>
-
-              <p className="mt-1 text-sm font-medium">
-                {invoice.invoice_number}
-              </p>
+            <div className="print-invoice__title-block">
+              <h1>INVOICE</h1>
+              <p>{invoice.invoice_number}</p>
             </div>
-          </div>
+          </header>
 
-          {/* Invoice meta */}
-          <div className="mt-8 grid grid-cols-2 gap-8">
-            <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-                Bill To
-              </p>
-
-              <p className="font-semibold">
+          <section className="print-meta">
+            <div className="print-section">
+              <div className="print-label">BILL TO</div>
+              <div className="print-customer-name">
                 {invoice.customer_name}
-              </p>
+              </div>
+
+              {invoice.customer_address && (
+                <div className="print-muted print-address">
+                  {invoice.customer_address}
+                </div>
+              )}
 
               {invoice.customer_email && (
-                <p className="mt-1 text-sm">
-                  {invoice.customer_email}
-                </p>
+                <div className="print-muted">{invoice.customer_email}</div>
               )}
 
               {invoice.customer_phone && (
-                <p className="mt-1 text-sm">
-                  {invoice.customer_phone}
-                </p>
-              )}
-
-              {invoice.customer_address && (
-                <p className="mt-2 whitespace-pre-wrap text-sm">
-                  {invoice.customer_address}
-                </p>
+                <div className="print-muted">{invoice.customer_phone}</div>
               )}
             </div>
 
-            <div className="text-right">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                  Issue Date
-                </p>
-
-                <p className="mt-1 text-sm">
-                  {formatDate(invoice.issue_date)}
-                </p>
+            <div className="print-invoice-details">
+              <div className="print-detail-row">
+                <span>Invoice #</span>
+                <strong>{invoice.invoice_number}</strong>
               </div>
-
-              <div className="mt-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                  Due Date
-                </p>
-
-                <p className="mt-1 text-sm">
-                  {formatDate(invoice.due_date)}
-                </p>
+              <div className="print-detail-row">
+                <span>Issue Date</span>
+                <strong>{formatDate(invoice.issue_date)}</strong>
               </div>
-
-              <div className="mt-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                  Status
-                </p>
-
-                <p className="mt-1 text-sm font-semibold">
-                  {formatStatus(invoice.status)}
-                </p>
+              <div className="print-detail-row">
+                <span>Due Date</span>
+                <strong>{formatDate(invoice.due_date)}</strong>
+              </div>
+              <div className="print-detail-row">
+                <span>Status</span>
+                <strong>{formatStatus(invoice.status)}</strong>
               </div>
             </div>
-          </div>
+          </section>
 
-          {/* Invoice body */}
-          <div className="mt-10">
-            <table className="w-full border-collapse">
+          <section className="print-items">
+            <table>
               <thead>
-                <tr className="border-b border-slate-300 text-left">
-                  <th className="py-3 text-xs font-bold uppercase tracking-wide">
-                    Description
-                  </th>
-
-                  <th className="w-48 py-3 text-right text-xs font-bold uppercase tracking-wide">
-                    Amount
-                  </th>
+                <tr>
+                  <th>Description</th>
+                  <th className="print-amount-column">Amount</th>
                 </tr>
               </thead>
-
               <tbody>
-                <tr className="border-b border-slate-200">
-                  <td className="py-5 align-top">
-                    <p className="font-semibold">
-                      {invoice.title}
-                    </p>
-
+                <tr>
+                  <td>
+                    <div className="print-item-title">{invoice.title}</div>
                     {invoice.description && (
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                      <div className="print-item-description">
                         {invoice.description}
-                      </p>
+                      </div>
                     )}
                   </td>
-
-                  <td className="py-5 text-right align-top font-semibold">
-                    {formatAmount(
-                      invoice.amount,
-                      invoice.currency
-                    )}
+                  <td className="print-amount-column print-item-amount">
+                    {formatAmount(invoice.amount, invoice.currency)}
                   </td>
                 </tr>
               </tbody>
             </table>
-          </div>
+          </section>
 
-          {/* Totals */}
-          <div className="mt-8 flex justify-end">
-            <div className="w-80">
-              <div className="flex justify-between border-b border-slate-200 py-3 text-sm">
-                <span>Total Invoice</span>
-
-                <span className="font-semibold">
-                  {formatAmount(
-                    invoice.amount,
-                    invoice.currency
-                  )}
-                </span>
-              </div>
-
-              <div className="flex justify-between border-b border-slate-200 py-3 text-sm">
-                <span>Amount Paid</span>
-
-                <span>
-                  {formatAmount(
-                    invoice.amount_paid,
-                    invoice.currency
-                  )}
-                </span>
-              </div>
-
-              <div className="flex justify-between py-4 text-lg font-bold">
-                <span>Outstanding</span>
-
-                <span>
-                  {formatAmount(
-                    outstanding,
-                    invoice.currency
-                  )}
-                </span>
-              </div>
+          <section className="print-totals">
+            <div className="print-total-row">
+              <span>Subtotal</span>
+              <strong>
+                {formatAmount(invoice.amount, invoice.currency)}
+              </strong>
             </div>
-          </div>
 
-          {/* Notes */}
+            <div className="print-total-row">
+              <span>Amount Paid</span>
+              <strong>
+                {formatAmount(invoice.amount_paid, invoice.currency)}
+              </strong>
+            </div>
+
+            <div className="print-total-row print-total-row--outstanding">
+              <span>Amount Due</span>
+              <strong>
+                {formatAmount(outstanding, invoice.currency)}
+              </strong>
+            </div>
+          </section>
+
           {invoice.notes && (
-            <div className="mt-10 border-t border-slate-200 pt-5">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                Notes / Payment Terms
-              </p>
-
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
-                {invoice.notes}
-              </p>
-            </div>
+            <section className="print-notes">
+              <div className="print-label">NOTES</div>
+              <p>{invoice.notes}</p>
+            </section>
           )}
 
-          {/* Footer */}
-          <div className="mt-16 border-t border-slate-300 pt-5 text-center">
-            <p className="text-sm font-medium">
-              Thank you for your partnership with Shoova
-              Initiative.
-            </p>
-
-            <p className="mt-1 text-xs text-slate-500">
-              Generated from ShoovaOne Finance.
-            </p>
-          </div>
+          <footer className="print-footer">
+            <div>
+              <strong>Thank you for your partnership with Shoova Initiative.</strong>
+              <p>Generated from ShoovaOne Finance.</p>
+            </div>
+          </footer>
         </div>
       </div>
 
       <style>{`
+        .invoice-print {
+          display: none;
+        }
+
+        .print-invoice {
+          box-sizing: border-box;
+          width: 100%;
+          max-width: 190mm;
+          margin: 0 auto;
+          padding: 0;
+          background: #ffffff;
+          color: #111827;
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 10.5pt;
+          line-height: 1.45;
+        }
+
+        .print-invoice__header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          padding-bottom: 18px;
+          border-bottom: 2px solid #111827;
+        }
+
+        .print-company__name {
+          font-size: 21pt;
+          font-weight: 800;
+          letter-spacing: 0.02em;
+        }
+
+        .print-company__tagline {
+          margin-top: 4px;
+          color: #64748b;
+          font-size: 9pt;
+        }
+
+        .print-invoice__title-block {
+          text-align: right;
+        }
+
+        .print-invoice__title-block h1 {
+          margin: 0;
+          font-size: 25pt;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+        }
+
+        .print-invoice__title-block p {
+          margin: 5px 0 0;
+          font-size: 9.5pt;
+          font-weight: 700;
+        }
+
+        .print-meta {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 35px;
+          margin-top: 26px;
+        }
+
+        .print-label {
+          margin-bottom: 7px;
+          color: #64748b;
+          font-size: 8pt;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+        }
+
+        .print-customer-name {
+          margin-bottom: 4px;
+          font-size: 11pt;
+          font-weight: 700;
+        }
+
+        .print-muted {
+          color: #475569;
+          font-size: 9.5pt;
+        }
+
+        .print-address {
+          white-space: pre-wrap;
+          margin-bottom: 3px;
+        }
+
+        .print-invoice-details {
+          width: 100%;
+          max-width: 280px;
+          margin-left: auto;
+        }
+
+        .print-detail-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 20px;
+          padding: 4px 0;
+          border-bottom: 1px solid #e5e7eb;
+          font-size: 9.5pt;
+        }
+
+        .print-detail-row span {
+          color: #64748b;
+        }
+
+        .print-detail-row strong {
+          text-align: right;
+          font-weight: 700;
+        }
+
+        .print-items {
+          margin-top: 30px;
+        }
+
+        .print-items table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+        }
+
+        .print-items th {
+          padding: 9px 10px;
+          background: #f1f5f9;
+          border-top: 1px solid #cbd5e1;
+          border-bottom: 1px solid #cbd5e1;
+          color: #334155;
+          font-size: 8.5pt;
+          font-weight: 800;
+          letter-spacing: 0.04em;
+          text-align: left;
+          text-transform: uppercase;
+        }
+
+        .print-items td {
+          padding: 14px 10px;
+          border-bottom: 1px solid #e2e8f0;
+          vertical-align: top;
+        }
+
+        .print-amount-column {
+          width: 155px;
+          text-align: right !important;
+        }
+
+        .print-item-title {
+          font-size: 10.5pt;
+          font-weight: 700;
+        }
+
+        .print-item-description {
+          margin-top: 4px;
+          color: #64748b;
+          font-size: 9.5pt;
+          white-space: pre-wrap;
+        }
+
+        .print-item-amount {
+          font-weight: 700;
+          white-space: nowrap;
+        }
+
+        .print-totals {
+          width: 310px;
+          margin: 20px 0 0 auto;
+        }
+
+        .print-total-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 20px;
+          padding: 7px 0;
+          border-bottom: 1px solid #e5e7eb;
+          font-size: 9.5pt;
+        }
+
+        .print-total-row strong {
+          white-space: nowrap;
+        }
+
+        .print-total-row--outstanding {
+          margin-top: 4px;
+          padding: 11px 12px;
+          border: 1px solid #111827;
+          background: #f8fafc;
+          font-size: 11pt;
+          font-weight: 800;
+        }
+
+        .print-notes {
+          margin-top: 28px;
+          padding-top: 13px;
+          border-top: 1px solid #cbd5e1;
+        }
+
+        .print-notes p {
+          margin: 0;
+          color: #475569;
+          font-size: 9.5pt;
+          white-space: pre-wrap;
+        }
+
+        .print-footer {
+          margin-top: 42px;
+          padding-top: 13px;
+          border-top: 1px solid #cbd5e1;
+          color: #475569;
+          font-size: 8.5pt;
+        }
+
+        .print-footer strong {
+          color: #334155;
+        }
+
+        .print-footer p {
+          margin: 3px 0 0;
+          color: #94a3b8;
+        }
+
         @media print {
           @page {
             size: A4;
             margin: 12mm;
           }
 
+          html,
           body {
-            background: white !important;
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
           }
 
-          body * {
-            visibility: hidden;
+          body {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
 
-          .print\\\\:block,
-          .print\\\\:block * {
-            visibility: visible;
+          .invoice-screen {
+            display: none !important;
           }
 
-          .print\\\\:block {
-            position: absolute;
-            left: 0;
-            top: 0;
+          .invoice-print {
+            display: block !important;
+            width: 100%;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          .print-invoice {
+            max-width: none;
             width: 100%;
           }
         }
