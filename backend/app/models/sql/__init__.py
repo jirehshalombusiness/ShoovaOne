@@ -18,6 +18,7 @@ from app.models.sql.reimbursement import Reimbursement
 from app.models.sql.invoice import Invoice
 from app.models.sql.payment import Payment
 from app.models.sql.budget import Budget
+from app.models.sql.allocation import Allocation
 __all__ = [
     "Base",
     "BaseModel",
@@ -49,4 +50,5 @@ __all__ = [
     "Invoice",
     "Payment",
     "Budget",
+    "Allocation"
 ]

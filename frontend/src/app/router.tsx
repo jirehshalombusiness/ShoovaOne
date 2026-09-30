@@ -107,6 +107,11 @@ import BudgetsPage from '@/features/finance/pages/BudgetsPage';
 import NewBudgetPage from '@/features/finance/pages/NewBudgetPage';
 import BudgetDetailPage from '@/features/finance/pages/BudgetDetailPage';
 import EditBudgetPage from '@/features/finance/pages/EditBudgetPage';
+
+import AllocationsPage from '../features/finance/pages/AllocationsPage';
+import NewAllocationPage from '../features/finance/pages/NewAllocationPage';
+import AllocationDetailPage from '../features/finance/pages/AllocationDetailPage';
+import EditAllocationPage from '../features/finance/pages/EditAllocationPage';
 // ============================================================
 // AUDIT
 // ============================================================
@@ -819,27 +824,38 @@ export function AppRouter() {
             {/* PLANNING                                              */}
             {/* ----------------------------------------------------- */}
             <Route
-              path= '/finance/budgets'
+              path='/finance/budgets'
               element={<BudgetsPage />}
             />
             <Route
-              path= '/finance/budgets/new'
+              path='/finance/budgets/new'
               element={<NewBudgetPage />}
             />
             <Route
-              path= '/finance/budgets/:budgetId'
+              path='/finance/budgets/:budgetId'
               element={<BudgetDetailPage />}
             />
             <Route
-              path= '/finance/budgets/:budgetId/edit'
+              path='/finance/budgets/:budgetId/edit'
               element={<EditBudgetPage />}
             />
             <Route
-              path="allocations"
-              element={
-                <Placeholder title="Allocations" />
-              }
+              path="/finance/allocations"
+              element={<AllocationsPage />}
             />
+            <Route
+              path="/finance/allocations/new"
+              element={<NewAllocationPage />}
+            />
+            <Route
+              path="/finance/allocations/:allocationId"
+              element={<AllocationDetailPage />}
+            />
+            <Route
+              path="/finance/allocations/:allocationId/edit"
+              element={<EditAllocationPage />}
+            />
+
 
             {/* ----------------------------------------------------- */}
             {/* REPORTING                                             */}
