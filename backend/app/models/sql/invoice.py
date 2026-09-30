@@ -141,3 +141,10 @@ class Invoice(BaseModel):
         "Project",
         foreign_keys=[project_id],
     )
+
+    payments = relationship(
+    "Payment",
+    foreign_keys="Payment.invoice_id",
+    back_populates="invoice",
+    cascade="all, delete-orphan",
+)

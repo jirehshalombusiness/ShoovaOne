@@ -100,6 +100,8 @@ import { ReimbursementDetailPage } from '@/features/finance/pages/ReimbursementD
 import InvoicesPage from '@/features/finance/pages/InvoicesPage';
 import NewInvoicePage from '@/features/finance/pages/NewInvoicePage';
 import InvoiceDetailPage from '@/features/finance/pages/InvoiceDetailPage';
+import PaymentsPage from '@/features/finance/pages/PaymentsPage';
+import NewPaymentPage from '@/features/finance/pages/NewPaymentPage';
 // ============================================================
 // AUDIT
 // ============================================================
@@ -802,13 +804,8 @@ export function AppRouter() {
             <Route path="invoices" element={<InvoicesPage />} />
             <Route path="invoices/new" element={<NewInvoicePage />} />
             <Route path="invoices/:invoiceId" element={<InvoiceDetailPage />} />
-
-            <Route
-              path="payments"
-              element={
-                <Placeholder title="Payments" />
-              }
-            />
+            <Route path="payments" element={<PaymentsPage />} />
+            <Route path="payments/new" element={<NewPaymentPage />} />
 
             {/* ----------------------------------------------------- */}
             {/* PLANNING                                              */}

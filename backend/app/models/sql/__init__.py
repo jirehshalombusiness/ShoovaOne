@@ -16,6 +16,7 @@ from app.models.sql.organisation import Organisation, Department, Programme
 from app.models.sql.compensation_request import CompensationRequest
 from app.models.sql.reimbursement import Reimbursement
 from app.models.sql.invoice import Invoice
+from app.models.sql.payment import Payment
 __all__ = [
     "Base",
     "BaseModel",
@@ -44,5 +45,6 @@ __all__ = [
     "Programme",
     "CompensationRequest",
     "Reimbursement",
-    "Invoice"
+    "Invoice",
+    "Payment",
 ]

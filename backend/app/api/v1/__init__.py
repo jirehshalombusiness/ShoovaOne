@@ -20,6 +20,7 @@ from app.api.v1.endpoints import (
     invoices,
     finance_overview,
     organisation,
+    payments,
 )
 
 
@@ -135,6 +136,11 @@ api_router.include_router(
 
 api_router.include_router(
     finance_overview.router,
+    prefix="/finance",
+    tags=["finance"],
+)
+api_router.include_router(
+    payments.router,
     prefix="/finance",
     tags=["finance"],
 )
