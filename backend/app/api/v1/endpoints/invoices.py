@@ -238,7 +238,7 @@ async def create_invoice(
 
     await AuditService.log(
         db=db,
-        user_id=current_user.id,
+        actor=current_user,
         action="INVOICE_CREATED",
         entity_type="invoice",
         entity_id=record.id,
@@ -487,7 +487,7 @@ async def update_invoice(
 
     await AuditService.log(
         db=db,
-        user_id=current_user.id,
+        actor=current_user,
         action="INVOICE_UPDATED",
         entity_type="invoice",
         entity_id=record.id,
@@ -546,7 +546,7 @@ async def issue_invoice(
 
     await AuditService.log(
         db=db,
-        user_id=current_user.id,
+        actor=current_user,
         action="INVOICE_ISSUED",
         entity_type="invoice",
         entity_id=record.id,
@@ -613,7 +613,7 @@ async def cancel_invoice(
 
     await AuditService.log(
         db=db,
-        user_id=current_user.id,
+        actor=current_user,
         action="INVOICE_CANCELLED",
         entity_type="invoice",
         entity_id=record.id,
