@@ -864,9 +864,7 @@ export function AppRouter() {
 
             <Route
               path="reports"
-              element={
-                <Placeholder title="Financial Reports" />
-              }
+              element={<FinancialReportsPage />}
             />
 
             <Route
@@ -892,11 +890,11 @@ export function AppRouter() {
           {/* ======================================================= */}
 
           <Route
-            path="/finance/reports"
+            path="reports"
             element={
-              <FinancialReportsPage />
+              <Placeholder title="Reports" />
             }
-          />  
+          />
 
           <Route
             path="settings"
