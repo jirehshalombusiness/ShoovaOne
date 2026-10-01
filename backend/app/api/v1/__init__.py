@@ -23,7 +23,7 @@ from app.api.v1.endpoints import (
     payments,
     budgets,
     allocations,
-    finance_reports,
+    financial_reports,
 )
 
 

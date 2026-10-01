@@ -896,7 +896,7 @@ export function AppRouter() {
             element={
               <FinancialReportsPage />
             }
-          /> 
+          />  
 
           <Route
             path="settings"
