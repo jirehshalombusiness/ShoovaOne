@@ -8,7 +8,6 @@ import {
   FileText,
   Landmark,
   Receipt,
-  ShieldCheck,
 } from 'lucide-react';
 
 type FinanceNavItem = {
@@ -123,17 +122,6 @@ const sections: FinanceNavSection[] = [
         path: '/finance/reconciliation',
         permission: 'finance.reconcile',
         icon: ClipboardCheck,
-      },
-    ],
-  },
-  {
-    title: 'Governance',
-    items: [
-      {
-        label: 'Financial Audit Trail',
-        path: '/finance/audit-trail',
-        permission: 'finance.audit_view',
-        icon: ShieldCheck,
       },
     ],
   },
