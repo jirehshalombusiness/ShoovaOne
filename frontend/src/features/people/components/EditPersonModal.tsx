@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X } from 'lucide-react';
+import { ImagePlus, Trash2, X } from 'lucide-react';
 import { Person } from '@/types/person.types';
 import { peopleService } from '@/services/people.service';
 
@@ -14,6 +14,27 @@ export function EditPersonModal({
     onClose,
 }: EditPersonModalProps) {
     const queryClient = useQueryClient();
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    const [profileImageUrl, setProfileImageUrl] = useState<string | null>(
+        person.profile_image_url || null,
+    );
+    const [selectedImage, setSelectedImage] = useState<File | null>(null);
+    const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(
+        person.profile_image_url || null,
+    );
+    const [removeProfileImage, setRemoveProfileImage] = useState(false);
+    const [imageError, setImageError] = useState('');
+
+    const CLOUDINARY_UPLOAD_URL =
+        'https://api.cloudinary.com/v1_1/stanarthur/image/upload';
+    const CLOUDINARY_UPLOAD_PRESET = 'newsletter_upload';
+    const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024;
+    const ALLOWED_PROFILE_IMAGE_TYPES = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+    ];
 
     const [form, setForm] = useState({
         first_name: person.first_name || '',
@@ -85,11 +106,54 @@ export function EditPersonModal({
             end_date: person.end_date || '',
             notes: person.notes || '',
         });
+
+        setProfileImageUrl(person.profile_image_url || null);
+        setSelectedImage(null);
+        setRemoveProfileImage(false);
+        setImageError('');
+        setImagePreviewUrl(person.profile_image_url || null);
     }, [person]);
 
+    useEffect(() => {
+        return () => {
+            if (imagePreviewUrl?.startsWith('blob:')) {
+                URL.revokeObjectURL(imagePreviewUrl);
+            }
+        };
+    }, [imagePreviewUrl]);
+
+    const uploadProfileImage = async (file: File): Promise<string> => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+        const response = await fetch(CLOUDINARY_UPLOAD_URL, {
+            method: 'POST',
+            body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.secure_url) {
+            throw new Error(
+                data.error?.message || 'Profile image upload failed.',
+            );
+        }
+
+        return data.secure_url as string;
+    };
+
     const updatePerson = useMutation({
-        mutationFn: () =>
-            peopleService.update(person.id, {
+        mutationFn: async () => {
+            let nextProfileImageUrl = profileImageUrl;
+
+            if (selectedImage) {
+                nextProfileImageUrl = await uploadProfileImage(selectedImage);
+            } else if (removeProfileImage) {
+                nextProfileImageUrl = null;
+            }
+
+            return peopleService.update(person.id, {
                 ...form,
                 email: form.email || null,
                 middle_name: form.middle_name || null,
@@ -117,7 +181,9 @@ export function EditPersonModal({
                 start_date: form.start_date || null,
                 end_date: form.end_date || null,
                 notes: form.notes || null,
-            }),
+                profile_image_url: nextProfileImageUrl,
+            });
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({
                 queryKey: ['person', person.id],
@@ -136,6 +202,44 @@ export function EditPersonModal({
             ...current,
             [field]: value,
         }));
+    };
+
+    const handleProfileImageChange = (
+        event: React.ChangeEvent<HTMLInputElement>,
+    ) => {
+        const file = event.target.files?.[0];
+
+        if (!file) return;
+
+        setImageError('');
+
+        if (!ALLOWED_PROFILE_IMAGE_TYPES.includes(file.type)) {
+            setImageError('Please select a JPG, PNG, or WEBP image.');
+            event.target.value = '';
+            return;
+        }
+
+        if (file.size > MAX_PROFILE_IMAGE_SIZE) {
+            setImageError('Profile image must be 5 MB or smaller.');
+            event.target.value = '';
+            return;
+        }
+
+        const previewUrl = URL.createObjectURL(file);
+
+        setSelectedImage(file);
+        setImagePreviewUrl(previewUrl);
+        setProfileImageUrl(null);
+        setRemoveProfileImage(false);
+        event.target.value = '';
+    };
+
+    const handleRemoveProfileImage = () => {
+        setSelectedImage(null);
+        setProfileImageUrl(null);
+        setImagePreviewUrl(null);
+        setRemoveProfileImage(true);
+        setImageError('');
     };
 
     return (
@@ -464,6 +568,66 @@ export function EditPersonModal({
                             Profile
                         </h3>
 
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                                <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white">
+                                    {imagePreviewUrl ? (
+                                        <img
+                                            src={imagePreviewUrl}
+                                            alt={`${form.first_name} ${form.last_name}`}
+                                            className="h-full w-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="flex h-full w-full items-center justify-center bg-slate-100 text-2xl font-semibold text-slate-500">
+                                            {(form.first_name?.[0] || '').toUpperCase()}
+                                            {(form.last_name?.[0] || '').toUpperCase()}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-gray-900">Profile photo</p>
+                                    <p className="mt-1 text-xs leading-5 text-gray-500">
+                                        Upload a JPG, PNG, or WEBP image. Maximum size is 5 MB.
+                                    </p>
+
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                        >
+                                            <ImagePlus className="h-4 w-4" />
+                                            {imagePreviewUrl ? 'Change photo' : 'Upload photo'}
+                                        </button>
+
+                                        {imagePreviewUrl && (
+                                            <button
+                                                type="button"
+                                                onClick={handleRemoveProfileImage}
+                                                className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                                Remove
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp"
+                                        onChange={handleProfileImageChange}
+                                        className="hidden"
+                                    />
+
+                                    {imageError && (
+                                        <p className="mt-2 text-xs text-red-600">{imageError}</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
                         <textarea
                             placeholder="Bio"
                             rows={4}
@@ -471,7 +635,7 @@ export function EditPersonModal({
                             onChange={(e) =>
                                 updateField('bio', e.target.value)
                             }
-                            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                            className="mt-4 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                         />
 
                         <input
@@ -496,7 +660,7 @@ export function EditPersonModal({
 
                     {updatePerson.isError && (
                         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                            Unable to update this person. Please check the details and try again.
+                            {updatePerson.error instanceof Error ? updatePerson.error.message : 'Unable to update this person. Please check the details and try again.'}
                         </div>
                     )}
 
@@ -515,7 +679,7 @@ export function EditPersonModal({
                             disabled={updatePerson.isPending}
                             className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                         >
-                            {updatePerson.isPending ? 'Saving...' : 'Save changes'}
+                            {updatePerson.isPending ? (selectedImage ? 'Uploading & saving...' : 'Saving...') : 'Save changes'}
                         </button>
                     </div>
                 </form>
