@@ -52,11 +52,17 @@ const formatDate = (value?: string | null) => {
   }).format(date);
 };
 
+const toNumber = (value: unknown, fallback = 0): number => {
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const getApprovedAmount = (request: FundRequest) =>
-  request.approved_amount ?? request.amount_requested;
+  toNumber(request.approved_amount ?? request.amount_requested);
 
 const getDisbursedAmount = (request: FundRequest) =>
-  request.amount_disbursed ?? 0;
+  toNumber(request.amount_disbursed);
 
 const getRemainingAmount = (request: FundRequest) =>
   Math.max(getApprovedAmount(request) - getDisbursedAmount(request), 0);
