@@ -433,7 +433,10 @@ class FinancialReportService:
         db: AsyncSession,
         *,
         currency: str = "GHS",
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
         fiscal_year: Optional[str] = None,
+        include_paid: bool = False,
     ) -> list[dict[str, Any]]:
         """
         Compare each budget against actual expenditure.
@@ -456,6 +459,18 @@ class FinancialReportService:
         if fiscal_year:
             conditions.append(
                 Budget.fiscal_year == fiscal_year
+            )
+
+        # Include budgets whose active period overlaps the requested
+        # reporting period.
+        if start_date:
+            conditions.append(
+                Budget.end_date >= start_date
+            )
+
+        if end_date:
+            conditions.append(
+                Budget.start_date <= end_date
             )
 
         budget_result = await db.execute(
@@ -485,6 +500,16 @@ class FinancialReportService:
                 Expense.incurred_date <= budget.end_date,
             ]
 
+            if start_date:
+                expense_conditions.append(
+                    Expense.incurred_date >= start_date
+                )
+
+            if end_date:
+                expense_conditions.append(
+                    Expense.incurred_date <= end_date
+                )
+
             reimbursement_conditions = [
                 Reimbursement.currency == currency,
                 Reimbursement.status.in_(
@@ -497,6 +522,16 @@ class FinancialReportService:
                 Reimbursement.incurred_date >= budget.start_date,
                 Reimbursement.incurred_date <= budget.end_date,
             ]
+
+            if start_date:
+                reimbursement_conditions.append(
+                    Reimbursement.incurred_date >= start_date
+                )
+
+            if end_date:
+                reimbursement_conditions.append(
+                    Reimbursement.incurred_date <= end_date
+                )
 
             # Respect the budget's programme/department/project
             # scope where one is defined.
@@ -748,6 +783,8 @@ class FinancialReportService:
         db: AsyncSession,
         *,
         currency: str = "GHS",
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
         include_paid: bool = False,
     ) -> list[dict[str, Any]]:
         """
@@ -775,6 +812,16 @@ class FinancialReportService:
         if not include_paid:
             conditions.append(
                 Invoice.status != "paid"
+            )
+
+        if start_date:
+            conditions.append(
+                Invoice.issue_date >= start_date
+            )
+
+        if end_date:
+            conditions.append(
+                Invoice.issue_date <= end_date
             )
 
         result = await db.execute(
