@@ -112,6 +112,7 @@ import AllocationsPage from '../features/finance/pages/AllocationsPage';
 import NewAllocationPage from '../features/finance/pages/NewAllocationPage';
 import AllocationDetailPage from '../features/finance/pages/AllocationDetailPage';
 import EditAllocationPage from '../features/finance/pages/EditAllocationPage';
+import { FinancialReportsPage } from '../features/finance/pages/FinancialReportsPage';
 // ============================================================
 // AUDIT
 // ============================================================
@@ -891,11 +892,11 @@ export function AppRouter() {
           {/* ======================================================= */}
 
           <Route
-            path="reports"
+            path="/finance/reports"
             element={
-              <Placeholder title="Reports" />
+              <FinancialReportsPage />
             }
-          />
+          /> 
 
           <Route
             path="settings"

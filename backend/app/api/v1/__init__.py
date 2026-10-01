@@ -23,6 +23,7 @@ from app.api.v1.endpoints import (
     payments,
     budgets,
     allocations,
+    finance_reports,
 )
 
 
@@ -153,6 +154,11 @@ api_router.include_router(
 )
 api_router.include_router(
     allocations.router,
+    prefix="/finance",
+    tags=["finance"],
+)
+api_router.include_router(
+    financial_reports.router,
     prefix="/finance",
     tags=["finance"],
 )
