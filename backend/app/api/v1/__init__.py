@@ -24,6 +24,7 @@ from app.api.v1.endpoints import (
     budgets,
     allocations,
     financial_reports,
+    roles,
 )
 
 
@@ -166,4 +167,10 @@ api_router.include_router(
     organisation.router,
     prefix="/organisation",
     tags=["organisation"],
+)
+
+api_router.include_router(
+    roles.router,
+    prefix="/roles",
+    tags=["roles"],
 )

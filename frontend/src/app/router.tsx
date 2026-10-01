@@ -118,7 +118,7 @@ import { FinancialReportsPage } from '../features/finance/pages/FinancialReports
 // ============================================================
 
 import { AuditLogsPage } from '@/features/audit/pages/AuditLogsPage';
-
+import { RolesPermissionsPage } from '@/features/roles/pages/RolesPermissionsPage';
 // ============================================================
 // HELPERS
 // ============================================================
@@ -916,7 +916,7 @@ export function AppRouter() {
             path="roles"
             element={
               <PermissionRoute permission="roles.manage">
-                <Placeholder title="Roles & Permissions" />
+                <RolesPermissionsPage />
               </PermissionRoute>
             }
           />
