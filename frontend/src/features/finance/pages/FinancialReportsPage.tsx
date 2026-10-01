@@ -113,12 +113,12 @@ function MetricCard({
 }) {
   return (
     <div className="relative min-w-0 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="min-w-0 pr-14">
-        <p className="min-h-5 text-sm font-medium leading-5 text-slate-500">
+      <div className="min-w-0">
+        <p className="min-h-5 max-w-[calc(100%-3rem)] text-sm font-medium leading-5 text-slate-500">
           {title}
         </p>
 
-        <p className="mt-2 break-words text-2xl font-bold leading-8 tracking-tight text-slate-900">
+        <p className="mt-2 whitespace-nowrap text-xl font-bold leading-7 tracking-tight text-slate-900 sm:text-2xl sm:leading-8">
           {value}
         </p>
 
