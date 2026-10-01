@@ -16,7 +16,14 @@ import {
 } from 'lucide-react';
 import { auditService, AuditLog } from '@/services/audit.service';
 
+/**
+ * Audit actions currently used across Shoova ONE.
+ *
+ * Finance actions are included so the audit trail can be used as the
+ * governance history for the finance workflows already implemented.
+ */
 const ACTIONS = [
+  // People & access
   'PERSON_CREATED',
   'PERSON_UPDATED',
   'PERSON_DELETED',
@@ -27,6 +34,8 @@ const ACTIONS = [
   'ROLE_CHANGED',
   'PERMISSION_GRANTED',
   'PERMISSION_REVOKED',
+
+  // Attendance & timesheets
   'ATTENDANCE_CHECKED_IN',
   'ATTENDANCE_CHECKED_OUT',
   'TIMESHEET_CREATED',
@@ -35,6 +44,34 @@ const ACTIONS = [
   'TIMESHEET_SUBMITTED',
   'TIMESHEET_APPROVED',
   'TIMESHEET_REJECTED',
+
+  // Finance — fund requests
+  'FUND_REQUEST_SUBMITTED',
+  'FUND_REQUEST_REVIEWED',
+  'FUND_REQUEST_APPROVED',
+  'FUND_REQUEST_REJECTED',
+  'FUND_REQUEST_DISBURSED',
+  'FUND_REQUEST_RECONCILED',
+
+  // Finance — expenses
+  'EXPENSE_SUBMITTED',
+  'EXPENSE_REVIEWED',
+  'EXPENSE_APPROVED',
+  'EXPENSE_REJECTED',
+  'EXPENSE_PAID',
+  'EXPENSE_RECONCILED',
+
+  // Finance — reimbursements
+  'REIMBURSEMENT_SUBMITTED',
+  'REIMBURSEMENT_REVIEWED',
+  'REIMBURSEMENT_APPROVED',
+  'REIMBURSEMENT_REJECTED',
+  'REIMBURSEMENT_PAID',
+  'REIMBURSEMENT_RECONCILED',
+
+  // Finance — invoices
+  'INVOICE_ISSUED',
+  'INVOICE_CANCELLED',
 ];
 
 const ENTITY_TYPES = [
@@ -42,7 +79,26 @@ const ENTITY_TYPES = [
   'user',
   'attendance',
   'timesheet',
+  'FundRequest',
+  'Expense',
+  'Reimbursement',
+  'invoice',
+  'payment',
+  'Budget',
+  'Allocation',
 ];
+
+const FINANCE_ENTITY_TYPES = new Set([
+  'FundRequest',
+  'Expense',
+  'Reimbursement',
+  'invoice',
+  'Invoice',
+  'payment',
+  'Payment',
+  'Budget',
+  'Allocation',
+]);
 
 function formatAction(action: string) {
   return action
@@ -75,7 +131,8 @@ function getActionClass(action: string) {
   if (
     action.includes('DELETED') ||
     action.includes('REJECTED') ||
-    action.includes('DEACTIVATED')
+    action.includes('DEACTIVATED') ||
+    action.includes('CANCELLED')
   ) {
     return 'bg-red-50 text-red-700';
   }
@@ -85,7 +142,9 @@ function getActionClass(action: string) {
     action.includes('ACTIVATED') ||
     action.includes('GRANTED') ||
     action.includes('CHECKED_IN') ||
-    action.includes('APPROVED')
+    action.includes('APPROVED') ||
+    action.includes('PAID') ||
+    action.includes('ISSUED')
   ) {
     return 'bg-green-50 text-green-700';
   }
@@ -94,7 +153,10 @@ function getActionClass(action: string) {
     action.includes('UPDATED') ||
     action.includes('CHANGED') ||
     action.includes('SUBMITTED') ||
-    action.includes('CHECKED_OUT')
+    action.includes('CHECKED_OUT') ||
+    action.includes('REVIEWED') ||
+    action.includes('DISBURSED') ||
+    action.includes('RECONCILED')
   ) {
     return 'bg-blue-50 text-blue-700';
   }
@@ -121,7 +183,6 @@ function JsonBlock({
   return (
     <div>
       <p className="mb-2 text-sm font-semibold text-gray-800">{title}</p>
-
       <pre className="max-h-64 overflow-auto rounded-lg bg-gray-50 p-4 text-xs leading-5 text-gray-700">
         {JSON.stringify(value, null, 2)}
       </pre>
@@ -138,7 +199,6 @@ export function AuditLogsPage() {
   const [endDate, setEndDate] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(25);
-
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
 
   const auditLogs = useQuery({
@@ -161,12 +221,8 @@ export function AuditLogsPage() {
         entity_type: entityType || undefined,
         actor_user_id: actorUserId || undefined,
         entity_id: entityId || undefined,
-        start_date: startDate
-          ? `${startDate}T00:00:00`
-          : undefined,
-        end_date: endDate
-          ? `${endDate}T23:59:59`
-          : undefined,
+        start_date: startDate ? `${startDate}T00:00:00` : undefined,
+        end_date: endDate ? `${endDate}T23:59:59` : undefined,
         page,
         page_size: pageSize,
       }),
@@ -205,11 +261,12 @@ export function AuditLogsPage() {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
             <ShieldCheck className="h-6 w-6 text-primary" />
-            Audit Logs
+            Financial Audit Trail
           </h1>
 
           <p className="mt-1 text-sm text-gray-500">
-            Review important actions and changes made across Shoova ONE.
+            Review immutable records of important actions and changes across
+            Shoova ONE, including finance workflows.
           </p>
         </div>
 
@@ -225,14 +282,10 @@ export function AuditLogsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">Total audit events</p>
-
               <p className="mt-1 text-2xl font-bold text-gray-900">
-                {summary.isLoading
-                  ? '—'
-                  : summary.data?.total ?? 0}
+                {summary.isLoading ? '—' : summary.data?.total ?? 0}
               </p>
             </div>
-
             <div className="rounded-lg bg-gray-50 p-3">
               <Activity className="h-5 w-5 text-primary" />
             </div>
@@ -242,17 +295,11 @@ export function AuditLogsPage() {
         <div className="rounded-lg border border-gray-200 bg-white p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">
-                Action types recorded
-              </p>
-
+              <p className="text-sm text-gray-500">Action types recorded</p>
               <p className="mt-1 text-2xl font-bold text-gray-900">
-                {summary.isLoading
-                  ? '—'
-                  : summary.data?.actions.length ?? 0}
+                {summary.isLoading ? '—' : summary.data?.actions.length ?? 0}
               </p>
             </div>
-
             <div className="rounded-lg bg-gray-50 p-3">
               <ShieldCheck className="h-5 w-5 text-primary" />
             </div>
@@ -262,17 +309,11 @@ export function AuditLogsPage() {
         <div className="rounded-lg border border-gray-200 bg-white p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">
-                Entity types tracked
-              </p>
-
+              <p className="text-sm text-gray-500">Entity types tracked</p>
               <p className="mt-1 text-2xl font-bold text-gray-900">
-                {summary.isLoading
-                  ? '—'
-                  : summary.data?.entities.length ?? 0}
+                {summary.isLoading ? '—' : summary.data?.entities.length ?? 0}
               </p>
             </div>
-
             <div className="rounded-lg bg-gray-50 p-3">
               <Search className="h-5 w-5 text-primary" />
             </div>
@@ -282,26 +323,29 @@ export function AuditLogsPage() {
 
       {/* Filters */}
       <div className="rounded-lg border border-gray-200 bg-white p-5">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="flex items-center gap-2 font-semibold text-gray-900">
               <Filter className="h-4 w-4 text-primary" />
               Filter audit logs
             </h2>
-
             <p className="mt-1 text-xs text-gray-500">
-              Narrow the history by action, entity, user, or date.
+              Narrow the history by finance area, action, entity, user, or
+              date.
             </p>
           </div>
 
-          {hasFilters && (
-            <button
-              onClick={clearFilters}
-              className="text-sm font-medium text-gray-600 hover:text-gray-900"
-            >
-              Clear filters
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-sm font-medium text-gray-600 hover:text-gray-900"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -314,7 +358,6 @@ export function AuditLogsPage() {
             className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary"
           >
             <option value="">All actions</option>
-
             {ACTIONS.map((item) => (
               <option key={item} value={item}>
                 {formatAction(item)}
@@ -332,11 +375,25 @@ export function AuditLogsPage() {
           >
             <option value="">All entity types</option>
 
-            {ENTITY_TYPES.map((item) => (
-              <option key={item} value={item}>
-                {formatEntity(item)}
-              </option>
-            ))}
+            <optgroup label="People & access">
+              {ENTITY_TYPES.filter(
+                (item) => !FINANCE_ENTITY_TYPES.has(item),
+              ).map((item) => (
+                <option key={item} value={item}>
+                  {formatEntity(item)}
+                </option>
+              ))}
+            </optgroup>
+
+            <optgroup label="Finance">
+              {ENTITY_TYPES.filter(
+                (item) => FINANCE_ENTITY_TYPES.has(item),
+              ).map((item) => (
+                <option key={item} value={item}>
+                  {formatEntity(item)}
+                </option>
+              ))}
+            </optgroup>
           </select>
 
           <input
@@ -361,7 +418,6 @@ export function AuditLogsPage() {
 
           <label className="relative">
             <Calendar className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-
             <input
               type="date"
               value={startDate}
@@ -375,7 +431,6 @@ export function AuditLogsPage() {
 
           <label className="relative">
             <Calendar className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-
             <input
               type="date"
               value={endDate}
@@ -387,6 +442,8 @@ export function AuditLogsPage() {
             />
           </label>
         </div>
+
+
       </div>
 
       {/* Audit table */}
@@ -394,10 +451,7 @@ export function AuditLogsPage() {
         <div className="border-b border-gray-100 px-5 py-4">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="font-semibold text-gray-900">
-                Activity history
-              </h2>
-
+              <h2 className="font-semibold text-gray-900">Activity history</h2>
               <p className="text-xs text-gray-500">
                 {pagination
                   ? `${pagination.total} event${
@@ -408,9 +462,7 @@ export function AuditLogsPage() {
             </div>
 
             {auditLogs.isFetching && (
-              <span className="text-xs text-gray-500">
-                Updating...
-              </span>
+              <span className="text-xs text-gray-500">Updating...</span>
             )}
           </div>
         </div>
@@ -424,7 +476,6 @@ export function AuditLogsPage() {
             <p className="text-sm font-medium text-red-600">
               Unable to load audit logs.
             </p>
-
             <p className="mt-1 text-xs text-gray-500">
               Make sure your account has the audit.view permission.
             </p>
@@ -432,11 +483,9 @@ export function AuditLogsPage() {
         ) : logs.length === 0 ? (
           <div className="p-10 text-center">
             <Activity className="mx-auto h-8 w-8 text-gray-300" />
-
             <p className="mt-3 text-sm font-medium text-gray-700">
               No audit events found.
             </p>
-
             <p className="mt-1 text-xs text-gray-500">
               Try changing or clearing your filters.
             </p>
@@ -462,6 +511,12 @@ export function AuditLogsPage() {
                       <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600">
                         {formatEntity(log.entity_type)}
                       </span>
+
+                      {FINANCE_ENTITY_TYPES.has(log.entity_type) && (
+                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                          Finance
+                        </span>
+                      )}
                     </div>
 
                     <p className="mt-2 font-medium text-gray-900">
@@ -471,22 +526,17 @@ export function AuditLogsPage() {
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                       <span className="flex items-center gap-1">
                         <User className="h-3.5 w-3.5" />
-
-                        {log.actor_name ||
-                          log.actor_email ||
-                          'System'}
+                        {log.actor_name || log.actor_email || 'System'}
                       </span>
 
                       <span className="flex items-center gap-1">
                         <Clock className="h-3.5 w-3.5" />
-
                         {formatDate(log.created_at)}
                       </span>
 
                       {log.ip_address && (
                         <span className="flex items-center gap-1">
                           <Globe className="h-3.5 w-3.5" />
-
                           {log.ip_address}
                         </span>
                       )}
@@ -494,6 +544,7 @@ export function AuditLogsPage() {
                   </div>
 
                   <button
+                    type="button"
                     onClick={() => setSelectedLog(log)}
                     className="flex shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                   >
@@ -504,20 +555,17 @@ export function AuditLogsPage() {
               ))}
             </div>
 
-            {/* Pagination */}
             {pagination && pagination.total_pages > 1 && (
               <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-gray-500">
-                  Page {pagination.page} of{' '}
-                  {pagination.total_pages}
+                  Page {pagination.page} of {pagination.total_pages}
                 </p>
 
                 <div className="flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={() =>
-                      setPage((current) =>
-                        Math.max(1, current - 1),
-                      )
+                      setPage((current) => Math.max(1, current - 1))
                     }
                     disabled={pagination.page <= 1}
                     className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
@@ -527,18 +575,13 @@ export function AuditLogsPage() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() =>
                       setPage((current) =>
-                        Math.min(
-                          pagination.total_pages,
-                          current + 1,
-                        ),
+                        Math.min(pagination.total_pages, current + 1),
                       )
                     }
-                    disabled={
-                      pagination.page >=
-                      pagination.total_pages
-                    }
+                    disabled={pagination.page >= pagination.total_pages}
                     className="flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Next
@@ -555,20 +598,19 @@ export function AuditLogsPage() {
       {selectedLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
-            {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <div>
                 <h2 className="flex items-center gap-2 font-semibold text-gray-900">
                   <ShieldCheck className="h-5 w-5 text-primary" />
                   Audit Event
                 </h2>
-
                 <p className="mt-1 text-sm text-gray-500">
                   Detailed record of this system activity.
                 </p>
               </div>
 
               <button
+                type="button"
                 onClick={() => setSelectedLog(null)}
                 className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
               >
@@ -576,14 +618,12 @@ export function AuditLogsPage() {
               </button>
             </div>
 
-            {/* Body */}
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-lg bg-gray-50 p-3">
                   <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                     Action
                   </p>
-
                   <p className="mt-1 font-medium text-gray-900">
                     {formatAction(selectedLog.action)}
                   </p>
@@ -593,7 +633,6 @@ export function AuditLogsPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                     Entity
                   </p>
-
                   <p className="mt-1 font-medium text-gray-900">
                     {formatEntity(selectedLog.entity_type)}
                   </p>
@@ -603,13 +642,11 @@ export function AuditLogsPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                     Performed by
                   </p>
-
                   <p className="mt-1 font-medium text-gray-900">
                     {selectedLog.actor_name ||
                       selectedLog.actor_email ||
                       'System'}
                   </p>
-
                   {selectedLog.actor_email && (
                     <p className="mt-1 text-xs text-gray-500">
                       {selectedLog.actor_email}
@@ -621,7 +658,6 @@ export function AuditLogsPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                     Date & time
                   </p>
-
                   <p className="mt-1 font-medium text-gray-900">
                     {formatDate(selectedLog.created_at)}
                   </p>
@@ -631,7 +667,6 @@ export function AuditLogsPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                     Entity ID
                   </p>
-
                   <p className="mt-1 break-all font-mono text-xs text-gray-700">
                     {selectedLog.entity_id}
                   </p>
@@ -642,7 +677,6 @@ export function AuditLogsPage() {
                     <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                       IP address
                     </p>
-
                     <p className="mt-1 font-mono text-sm text-gray-700">
                       {selectedLog.ip_address}
                     </p>
@@ -654,7 +688,6 @@ export function AuditLogsPage() {
                     <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
                       Actor user ID
                     </p>
-
                     <p className="mt-1 break-all font-mono text-xs text-gray-700">
                       {selectedLog.actor_user_id}
                     </p>
@@ -666,10 +699,8 @@ export function AuditLogsPage() {
                 <p className="mb-2 text-sm font-semibold text-gray-800">
                   Description
                 </p>
-
                 <div className="rounded-lg border border-gray-200 p-3 text-sm text-gray-700">
-                  {selectedLog.description ||
-                    'No description provided.'}
+                  {selectedLog.description || 'No description provided.'}
                 </div>
               </div>
 
@@ -678,7 +709,6 @@ export function AuditLogsPage() {
                   title="Previous values"
                   value={selectedLog.old_values}
                 />
-
                 <JsonBlock
                   title="New values"
                   value={selectedLog.new_values}
@@ -698,7 +728,6 @@ export function AuditLogsPage() {
                   <p className="mb-2 text-sm font-semibold text-gray-800">
                     User agent
                   </p>
-
                   <p className="break-all rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
                     {selectedLog.user_agent}
                   </p>
@@ -706,9 +735,9 @@ export function AuditLogsPage() {
               )}
             </div>
 
-            {/* Footer */}
             <div className="flex justify-end border-t border-gray-100 px-5 py-4">
               <button
+                type="button"
                 onClick={() => setSelectedLog(null)}
                 className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
