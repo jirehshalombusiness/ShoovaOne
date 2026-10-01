@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Wallet,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 import { financialReportService } from '../financial-report.service';
 
@@ -108,30 +109,28 @@ function MetricCard({
   title: string;
   value: string;
   description?: string;
-  icon: typeof Wallet;
+  icon: LucideIcon;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-slate-500">
-            {title}
+    <div className="relative min-w-0 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="min-w-0 pr-14">
+        <p className="min-h-5 text-sm font-medium leading-5 text-slate-500">
+          {title}
+        </p>
+
+        <p className="mt-2 break-words text-2xl font-bold leading-8 tracking-tight text-slate-900">
+          {value}
+        </p>
+
+        {description && (
+          <p className="mt-1 break-words text-xs leading-5 text-slate-400">
+            {description}
           </p>
+        )}
+      </div>
 
-          <p className="mt-2 break-words text-2xl font-bold tracking-tight text-slate-900">
-            {value}
-          </p>
-
-          {description && (
-            <p className="mt-1 text-xs text-slate-400">
-              {description}
-            </p>
-          )}
-        </div>
-
-        <div className="rounded-lg bg-slate-100 p-2.5">
-          <Icon className="h-5 w-5 text-slate-600" />
-        </div>
+      <div className="absolute right-4 top-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+        <Icon className="h-5 w-5 text-slate-600" />
       </div>
     </div>
   );
