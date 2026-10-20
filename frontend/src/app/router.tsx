@@ -50,7 +50,12 @@ import { ProjectDocuments } from '@/features/projects/pages/ProjectDocuments';
 import { ProjectActivity } from '@/features/projects/pages/ProjectActivity';
 import { ProjectSettings } from '@/features/projects/pages/ProjectSettings';
 import { NewProjectPage } from '@/features/projects/pages/NewProjectPage';
-
+import { CrmLayout } from '@/features/crm/layouts/CrmLayout';
+import { CrmOverviewPage } from '@/features/crm/pages/CrmOverviewPage';
+import { CrmPipelinePage } from '@/features/crm/pages/CrmPipelinePage';
+import { CrmOrganisationsPage } from '@/features/crm/pages/CrmOrganisationsPage';
+import { CrmContactsPage } from '@/features/crm/pages/CrmContactsPage';
+import { CrmReportsPage } from '@/features/crm/pages/CrmReportsPage';
 // ============================================================
 // /me PAGES — SELF SERVICE
 // ============================================================
@@ -700,13 +705,19 @@ export function AppRouter() {
           {/* ======================================================= */}
 
           <Route
-            path="organisations"
+            path="crm"
             element={
               <PermissionRoute permission="crm.view">
-                <Placeholder title="CRM" />
+                <CrmLayout />
               </PermissionRoute>
             }
-          />
+          >
+            <Route index element={<CrmOverviewPage />} />
+            <Route path="pipeline" element={<CrmPipelinePage />} />
+            <Route path="organisations" element={<CrmOrganisationsPage />} />
+            <Route path="contacts" element={<CrmContactsPage />} />
+            <Route path="reports" element={<CrmReportsPage />} />
+            </Route>
 
           <Route
             path="programmes"

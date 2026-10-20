@@ -135,7 +135,7 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         icon: Building2,
         label: 'CRM',
-        path: '/organisations',
+        path: '/crm',
         permission: 'crm.view',
       },
       {
