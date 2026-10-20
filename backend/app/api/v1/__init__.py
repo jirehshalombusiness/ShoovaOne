@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth,
     people,
-    attendance,
+   attendance,
     notifications,
     timesheets,
     users,
@@ -27,7 +27,7 @@ from app.api.v1.endpoints import (
     roles,
 )
 
-
+from app.api.v1.endpoints.crm import opportunities as crm_opportunities
 api_router = APIRouter()
 
 
@@ -97,6 +97,14 @@ api_router.include_router(
     prefix="/documents",
     tags=["documents"],
 )
+
+##CRM 
+api_router.include_router(
+    crm_opportunities.router,
+    prefix="/crm/opportunities",
+    tags=["crm-opportunities"],
+)
+
 
 # ------------------------------------------------------------
 # HR

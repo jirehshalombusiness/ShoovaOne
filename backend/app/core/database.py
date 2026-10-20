@@ -56,6 +56,14 @@ AsyncSessionLocal = async_sessionmaker(
 # Keep this list in sync with app/models/sql/__init__.py
 # =============================================
 
+##crm
+from app.models.sql.crm import (  # noqa: F401
+    Opportunity,
+    OpportunityContributor,
+    OpportunityActivity,
+    OpportunityStageHistory,
+)
+
 # --- Identity & access ---
 from app.models.sql.user import User, Person  # noqa: F401
 from app.models.sql.role import (  # noqa: F401

@@ -19,6 +19,12 @@ from app.models.sql.invoice import Invoice
 from app.models.sql.payment import Payment
 from app.models.sql.budget import Budget
 from app.models.sql.allocation import Allocation
+from app.models.sql.crm import (
+    Opportunity,
+    OpportunityContributor,
+    OpportunityActivity,
+    OpportunityStageHistory,
+)
 __all__ = [
     "Base",
     "BaseModel",
