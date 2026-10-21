@@ -56,6 +56,8 @@ import { CrmPipelinePage } from '@/features/crm/pages/CrmPipelinePage';
 import { CrmOrganisationsPage } from '@/features/crm/pages/CrmOrganisationsPage';
 import { CrmContactsPage } from '@/features/crm/pages/CrmContactsPage';
 import { CrmReportsPage } from '@/features/crm/pages/CrmReportsPage';
+import { NewOpportunityPage } from '@/features/crm/pages/NewOpportunityPage';
+import { OpportunityDetailPage } from '@/features/crm/pages/OpportunityDetailPage';
 // ============================================================
 // /me PAGES — SELF SERVICE
 // ============================================================
@@ -713,6 +715,8 @@ export function AppRouter() {
             }
           >
             <Route index element={<CrmOverviewPage />} />
+            <Route path="opportunities/new" element={<NewOpportunityPage />} />
+            <Route path="opportunities/:id" element={<OpportunityDetailPage />} />
             <Route path="pipeline" element={<CrmPipelinePage />} />
             <Route path="organisations" element={<CrmOrganisationsPage />} />
             <Route path="contacts" element={<CrmContactsPage />} />

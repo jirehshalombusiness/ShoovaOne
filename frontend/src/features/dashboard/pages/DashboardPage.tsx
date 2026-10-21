@@ -6,6 +6,7 @@ import { ContractAlerts } from '../components/ContractAlerts';
 import { WorkforceOverview } from '../components/WorkforceOverview';
 import { CompensationSnapshot } from '../components/CompensationSnapshot';
 import { OrgActivityFeed } from '../components/OrgActivityFeed';
+import { CrmSnapshot } from '../components/CrmSnapshot';
 
 export function DashboardPage() {
   return (
@@ -38,7 +39,8 @@ export function DashboardPage() {
           <CompensationSnapshot />
         </div>
       </div>
-
+      {/* Row 5 — CRM snapshot */}
+      <CrmSnapshot />
       {/* Row 6 — Activity feed */}
       <OrgActivityFeed />
     </div>
