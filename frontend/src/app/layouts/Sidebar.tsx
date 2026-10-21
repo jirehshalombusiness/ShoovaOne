@@ -1,180 +1,15 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState, useRef } from 'react';
 import {
-  LayoutDashboard,
-  Users,
-  Clock,
-  FileText,
-  CheckSquare,
-  Building2,
-  BookOpen,
-  CalendarDays,
-  Settings,
   LogOut,
-  DollarSign,
-  Shield,
-  Briefcase,
-  BarChart3,
-  FolderKanban,
   PanelLeftClose,
-  ShieldCheck,
-  UserCog,
-  Network,
   Pin,
-  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Avatar } from '@/components/ui/Avatar';
-
-interface NavItem {
-  icon: React.ElementType;
-  label: string;
-  path: string;
-  permission?: string;
-}
-
-interface NavSection {
-  label: string;
-  items: NavItem[];
-}
-
-const NAV_SECTIONS: NavSection[] = [
-  {
-    label: 'Main',
-    items: [
-      {
-        icon: LayoutDashboard,
-        label: 'Dashboard',
-        path: '/dashboard',
-      },
-      {
-        icon: Briefcase,
-        label: 'My Work',
-        path: '/my-work',
-      },
-    ],
-  },
-
-  {
-    label: 'Work',
-    items: [
-      {
-        icon: FolderKanban,
-        label: 'Projects',
-        path: '/projects',
-        permission: 'projects.view',
-      },
-      {
-        icon: CheckSquare,
-        label: 'Tasks',
-        path: '/tasks',
-        permission: 'tasks.view',
-      },
-      {
-        icon: Clock,
-        label: 'Timesheets',
-        path: '/timesheets',
-        permission: 'timesheets.view',
-      },
-      {
-        icon: FileText,
-        label: 'Attendance',
-        path: '/attendance',
-        permission: 'attendance.view',
-      },
-    ],
-  },
-
-  {
-    label: 'People & HR',
-    items: [
-      {
-        icon: Users,
-        label: 'People',
-        path: '/people',
-        permission: 'people.view',
-      },
-      {
-        icon: Network,
-        label: 'Org Chart',
-        path: '/people/org-chart',
-        permission: 'people.view',
-      },
-      {
-        icon: Shield,
-        label: 'HR',
-        path: '/hr',
-        permission: 'hr.view_sensitive',
-      },
-    ],
-  },
-
-  {
-    label: 'Business',
-    items: [
-      {
-        icon: Building2,
-        label: 'CRM',
-        path: '/organisations',
-        permission: 'crm.view',
-      },
-      {
-        icon: BookOpen,
-        label: 'Programmes',
-        path: '/programmes',
-        permission: 'programmes.view',
-      },
-      {
-        icon: CalendarDays,
-        label: 'Events',
-        path: '/events',
-        permission: 'events.view',
-      },
-      {
-        icon: DollarSign,
-        label: 'Finance',
-        path: '/finance',
-        permission: 'finance.view',
-      },
-    ],
-  },
-
-  {
-    label: 'System',
-    items: [
-      {
-        icon: BarChart3,
-        label: 'Reports',
-        path: '/reports',
-      },
-      {
-        icon: Settings,
-        label: 'Settings',
-        path: '/settings',
-      },
-      {
-        icon: UserCog,
-        label: 'User Management',
-        path: '/users',
-        permission: 'users.manage',
-      },
-      {
-        icon: ShieldCheck,
-        label: 'Roles & Permissions',
-        path: '/roles',
-        permission: 'roles.manage',
-      },
-      {
-        icon: ClipboardList,
-        label: 'Audit Logs',
-        path: '/audit',
-        permission: 'audit.view',
-      },
-    ],
-  },
-];
+import { NAV_SECTIONS } from '@/app/nav.config';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -186,20 +21,21 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { hasPermission } = usePermissions();
   const navigate = useNavigate();
 
-  // Hover state — expands temporarily even when collapsed
   const [hovered, setHovered] = useState(false);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // The sidebar should be visually expanded if either:
-  // - not collapsed (user pinned it open), OR
-  // - currently hovered
   const isExpanded = !collapsed || hovered;
 
+  // Filter nav items by permission.
   const filtered = NAV_SECTIONS.map((section) => ({
     ...section,
-    items: section.items.filter(
-      (item) => !item.permission || hasPermission(item.permission),
-    ),
+    items: section.items.filter((item) => {
+      if (!item.permission) return true;
+      if (Array.isArray(item.permission)) {
+        return item.permission.some((p) => hasPermission(p));
+      }
+      return hasPermission(item.permission);
+    }),
   })).filter((section) => section.items.length > 0);
 
   const handleLogout = async () => {
@@ -207,13 +43,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     navigate('/login', { replace: true });
   };
 
-  // Debounced hover leave to prevent flicker
   const handleMouseEnter = () => {
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
     }
-
     setHovered(true);
   };
 
@@ -231,7 +65,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         'fixed top-0 left-0 bottom-0 bg-white border-r border-gray-200 flex flex-col z-30',
         'transition-[width] duration-200 ease-out',
         isExpanded ? 'w-[240px]' : 'w-[68px]',
-        // Only raise z-index / add shadow when expanded as an overlay (collapsed but hovered)
         collapsed && hovered && 'shadow-xl z-40',
       )}
     >
@@ -250,24 +83,17 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <span
             className={cn(
               'font-semibold text-[15px] text-gray-900 tracking-tight whitespace-nowrap transition-all duration-200',
-              isExpanded
-                ? 'opacity-100 w-auto'
-                : 'opacity-0 w-0 ml-0',
+              isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 ml-0',
             )}
           >
             Shoova ONE
           </span>
         </div>
 
-        {/* Pin toggle (only when expanded) */}
         {isExpanded && (
           <button
             onClick={onToggle}
-            title={
-              collapsed
-                ? 'Pin sidebar open'
-                : 'Unpin sidebar'
-            }
+            title={collapsed ? 'Pin sidebar open' : 'Unpin sidebar'}
             className={cn(
               'p-1.5 rounded-md text-gray-500 hover:text-gray-900 transition-all',
               collapsed
@@ -276,15 +102,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             )}
           >
             {collapsed ? (
-              <Pin
-                className="w-3.5 h-3.5"
-                strokeWidth={1.75}
-              />
+              <Pin className="w-3.5 h-3.5" strokeWidth={1.75} />
             ) : (
-              <PanelLeftClose
-                className="w-4 h-4"
-                strokeWidth={1.75}
-              />
+              <PanelLeftClose className="w-4 h-4" strokeWidth={1.75} />
             )}
           </button>
         )}
@@ -295,12 +115,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {filtered.map((section) => (
           <div
             key={section.label}
-            className={cn(
-              'mb-4',
-              !isExpanded && 'mb-2',
-            )}
+            className={cn('mb-4', !isExpanded && 'mb-2')}
           >
-            {/* Section label when expanded; divider when collapsed */}
             {isExpanded ? (
               <div className="px-3 mb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">
                 {section.label}
@@ -310,42 +126,45 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             )}
 
             <div className="space-y-0.5">
-              {section.items.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  title={!isExpanded ? item.label : undefined}
-                  className={({ isActive }) =>
-                    cn(
-                      'group relative flex items-center rounded-md text-[13px] font-medium transition-colors',
-                      isExpanded
-                        ? 'gap-2.5 px-3 py-[7px]'
-                        : 'justify-center px-0 py-2',
-                      isActive
-                        ? 'bg-gray-100 text-gray-900'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
-                    )
-                  }
-                >
-                  <item.icon
-                    className="w-4 h-4 flex-shrink-0"
-                    strokeWidth={1.75}
-                  />
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    end={item.exact}
+                    title={!isExpanded ? item.label : undefined}
+                    className={({ isActive }) =>
+                      cn(
+                        'group relative flex items-center rounded-md text-[13px] font-medium transition-colors',
+                        isExpanded
+                          ? 'gap-2.5 px-3 py-[7px]'
+                          : 'justify-center px-0 py-2',
+                        isActive
+                          ? 'bg-gray-100 text-gray-900'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
+                      )
+                    }
+                  >
+                    <Icon
+                      className="w-4 h-4 flex-shrink-0"
+                      strokeWidth={1.75}
+                    />
 
-                  {isExpanded && (
-                    <span className="truncate whitespace-nowrap">
-                      {item.label}
-                    </span>
-                  )}
+                    {isExpanded && (
+                      <span className="truncate whitespace-nowrap">
+                        {item.label}
+                      </span>
+                    )}
 
-                  {/* Tooltip when collapsed */}
-                  {!isExpanded && (
-                    <span className="pointer-events-none absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-[11px] font-medium rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-                      {item.label}
-                    </span>
-                  )}
-                </NavLink>
-              ))}
+                    {!isExpanded && (
+                      <span className="pointer-events-none absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-[11px] font-medium rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                        {item.label}
+                      </span>
+                    )}
+                  </NavLink>
+                );
+              })}
             </div>
           </div>
         ))}
@@ -356,9 +175,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         <div
           className={cn(
             'group flex items-center rounded-md hover:bg-gray-50 transition-colors',
-            isExpanded
-              ? 'gap-2.5 px-3 py-2'
-              : 'justify-center p-1.5',
+            isExpanded ? 'gap-2.5 px-3 py-2' : 'justify-center p-1.5',
           )}
         >
           <Avatar
