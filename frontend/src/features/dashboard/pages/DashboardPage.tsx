@@ -7,6 +7,8 @@ import { WorkforceOverview } from '../components/WorkforceOverview';
 import { CompensationSnapshot } from '../components/CompensationSnapshot';
 import { OrgActivityFeed } from '../components/OrgActivityFeed';
 import { CrmSnapshot } from '../components/CrmSnapshot';
+import { UpcomingMeetings } from '../components/UpcomingMeetings';
+
 
 export function DashboardPage() {
   return (
@@ -20,29 +22,44 @@ export function DashboardPage() {
       {/* Row 3 — Who's in today */}
       <WhosInToday />
 
-      {/* Row 4 — Approvals (2/3) + Contract alerts (1/3) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:h-[520px]">
-        <div className="lg:col-span-2 lg:h-full">
-          <ExecutiveApprovalsQueue />
+      {/* Row 4A — Upcoming meetings + Contract alerts side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2">
+          <UpcomingMeetings />
         </div>
-        <div className="lg:h-full">
+        <div>
           <ContractAlerts />
         </div>
       </div>
 
-      {/* Row 5 — Workforce + Compensation */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:h-[520px]">
-        <div className="lg:h-full">
-          <WorkforceOverview />
-        </div>
-        <div className="lg:h-full">
-          <CompensationSnapshot />
-        </div>
-      </div>
-      {/* Row 5 — CRM snapshot */}
-      <CrmSnapshot />
-      {/* Row 6 — Activity feed */}
-      <OrgActivityFeed />
-    </div>
+      {/* Existing: Approvals + Contract alerts */}
+<div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:h-[520px]">
+  <div className="lg:col-span-2 lg:h-full">
+    <ExecutiveApprovalsQueue />
+  </div>
+  <div className="lg:h-full">
+    <ContractAlerts />
+  </div>
+</div>
+
+{/* Workforce + Compensation */}
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:h-[520px]">
+  <div className="lg:h-full">
+    <WorkforceOverview />
+  </div>
+  <div className="lg:h-full">
+    <CompensationSnapshot />
+  </div>
+</div>
+
+{/* NEW: Upcoming meetings — full width */}
+<UpcomingMeetings />
+
+{/* CRM snapshot */}
+<CrmSnapshot />
+
+{/* Activity */}
+<OrgActivityFeed />
+  </div>
   );
 }
