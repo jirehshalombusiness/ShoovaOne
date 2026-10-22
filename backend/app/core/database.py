@@ -56,6 +56,13 @@ AsyncSessionLocal = async_sessionmaker(
 # Keep this list in sync with app/models/sql/__init__.py
 # =============================================
 
+#meeting
+from app.models.sql.meeting import (  # noqa: F401
+    Meeting,
+    MeetingAttendee,
+    MeetingAgendaItem,
+)
+
 ##crm
 from app.models.sql.crm import (  # noqa: F401
     Opportunity,

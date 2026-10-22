@@ -13,7 +13,7 @@ from app.api.v1 import api_router
 from app.models.sql import (
     user, role, attendance, notification, project, timesheet
 )
-
+from app.services.meeting_scheduler import start_scheduler, stop_scheduler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -29,7 +29,13 @@ async def lifespan(app: FastAPI):
         print(f"❌ Database error: {e}")
         traceback.print_exc()
     
+    # Start the meeting reminder scheduler
+    start_scheduler()
+    
     yield
+    
+    # Stop the scheduler
+    stop_scheduler()
     print("🛑 Shutting down Shoova ONE API...")
 
 

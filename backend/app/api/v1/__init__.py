@@ -26,6 +26,7 @@ from app.api.v1.endpoints import (
     financial_reports,
     roles,
 )
+from app.api.v1.endpoints import meetings as meeting_endpoints
 
 from app.api.v1.endpoints.crm import opportunities as crm_opportunities
 api_router = APIRouter()
@@ -181,4 +182,10 @@ api_router.include_router(
     roles.router,
     prefix="/roles",
     tags=["roles"],
+)
+
+api_router.include_router(
+    meeting_endpoints.router,
+    prefix="/meetings",
+    tags=["meetings"],
 )

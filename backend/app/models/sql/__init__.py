@@ -25,6 +25,12 @@ from app.models.sql.crm import (
     OpportunityActivity,
     OpportunityStageHistory,
 )
+from app.models.sql.meeting import (
+    Meeting,
+    MeetingAttendee,
+    MeetingAgendaItem,
+)
+
 __all__ = [
     "Base",
     "BaseModel",
@@ -57,4 +63,7 @@ __all__ = [
     "Payment",
     "Budget",
     "Allocation"
+    "Meeting",
+    "MeetingAttendee",
+    "MeetingAgendaItem",
 ]
