@@ -92,12 +92,6 @@ export const NAV_SECTIONS: NavSection[] = [
       },
 
       {
-        icon: CalendarDays,
-        label: 'Meetings',
-        path: '/meetings',
-      },
-
-      {
         icon: CheckSquare,
         label: 'Tasks',
         path: '/tasks',
