@@ -812,6 +812,7 @@ async def ensure_balances_for_year(
             carry_over_days=Decimal("0"),
         )
         db.add(balance)
+        await db.flush()          # ← flush one at a time; bypasses insertmanyvalues
         created.append(balance)
 
     return created
