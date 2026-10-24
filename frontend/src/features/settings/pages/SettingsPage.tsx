@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Bell,
   BellRing,
+  Check,
   CheckCheck,
   Eye,
   EyeOff,
@@ -10,7 +11,11 @@ import {
   Keyboard,
   Lock,
   Mail,
+  Monitor,
+  Moon,
+  Palette,
   Shield,
+  Sun,
   UserCircle2,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -19,12 +24,18 @@ import { cn, formatRoleLabel } from '@/lib/utils';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAuth } from '@/lib/auth';
 import { authService } from '@/services/auth.service';
+import { useTheme, type ThemePreference } from '@/lib/theme';
 import {
   DESKTOP_NOTIFICATIONS_KEY,
   useNotifications,
 } from '@/lib/notifications';
 
-type Section = 'account' | 'security' | 'notifications' | 'shortcuts';
+type Section =
+  | 'account'
+  | 'security'
+  | 'appearance'
+  | 'notifications'
+  | 'shortcuts';
 
 const SECTIONS: {
   value: Section;
@@ -33,6 +44,7 @@ const SECTIONS: {
 }[] = [
   { value: 'account', label: 'Account', icon: UserCircle2 },
   { value: 'security', label: 'Security', icon: Shield },
+  { value: 'appearance', label: 'Appearance', icon: Palette },
   { value: 'notifications', label: 'Notifications', icon: Bell },
   { value: 'shortcuts', label: 'Shortcuts', icon: Keyboard },
 ];
@@ -51,7 +63,7 @@ export function SettingsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
         <nav className="bg-white border border-gray-200 rounded-lg p-1.5 h-fit lg:sticky lg:top-4">
-          <div className="flex lg:flex-col gap-1 overflow-x-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-col gap-1">
             {SECTIONS.map((item) => {
               const Icon = item.icon;
               return (
@@ -76,6 +88,7 @@ export function SettingsPage() {
         <div className="min-w-0">
           {section === 'account' && <AccountSection />}
           {section === 'security' && <SecuritySection />}
+          {section === 'appearance' && <AppearanceSection />}
           {section === 'notifications' && <NotificationsSection />}
           {section === 'shortcuts' && <ShortcutsSection />}
         </div>
@@ -348,6 +361,180 @@ function PasswordField({
         />
       </div>
     </div>
+  );
+}
+
+// ============================================================
+// APPEARANCE
+// ============================================================
+
+const THEME_OPTIONS: {
+  value: ThemePreference;
+  label: string;
+  description: string;
+  icon: React.ElementType;
+  preview: {
+    bg: string;
+    bar: string;
+    surface: string;
+    text: string;
+    muted: string;
+    accent: string;
+  };
+}[] = [
+  {
+    value: 'light',
+    label: 'Light',
+    description: 'Crisp and bright for daytime work.',
+    icon: Sun,
+    preview: {
+      bg: '#f6f7f8',
+      bar: '#ffffff',
+      surface: '#ffffff',
+      text: '#17201c',
+      muted: '#b9c2bd',
+      accent: '#176b4d',
+    },
+  },
+  {
+    value: 'dark',
+    label: 'Dark',
+    description: 'Low glare for late sessions.',
+    icon: Moon,
+    preview: {
+      bg: '#0a100e',
+      bar: '#101815',
+      surface: '#16211c',
+      text: '#eef4f1',
+      muted: '#4a5a52',
+      accent: '#4fbe92',
+    },
+  },
+  {
+    value: 'system',
+    label: 'System',
+    description: 'Follow your device setting.',
+    icon: Monitor,
+    preview: {
+      bg: 'linear-gradient(90deg, #f6f7f8 50%, #0a100e 50%)',
+      bar: 'linear-gradient(90deg, #ffffff 50%, #101815 50%)',
+      surface: 'linear-gradient(90deg, #ffffff 50%, #16211c 50%)',
+      text: '#8b9993',
+      muted: '#7b8a83',
+      accent: '#2a8a68',
+    },
+  },
+];
+
+function AppearanceSection() {
+  const { preference, resolved, setPreference } = useTheme();
+
+  return (
+    <section className="bg-white border border-gray-200 rounded-lg">
+      <div className="px-5 py-4 border-b border-gray-100">
+        <h2 className="text-sm font-semibold text-gray-900">Theme</h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Choose how Shoova ONE looks. Changes apply instantly and are saved
+          to this browser.
+        </p>
+      </div>
+
+      <div className="p-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {THEME_OPTIONS.map((option) => {
+            const active = preference === option.value;
+            const Icon = option.icon;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setPreference(option.value)}
+                aria-pressed={active}
+                className={cn(
+                  'group relative rounded-lg border p-2.5 text-left transition-colors',
+                  active
+                    ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50',
+                )}
+              >
+                <div
+                  className="h-24 rounded-md border border-black/5 overflow-hidden"
+                  style={{ background: option.preview.bg }}
+                >
+                  <div
+                    className="h-5 flex items-center gap-1 px-2 border-b border-black/5"
+                    style={{ background: option.preview.bar }}
+                  >
+                    <span
+                      className="h-1.5 w-1.5 rounded-full"
+                      style={{ background: option.preview.accent }}
+                    />
+                    <span
+                      className="h-1 w-8 rounded-full"
+                      style={{ background: option.preview.muted }}
+                    />
+                  </div>
+                  <div className="p-2 space-y-1.5">
+                    <div
+                      className="h-1.5 w-3/4 rounded-full"
+                      style={{ background: option.preview.text, opacity: 0.85 }}
+                    />
+                    <div
+                      className="h-1.5 w-1/2 rounded-full"
+                      style={{ background: option.preview.muted }}
+                    />
+                    <div
+                      className="h-5 w-full rounded border border-black/5"
+                      style={{ background: option.preview.surface }}
+                    />
+                    <div
+                      className="h-1.5 w-2/3 rounded-full"
+                      style={{ background: option.preview.muted }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 mt-2.5">
+                  <Icon
+                    className={cn(
+                      'w-4 h-4 mt-0.5 flex-shrink-0',
+                      active ? 'text-primary' : 'text-gray-400',
+                    )}
+                    strokeWidth={1.75}
+                  />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-gray-900">
+                      {option.label}
+                    </div>
+                    <div className="text-[11px] text-gray-500 leading-snug">
+                      {option.description}
+                    </div>
+                  </div>
+
+                  {active && (
+                    <span className="ml-auto h-5 w-5 rounded-full bg-primary text-white flex items-center justify-center flex-shrink-0">
+                      <Check className="w-3 h-3" strokeWidth={2.5} />
+                    </span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 flex items-start gap-2 rounded-md bg-gray-50 border border-gray-100 px-3 py-2.5">
+          <Monitor className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-gray-500">
+            {preference === 'system'
+              ? `Following your device — currently ${resolved} mode.`
+              : `Currently using ${resolved} mode.`}{' '}
+            You can also switch quickly with the sun or moon button in the top
+            bar.
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -4,6 +4,7 @@ import { NotificationBell } from '@/components/ui/NotificationBell';
 import { UserMenu } from '@/components/ui/UserMenu';
 import { CreateMenu } from '@/components/ui/CreateMenu';
 import { CommandPalette } from '@/components/ui/CommandPalette';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { cn } from '@/lib/utils';
 import { SessionIndicator } from '@/components/ui/SessionIndicator';
 
@@ -86,6 +87,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
 
       {/* Desktop right actions */}
       <div className="hidden lg:flex items-center gap-1 ml-auto">
+        <ThemeToggle />
         <CreateMenu />
         <NotificationBell />
         <SessionIndicator />
@@ -103,6 +105,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
         >
           <Search className="w-5 h-5 text-gray-700" strokeWidth={1.75} />
         </button>
+        <ThemeToggle />
         <NotificationBell />
         <UserMenu />
       </div>

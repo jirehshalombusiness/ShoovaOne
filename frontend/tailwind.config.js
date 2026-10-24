@@ -1,9 +1,20 @@
 /** @type {import('tailwindcss').Config} */
+
+// Neutral scales are driven by CSS variables so light/dark theming applies
+// across the whole product without per-component dark: variants.
+const neutralScale = (name) =>
+  Object.fromEntries(
+    [
+      50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950,
+    ].map((shade) => [shade, `rgb(var(--${name}-${shade}) / <alpha-value>)`]),
+  );
+
 export default {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
@@ -20,6 +31,8 @@ export default {
         border: '#e5e9e6',
         danger: '#b84b4b',
         warning: '#9a721d',
+        gray: neutralScale('gray'),
+        slate: neutralScale('slate'),
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
