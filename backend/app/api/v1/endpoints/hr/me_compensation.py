@@ -11,13 +11,13 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
-from app.models.sql.approval import ApprovalRequest
-from app.models.sql.compensation import CompensationChange
-from app.models.sql.compensation_request import CompensationRequest
-from app.models.sql.employment_contract import EmploymentContract
-from app.models.sql.user import Person, User
-from app.services import approval_service
-from app.services.audit_service import AuditService
+from app.models.sql.hr.approval import ApprovalRequest
+from app.models.sql.hr.compensation import CompensationChange
+from app.models.sql.hr.compensation_request import CompensationRequest
+from app.models.sql.hr.employment_contract import EmploymentContract
+from app.models.sql.core.user import Person, User
+from app.services.hr import approval_service
+from app.services.core.audit_service import AuditService
 
 
 router = APIRouter()

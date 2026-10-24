@@ -11,59 +11,24 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import require_permission, Permissions, get_current_active_user
-from app.models.sql.user import User, Person
-from app.models.sql.employment_contract import EmploymentContract
-from app.models.sql.leave import LeaveBalance, LeaveRequest
-from app.models.sql.device import DeviceAssignment
-from app.models.sql.document import Document
-from app.models.sql.hr_note import HRNote
-from app.models.sql.project import Project, ProjectMember, Task
-from app.models.sql.audit_log import AuditLog
-from app.models.sql.approval import ApprovalRequest
-from app.services import approval_service
-from app.services.audit_service import AuditService
+from app.models.sql.core.user import User, Person
+from app.models.sql.hr.employment_contract import EmploymentContract
+from app.models.sql.hr.leave import LeaveBalance, LeaveRequest
+from app.models.sql.hr.device import DeviceAssignment
+from app.models.sql.core.document import Document
+from app.models.sql.hr.hr_note import HRNote
+from app.models.sql.projects.project import Project, ProjectMember, Task
+from app.models.sql.core.audit_log import AuditLog
+from app.models.sql.hr.approval import ApprovalRequest
+from app.services.hr import approval_service
+from app.services.hr.employee_change_service import (
+    INSTANT_FIELDS,
+    STRUCTURAL_FIELDS,
+)
+from app.services.core.audit_service import AuditService
 
 
 router = APIRouter()
-
-
-# ============================================================
-# FIELDS
-# ============================================================
-
-# Fields that require an approval request when changed.
-# Everything not in this set can be edited directly by HR.
-STRUCTURAL_FIELDS = {
-    "job_title",
-    "department",
-    "employment_type",
-    "reports_to_id",
-    "status",
-    "type",
-}
-
-# Fields that HR can always edit directly (contact + admin).
-INSTANT_FIELDS = {
-    "first_name",
-    "last_name",
-    "email",
-    "phone",
-    "date_of_birth",
-    "gender",
-    "location",
-    "employee_number",
-    "profile_image_url",
-    "address",
-    "city",
-    "state",
-    "country",
-    "postal_code",
-    "emergency_contact_name",
-    "emergency_contact_phone",
-    "emergency_contact_relationship",
-    "bio",
-    "skills",
-}
 
 
 # ============================================================
@@ -859,12 +824,7 @@ async def update_employee(
             summary="; ".join(summary_lines)[:1000],
             priority="normal",
             due_hours=72,
-        )
-        # Store the desired changes on the approval so the approver can see them.
-        approval.summary = (
-            (approval.summary or "")
-            + " | payload="
-            + str(structural_changes)[:1500]
+            metadata={"employee_change": structural_changes},
         )
         pending_approval_id = approval.id
         pending_fields = sorted(structural_changes.keys())

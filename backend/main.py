@@ -10,10 +10,8 @@ from app.core.database import engine, Base
 from app.api.v1 import api_router
 
 # Import ALL models so they register with SQLAlchemy
-from app.models.sql import (
-    user, role, attendance, notification, project, timesheet
-)
-from app.services.meeting_scheduler import start_scheduler, stop_scheduler
+import app.models.sql  # noqa: F401
+from app.services.meetings.meeting_scheduler import start_scheduler, stop_scheduler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

@@ -10,9 +10,9 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.sql.user import User
-from app.models.sql.role import Role
-from app.services.permission_service import PermissionService
+from app.models.sql.core.user import User
+from app.models.sql.core.role import Role
+from app.services.core.permission_service import PermissionService
 
 # Password context for bcrypt
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

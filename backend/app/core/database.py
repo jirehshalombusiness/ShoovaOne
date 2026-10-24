@@ -8,7 +8,7 @@ from typing import AsyncGenerator
 
 from app.core.config import settings
 from app.models.sql.base import Base
-from app.models.sql.organisation import Organisation, Department, Programme  # noqa: F401
+from app.models.sql.core.organisation import Organisation, Department, Programme  # noqa: F401
 
 # Convert database URL for async
 database_url = settings.DATABASE_URL
@@ -57,14 +57,14 @@ AsyncSessionLocal = async_sessionmaker(
 # =============================================
 
 #meeting
-from app.models.sql.meeting import (  # noqa: F401
+from app.models.sql.meetings.meeting import (  # noqa: F401
     Meeting,
     MeetingAttendee,
     MeetingAgendaItem,
 )
 
 ##crm
-from app.models.sql.crm import (  # noqa: F401
+from app.models.sql.crm.opportunity import (  # noqa: F401
     Opportunity,
     OpportunityContributor,
     OpportunityActivity,
@@ -72,54 +72,54 @@ from app.models.sql.crm import (  # noqa: F401
 )
 
 # --- Identity & access ---
-from app.models.sql.user import User, Person  # noqa: F401
-from app.models.sql.role import (  # noqa: F401
+from app.models.sql.core.user import User, Person  # noqa: F401
+from app.models.sql.core.role import (  # noqa: F401
     Role,
     Permission,
     user_roles,
     role_permissions,
     user_permissions,
 )
-from app.models.sql.password_reset_token import PasswordResetToken  # noqa: F401
-from app.models.sql.compensation_request import CompensationRequest  # noqa: F401
+from app.models.sql.core.password_reset_token import PasswordResetToken  # noqa: F401
+from app.models.sql.hr.compensation_request import CompensationRequest  # noqa: F401
 
 # --- Core operations ---
-from app.models.sql.attendance import Attendance  # noqa: F401
-from app.models.sql.work_session import WorkSession  # noqa: F401
-from app.models.sql.notification import Notification  # noqa: F401
+from app.models.sql.timekeeping.attendance import Attendance  # noqa: F401
+from app.models.sql.timekeeping.work_session import WorkSession  # noqa: F401
+from app.models.sql.core.notification import Notification  # noqa: F401
 
 # --- Projects & tasks ---
-from app.models.sql.project import (  # noqa: F401
+from app.models.sql.projects.project import (  # noqa: F401
     Project,
     ProjectMember,
     Milestone,
     Task,
 )
-from app.models.sql.timesheet import (  # noqa: F401
+from app.models.sql.timekeeping.timesheet import (  # noqa: F401
     Timesheet,
     TimesheetEntry,
     TimesheetApprovalHistory,
 )
 
 # --- HR ---
-from app.models.sql.employment_contract import EmploymentContract  # noqa: F401
-from app.models.sql.leave import (  # noqa: F401
+from app.models.sql.hr.employment_contract import EmploymentContract  # noqa: F401
+from app.models.sql.hr.leave import (  # noqa: F401
     LeaveType,
     LeaveBalance,
     LeaveRequest,
 )
-from app.models.sql.public_holiday import PublicHoliday  # noqa: F401
-from app.models.sql.device import Device, DeviceAssignment  # noqa: F401
-from app.models.sql.hr_note import HRNote  # noqa: F401
-from app.models.sql.hr_celebration import HRCelebration  # noqa: F401
+from app.models.sql.hr.public_holiday import PublicHoliday  # noqa: F401
+from app.models.sql.hr.device import Device, DeviceAssignment  # noqa: F401
+from app.models.sql.hr.hr_note import HRNote  # noqa: F401
+from app.models.sql.hr.hr_celebration import HRCelebration  # noqa: F401
 
 # --- Documents ---
-from app.models.sql.document import Document  # noqa: F401
-from app.models.sql.document_type import DocumentType  # noqa: F401
+from app.models.sql.core.document import Document  # noqa: F401
+from app.models.sql.core.document_type import DocumentType  # noqa: F401
 
 # --- Audit & approvals ---
-from app.models.sql.audit_log import AuditLog  # noqa: F401
-from app.models.sql.approval import ApprovalRequest, ApprovalComment  # noqa: F401
+from app.models.sql.core.audit_log import AuditLog  # noqa: F401
+from app.models.sql.hr.approval import ApprovalRequest, ApprovalComment  # noqa: F401
 
 
 # =============================================

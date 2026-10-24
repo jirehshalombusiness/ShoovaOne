@@ -10,11 +10,12 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user, require_permission, Permissions
-from app.models.sql.approval import ApprovalRequest, ApprovalComment
-from app.models.sql.user import User, Person
-from app.services import approval_service
-from app.services import leave_service
-from app.services.audit_service import AuditService
+from app.models.sql.hr.approval import ApprovalRequest, ApprovalComment
+from app.models.sql.core.user import User, Person
+from app.models.sql.core.audit_log import AuditLog
+from app.services.hr import approval_service
+from app.services.hr import leave_service
+from app.services.core.audit_service import AuditService
 
 
 router = APIRouter()
@@ -77,6 +78,7 @@ class ApprovalSummary(BaseModel):
     summary: Optional[str] = None
     status: str
     priority: str
+    stage: str
     escalation_level: int
     due_at: Optional[str] = None
     escalated_at: Optional[str] = None
@@ -140,17 +142,105 @@ def _person_name(p: Optional[Person]) -> str:
     return f"{p.first_name} {p.last_name}".strip()
 
 
-async def _enrich_leave_detail(
+def _stage_label(request: ApprovalRequest) -> str:
+    """
+    Human-readable stage for the workflow.
+
+    Compensation requests use their own HR -> CEO flow; generic
+    approvals use manager -> HR -> exec.
+    """
+    if request.entity_type == "compensation_request":
+        # Level 1 is kept for rows escalated before the stage fix.
+        return "ceo" if request.escalation_level >= 1 else "hr"
+    return {0: "manager", 1: "hr", 2: "exec"}.get(
+        request.escalation_level, "manager"
+    )
+
+
+async def _enrich_detail(
     db: AsyncSession,
     request: ApprovalRequest,
 ) -> Optional[ApprovalDetailLink]:
     """
-    If the request is for a leave request, pull the actual leave data.
+    Attach domain-specific context so approvers can decide without
+    leaving the approval screen.
     """
+    if request.entity_type == "employee_change":
+        metadata = await approval_service.get_creation_metadata(
+            db,
+            request_id=request.id,
+            entity_type=request.entity_type,
+            entity_id=request.entity_id,
+        )
+        changes = (metadata or {}).get("employee_change")
+        if not changes:
+            return None
+
+        from app.models.sql.core.user import Person
+
+        person = (
+            await db.execute(select(Person).where(Person.id == request.entity_id))
+        ).scalar_one_or_none()
+
+        current = (
+            {key: getattr(person, key, None) for key in changes}
+            if person is not None
+            else {}
+        )
+
+        # Once applied, show the values from before the change so the
+        # approved diff stays meaningful in the request history.
+        if request.status != "pending":
+            applied_log = (
+                await db.execute(
+                    select(AuditLog)
+                    .where(
+                        AuditLog.entity_type == "person",
+                        AuditLog.entity_id == request.entity_id,
+                        AuditLog.action == "EMPLOYEE_CHANGE_APPLIED",
+                    )
+                    .order_by(AuditLog.created_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if applied_log and isinstance(applied_log.old_values, dict):
+                current.update(
+                    {
+                        key: value
+                        for key, value in applied_log.old_values.items()
+                        if key in changes
+                    }
+                )
+
+        async def _name(manager_id) -> Optional[str]:
+            if not manager_id:
+                return None
+            manager = (
+                await db.execute(select(Person).where(Person.id == manager_id))
+            ).scalar_one_or_none()
+            return f"{manager.first_name} {manager.last_name}" if manager else None
+
+        proposed_manager = await _name(changes.get("reports_to_id"))
+        current_manager = (
+            await _name(current.get("reports_to_id"))
+            if "reports_to_id" in changes
+            else None
+        )
+
+        return ApprovalDetailLink(
+            kind="employee_change",
+            payload={
+                "changes": changes,
+                "current": current,
+                "reports_to_name": proposed_manager,
+                "current_reports_to_name": current_manager,
+            },
+        )
+
     if request.entity_type != "leave_request":
         return None
 
-    from app.models.sql.leave import LeaveRequest
+    from app.models.sql.hr.leave import LeaveRequest
 
     result = await db.execute(
         select(LeaveRequest)
@@ -190,14 +280,21 @@ async def _to_summary(
             request=request,
         )
 
+    # Older employee-change rows embedded the payload in the summary;
+    # keep it out of the UI now that it is stored structurally.
+    summary = request.summary
+    if summary and " | payload=" in summary:
+        summary = summary.split(" | payload=")[0]
+
     return ApprovalSummary(
         id=request.id,
         entity_type=request.entity_type,
         entity_id=request.entity_id,
         title=request.title,
-        summary=request.summary,
+        summary=summary,
         status=request.status,
         priority=request.priority,
+        stage=_stage_label(request),
         escalation_level=request.escalation_level,
         due_at=_iso(request.due_at),
         escalated_at=_iso(request.escalated_at),
@@ -229,8 +326,18 @@ async def _to_detail(
 ) -> ApprovalDetail:
     summary = await _to_summary(db, request, actor_person_id=actor_person_id)
 
+    # Internal notes are for HR approvers only — never expose them to
+    # the requester through the API.
+    can_view_internal = await approval_service._person_has_any_role(
+        db,
+        actor_person_id,
+        approval_service.HR_APPROVER_ROLES,
+    )
+
     comments: List[ApprovalCommentResponse] = []
     for c in request.comments or []:
+        if c.is_internal and not can_view_internal:
+            continue
         comments.append(
             ApprovalCommentResponse(
                 id=c.id,
@@ -243,7 +350,7 @@ async def _to_detail(
             )
         )
 
-    detail = await _enrich_leave_detail(db, request)
+    detail = await _enrich_detail(db, request)
 
     return ApprovalDetail(
         **summary.model_dump(),
@@ -292,20 +399,17 @@ async def list_inbox(
 
     actor_person_id = current_user.person_id
 
-    # Build filters
-    filters = []
-
-    if status_filter and status_filter != "all":
-        filters.append(ApprovalRequest.status == status_filter)
+    # Scope filters apply to every count below.
+    scope_filters = []
 
     if entity_types:
         types = [t.strip() for t in entity_types.split(",") if t.strip()]
         if types:
-            filters.append(ApprovalRequest.entity_type.in_(types))
+            scope_filters.append(ApprovalRequest.entity_type.in_(types))
 
     # Assignment scope
     if assigned_to_me and not include_all_if_hr:
-        filters.append(ApprovalRequest.assigned_to_id == actor_person_id)
+        scope_filters.append(ApprovalRequest.assigned_to_id == actor_person_id)
     else:
         # If include_all_if_hr is set, verify the actor has HR approver role.
         is_hr = await approval_service._person_has_any_role(
@@ -314,12 +418,16 @@ async def list_inbox(
             approval_service.HR_APPROVER_ROLES,
         )
 
-        if is_hr and include_all_if_hr:
-            # no assignment filter — show all pending
-            pass
-        else:
+        if not (is_hr and include_all_if_hr):
             # fall back to only assigned
-            filters.append(ApprovalRequest.assigned_to_id == actor_person_id)
+            scope_filters.append(
+                ApprovalRequest.assigned_to_id == actor_person_id
+            )
+
+    # Status filter only applies to the item list.
+    filters = list(scope_filters)
+    if status_filter and status_filter != "all":
+        filters.append(ApprovalRequest.status == status_filter)
 
     # Count query
     count_query = select(func.count(ApprovalRequest.id))
@@ -328,9 +436,9 @@ async def list_inbox(
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
-    # Pending count (independent of status_filter)
+    # Pending count for the active scope — not just the status tab.
     pending_query = select(func.count(ApprovalRequest.id)).where(
-        ApprovalRequest.assigned_to_id == actor_person_id,
+        *scope_filters,
         ApprovalRequest.status == "pending",
     )
     pending_result = await db.execute(pending_query)
@@ -372,6 +480,23 @@ async def list_inbox(
         total=total,
         pending=pending_count,
     )
+
+
+# ============================================================
+# READ — ORG-WIDE STATS
+# ============================================================
+
+@router.get(
+    "/stats/overview",
+    response_model=ApprovalStats,
+    dependencies=[Depends(require_permission(Permissions.HR_VIEW_LEAVE))],
+)
+async def get_approval_overview(
+    db: AsyncSession = Depends(get_db),
+):
+    """Org-wide approval counts for the HR shell and overview."""
+    stats = await approval_service.overview_stats(db)
+    return ApprovalStats(**stats)
 
 
 # ============================================================
@@ -444,8 +569,6 @@ async def approve_request(
         raise HTTPException(status_code=404, detail="Approval request not found")
 
     # Route to the correct domain handler.
-    # Route to the correct domain handler.
-    # Route to the correct domain handler.
     if request.entity_type == "leave_request":
         await leave_service.approve_leave_request(
             db,
@@ -457,7 +580,7 @@ async def approve_request(
 
     elif request.entity_type == "compensation_request":
         # Two-stage flow: HR approves → moves to CEO → CEO approves → done
-        from app.services import compensation_request_service
+        from app.services.hr import compensation_request_service
 
         result = await compensation_request_service.approve_stage(
             db,
@@ -482,6 +605,53 @@ async def approve_request(
                 actor=current_user,
                 note=payload.note,
             )
+
+    elif request.entity_type == "employee_change":
+        # Apply the approved structural change, then close the request.
+        from app.services.hr import employee_change_service
+
+        metadata = await approval_service.get_creation_metadata(
+            db,
+            request_id=request_id,
+            entity_type=request.entity_type,
+            entity_id=request.entity_id,
+        )
+        changes = (metadata or {}).get("employee_change")
+
+        if not changes:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "This employee change has no structured payload and "
+                    "cannot be applied automatically. Apply it manually "
+                    "and close the request."
+                ),
+            )
+
+        result = await employee_change_service.apply_employee_change(
+            db,
+            person_id=request.entity_id,
+            changes=changes,
+        )
+        await AuditService.log(
+            db=db,
+            actor=current_user,
+            action="EMPLOYEE_CHANGE_APPLIED",
+            entity_type="person",
+            entity_id=request.entity_id,
+            description=(
+                f"Applied approved employee change for "
+                f"{result['person'].first_name} {result['person'].last_name}"
+            ),
+            old_values=result["old_values"],
+            new_values=result["applied"],
+        )
+        await approval_service.approve(
+            db,
+            request_id=request_id,
+            actor=current_user,
+            note=payload.note,
+        )
 
     elif request.entity_type == "compensation_change":
         # HR-initiated compensation change (existing flow)
@@ -540,7 +710,7 @@ async def reject_request(
 
     elif request.entity_type == "compensation_request":
         # Two-stage: reject at either stage ends the request
-        from app.services import compensation_request_service
+        from app.services.hr import compensation_request_service
 
         await compensation_request_service.reject_stage(
             db,
@@ -592,6 +762,15 @@ async def escalate_request(
     request = await approval_service.get_request(db, request_id)
     if not request:
         raise HTTPException(status_code=404, detail="Approval request not found")
+
+    if request.entity_type == "compensation_request":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Compensation requests follow the fixed HR to CEO workflow "
+                "and cannot be manually escalated"
+            ),
+        )
 
     # Only the current assignee or an HR approver may escalate.
     actor_person_id = current_user.person_id

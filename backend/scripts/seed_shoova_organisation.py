@@ -4,7 +4,7 @@ import asyncio
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
-from app.models.sql.organisation import Organisation, Department
+from app.models.sql.core.organisation import Organisation, Department
 
 
 SHOOVA_ORGANISATION = {

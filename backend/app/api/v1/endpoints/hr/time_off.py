@@ -11,11 +11,11 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import require_permission, Permissions, get_current_active_user
-from app.models.sql.user import User, Person
-from app.models.sql.leave import LeaveType, LeaveBalance, LeaveRequest
-from app.models.sql.approval import ApprovalRequest
-from app.services import leave_service
-from app.services.audit_service import AuditService
+from app.models.sql.core.user import User, Person
+from app.models.sql.hr.leave import LeaveType, LeaveBalance, LeaveRequest
+from app.models.sql.hr.approval import ApprovalRequest
+from app.services.hr import leave_service
+from app.services.core.audit_service import AuditService
 
 
 router = APIRouter()

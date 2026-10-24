@@ -9,13 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import require_permission, Permissions
-from app.models.sql.user import User, Person
-from app.models.sql.employment_contract import EmploymentContract
-from app.models.sql.leave import LeaveRequest, LeaveType, LeaveBalance
-from app.models.sql.compensation import CompensationChange
+from app.models.sql.core.user import User, Person
+from app.models.sql.hr.employment_contract import EmploymentContract
+from app.models.sql.hr.leave import LeaveRequest, LeaveType, LeaveBalance
+from app.models.sql.hr.compensation import CompensationChange
 
 
-from app.models.sql.attendance import Attendance
+from app.models.sql.timekeeping.attendance import Attendance
 
 
 

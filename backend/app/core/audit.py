@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models.sql.audit_log import AuditLog
+from app.models.sql.core.audit_log import AuditLog
 import uuid
 from typing import Optional, Dict, Any
 

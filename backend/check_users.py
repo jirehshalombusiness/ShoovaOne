@@ -2,7 +2,7 @@ import asyncio
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
-from app.models.sql.user import User
+from app.models.sql.core.user import User
 
 
 async def main():

@@ -1,0 +1,509 @@
+from decimal import Decimal
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.core.security import require_permission
+from app.models.sql.finance.expense import Expense
+from app.models.sql.finance.fund_request import FundRequest
+from app.models.sql.projects.project import Project
+from app.models.sql.core.user import User
+from app.models.pydantic.finance.finance import FinanceOverviewResponse
+from app.services.finance.finance_access_service import FinanceAccessService
+from app.services.finance.currency_service import (
+    REPORTING_CURRENCY,
+    CurrencyConversionError,
+    get_exchange_rate,
+)
+
+
+router = APIRouter(tags=["finance"])
+
+
+@router.get(
+    "/overview",
+    response_model=FinanceOverviewResponse,
+)
+async def get_finance_overview(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("finance.view")
+    ),
+):
+    """
+    Return the Finance dashboard overview.
+
+    Organization-wide finance roles can see all records.
+    Other users are limited to their own requests/expenses
+    and records belonging to projects they manage.
+    """
+
+    can_view_all = await FinanceAccessService.can_view_all(
+        db,
+        current_user,
+    )
+
+    if not can_view_all and not current_user.person_id:
+        raise HTTPException(
+            status_code=400,
+            detail="User is not linked to a person record.",
+        )
+
+    # ---------------------------------------------------------
+    # Access scope
+    # ---------------------------------------------------------
+
+    fund_request_conditions = []
+    expense_conditions = []
+
+    if not can_view_all:
+        project_manager_subquery = select(Project.id).where(
+            Project.manager_id == current_user.person_id
+        )
+
+        fund_request_conditions = [
+            or_(
+                FundRequest.requester_id == current_user.person_id,
+                FundRequest.project_id.in_(
+                    project_manager_subquery
+                ),
+            )
+        ]
+
+        expense_conditions = [
+            or_(
+                Expense.requester_id == current_user.person_id,
+                Expense.project_id.in_(
+                    project_manager_subquery
+                ),
+            )
+        ]
+
+    # ---------------------------------------------------------
+    # Fund Request metrics
+    # ---------------------------------------------------------
+
+    # Total number of fund requests.
+    fund_request_count_query = select(
+        func.count(FundRequest.id)
+    )
+
+    if fund_request_conditions:
+        fund_request_count_query = (
+            fund_request_count_query.where(
+                *fund_request_conditions
+            )
+        )
+
+    fund_request_count_result = await db.execute(
+        fund_request_count_query
+    )
+
+    total_fund_requests = (
+        fund_request_count_result.scalar() or 0
+    )
+
+    # ---------------------------------------------------------
+    # Currency-specific fund totals
+    # ---------------------------------------------------------
+
+    #
+    # We must never add amounts from different currencies
+    # directly together.
+    #
+    # Example:
+    #
+    # GHS 50,000 + USD 2,000
+    #
+    # remains:
+    #
+    # GHS -> 50,000
+    # USD -> 2,000
+    #
+    # These original currency totals are preserved for
+    # transparency and detailed reporting.
+    # ---------------------------------------------------------
+
+    fund_totals_query = select(
+        FundRequest.currency,
+        func.coalesce(
+            func.sum(FundRequest.amount_requested),
+            0,
+        ),
+        func.coalesce(
+            func.sum(FundRequest.approved_amount),
+            0,
+        ),
+        func.coalesce(
+            func.sum(FundRequest.amount_disbursed),
+            0,
+        ),
+    ).group_by(
+        FundRequest.currency
+    )
+
+    if fund_request_conditions:
+        fund_totals_query = fund_totals_query.where(
+            *fund_request_conditions
+        )
+
+    fund_totals_result = await db.execute(
+        fund_totals_query
+    )
+
+    fund_totals_by_currency = {}
+
+    for (
+        currency,
+        requested,
+        approved,
+        disbursed,
+    ) in fund_totals_result.all():
+        currency_code = (
+            currency.upper()
+            if currency
+            else "UNKNOWN"
+        )
+
+        fund_totals_by_currency[currency_code] = {
+            "requested": requested or 0,
+            "approved": approved or 0,
+            "disbursed": disbursed or 0,
+        }
+
+    # ---------------------------------------------------------
+    # USD reporting totals
+    # ---------------------------------------------------------
+
+    #
+    # The original currency amounts above remain unchanged.
+    #
+    # Here we convert each currency into the configured
+    # reporting currency (currently USD), then combine the
+    # converted values.
+    #
+    # This gives the dashboard a single comparable figure
+    # without corrupting the original transaction amounts.
+    # ---------------------------------------------------------
+
+    reporting_requested = Decimal("0.00")
+    reporting_approved = Decimal("0.00")
+    reporting_disbursed = Decimal("0.00")
+
+    for currency, values in fund_totals_by_currency.items():
+        if currency == REPORTING_CURRENCY:
+            rate = Decimal("1")
+        else:
+            try:
+                rate = await get_exchange_rate(
+                    currency,
+                    REPORTING_CURRENCY,
+                )
+            except CurrencyConversionError as exc:
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        f"Unable to convert {currency} "
+                        f"funding totals to "
+                        f"{REPORTING_CURRENCY}."
+                    ),
+                ) from exc
+
+        reporting_requested += (
+            Decimal(str(values["requested"])) * rate
+        )
+
+        reporting_approved += (
+            Decimal(str(values["approved"])) * rate
+        )
+
+        reporting_disbursed += (
+            Decimal(str(values["disbursed"])) * rate
+        )
+
+    reporting_requested = reporting_requested.quantize(
+        Decimal("0.01")
+    )
+
+    reporting_approved = reporting_approved.quantize(
+        Decimal("0.01")
+    )
+
+    reporting_disbursed = reporting_disbursed.quantize(
+        Decimal("0.01")
+    )
+
+    # ---------------------------------------------------------
+    # Pending fund requests
+    # ---------------------------------------------------------
+
+    pending_fund_request_query = select(
+        func.count(FundRequest.id)
+    ).where(
+        FundRequest.status.in_(
+            ["submitted", "under_review"]
+        )
+    )
+
+    if fund_request_conditions:
+        pending_fund_request_query = (
+            pending_fund_request_query.where(
+                *fund_request_conditions
+            )
+        )
+
+    pending_fund_request_result = await db.execute(
+        pending_fund_request_query
+    )
+
+    pending_fund_requests = (
+        pending_fund_request_result.scalar() or 0
+    )
+
+    # ---------------------------------------------------------
+    # Approved fund requests
+    # ---------------------------------------------------------
+
+    # A request remains part of the approved lifecycle once
+    # it has reached approval, even after it moves into
+    # disbursement or reconciliation.
+    approved_fund_request_query = select(
+        func.count(FundRequest.id)
+    ).where(
+        FundRequest.status.in_(
+            ["approved", "disbursed", "reconciled"]
+        )
+    )
+
+    if fund_request_conditions:
+        approved_fund_request_query = (
+            approved_fund_request_query.where(
+                *fund_request_conditions
+            )
+        )
+
+    approved_fund_request_result = await db.execute(
+        approved_fund_request_query
+    )
+
+    approved_fund_requests = (
+        approved_fund_request_result.scalar() or 0
+    )
+
+    # ---------------------------------------------------------
+    # Disbursed fund requests
+    # ---------------------------------------------------------
+
+    # A request remains part of the disbursed lifecycle once
+    # it has been disbursed, including after reconciliation.
+    disbursed_fund_request_query = select(
+        func.count(FundRequest.id)
+    ).where(
+        FundRequest.status.in_(
+            ["disbursed", "reconciled"]
+        )
+    )
+
+    if fund_request_conditions:
+        disbursed_fund_request_query = (
+            disbursed_fund_request_query.where(
+                *fund_request_conditions
+            )
+        )
+
+    disbursed_fund_request_result = await db.execute(
+        disbursed_fund_request_query
+    )
+
+    disbursed_fund_requests = (
+        disbursed_fund_request_result.scalar() or 0
+    )
+
+    # ---------------------------------------------------------
+    # Fund requests requiring reconciliation
+    # ---------------------------------------------------------
+
+    fund_reconciliation_query = select(
+        func.count(FundRequest.id)
+    ).where(
+        FundRequest.status == "disbursed"
+    )
+
+    if fund_request_conditions:
+        fund_reconciliation_query = (
+            fund_reconciliation_query.where(
+                *fund_request_conditions
+            )
+        )
+
+    fund_reconciliation_result = await db.execute(
+        fund_reconciliation_query
+    )
+
+    fund_requests_requiring_reconciliation = (
+        fund_reconciliation_result.scalar() or 0
+    )
+
+    # ---------------------------------------------------------
+    # Expense metrics
+    # ---------------------------------------------------------
+
+    expense_query = select(
+        func.count(Expense.id),
+        func.coalesce(
+            func.sum(Expense.amount),
+            0,
+        ),
+    )
+
+    if expense_conditions:
+        expense_query = expense_query.where(
+            *expense_conditions
+        )
+
+    expense_result = await db.execute(
+        expense_query
+    )
+
+    (
+        total_expenses,
+        total_expense_amount,
+    ) = expense_result.one()
+
+    # ---------------------------------------------------------
+    # Pending expenses
+    # ---------------------------------------------------------
+
+    pending_expense_query = select(
+        func.count(Expense.id)
+    ).where(
+        Expense.status.in_(
+            ["submitted", "under_review"]
+        )
+    )
+
+    if expense_conditions:
+        pending_expense_query = (
+            pending_expense_query.where(
+                *expense_conditions
+            )
+        )
+
+    pending_expense_result = await db.execute(
+        pending_expense_query
+    )
+
+    pending_expenses = (
+        pending_expense_result.scalar() or 0
+    )
+
+    # ---------------------------------------------------------
+    # Approved expenses
+    # ---------------------------------------------------------
+
+    approved_expense_query = select(
+        func.count(Expense.id)
+    ).where(
+        Expense.status == "approved"
+    )
+
+    if expense_conditions:
+        approved_expense_query = (
+            approved_expense_query.where(
+                *expense_conditions
+            )
+        )
+
+    approved_expense_result = await db.execute(
+        approved_expense_query
+    )
+
+    approved_expenses = (
+        approved_expense_result.scalar() or 0
+    )
+
+    # ---------------------------------------------------------
+    # Paid expenses
+    # ---------------------------------------------------------
+
+    paid_expense_query = select(
+        func.coalesce(
+            func.sum(Expense.amount),
+            0,
+        )
+    ).where(
+        Expense.status.in_(
+            ["paid", "reconciled"]
+        )
+    )
+
+    if expense_conditions:
+        paid_expense_query = (
+            paid_expense_query.where(
+                *expense_conditions
+            )
+        )
+
+    paid_expense_result = await db.execute(
+        paid_expense_query
+    )
+
+    total_paid_expenses = (
+        paid_expense_result.scalar() or 0
+    )
+
+    # ---------------------------------------------------------
+    # Expenses requiring reconciliation
+    # ---------------------------------------------------------
+
+    expense_reconciliation_query = select(
+        func.count(Expense.id)
+    ).where(
+        Expense.status == "paid"
+    )
+
+    if expense_conditions:
+        expense_reconciliation_query = (
+            expense_reconciliation_query.where(
+                *expense_conditions
+            )
+        )
+
+    expense_reconciliation_result = await db.execute(
+        expense_reconciliation_query
+    )
+
+    expenses_requiring_reconciliation = (
+        expense_reconciliation_result.scalar() or 0
+    )
+
+    # ---------------------------------------------------------
+    # Response
+    # ---------------------------------------------------------
+
+    return FinanceOverviewResponse(
+        total_fund_requests=total_fund_requests,
+        pending_fund_requests=pending_fund_requests,
+        approved_fund_requests=approved_fund_requests,
+        disbursed_fund_requests=disbursed_fund_requests,
+        fund_totals_by_currency=fund_totals_by_currency,
+        reporting_totals={
+            "currency": REPORTING_CURRENCY,
+            "requested": reporting_requested,
+            "approved": reporting_approved,
+            "disbursed": reporting_disbursed,
+        },
+        total_expenses=total_expenses or 0,
+        pending_expenses=pending_expenses,
+        approved_expenses=approved_expenses,
+        total_expense_amount=total_expense_amount or 0,
+        total_paid_expenses=total_paid_expenses or 0,
+        expenses_requiring_reconciliation=(
+            expenses_requiring_reconciliation
+        ),
+        fund_requests_requiring_reconciliation=(
+            fund_requests_requiring_reconciliation
+        ),
+    )

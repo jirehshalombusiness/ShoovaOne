@@ -10,15 +10,15 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
-from app.models.sql.approval import ApprovalRequest
-from app.models.sql.device import DeviceAssignment
-from app.models.sql.document import Document
-from app.models.sql.employment_contract import EmploymentContract
-from app.models.sql.leave import LeaveBalance, LeaveRequest, LeaveType
-from app.models.sql.public_holiday import PublicHoliday
-from app.models.sql.user import Person, User
-from app.services import leave_service
-from app.services.audit_service import AuditService
+from app.models.sql.hr.approval import ApprovalRequest
+from app.models.sql.hr.device import DeviceAssignment
+from app.models.sql.core.document import Document
+from app.models.sql.hr.employment_contract import EmploymentContract
+from app.models.sql.hr.leave import LeaveBalance, LeaveRequest, LeaveType
+from app.models.sql.hr.public_holiday import PublicHoliday
+from app.models.sql.core.user import Person, User
+from app.services.hr import leave_service
+from app.services.core.audit_service import AuditService
 
 
 router = APIRouter(prefix="/me", tags=["hr-me"])
@@ -1095,7 +1095,7 @@ async def get_my_devices(
     Only returns assignments that have not been returned
     (returned_at is null).
     """
-    from app.models.sql.device import DeviceAssignment
+    from app.models.sql.hr.device import DeviceAssignment
 
     result = await db.execute(
         select(DeviceAssignment)

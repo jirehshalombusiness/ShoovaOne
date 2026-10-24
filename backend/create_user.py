@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy import select
 from app.core.config import settings
-from app.models.sql.user import User, Person
+from app.models.sql.core.user import User, Person
 from app.models.sql.base import Base
 from app.core.security import get_password_hash
 

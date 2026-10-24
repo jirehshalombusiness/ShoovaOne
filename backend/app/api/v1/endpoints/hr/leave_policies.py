@@ -9,10 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import require_permission, Permissions, get_current_active_user
-from app.models.sql.user import User
-from app.models.sql.leave import LeaveType, LeaveBalance
-from app.models.sql.public_holiday import PublicHoliday
-from app.services.audit_service import AuditService
+from app.models.sql.core.user import User
+from app.models.sql.hr.leave import LeaveType, LeaveBalance
+from app.models.sql.hr.public_holiday import PublicHoliday
+from app.services.core.audit_service import AuditService
 
 
 router = APIRouter()

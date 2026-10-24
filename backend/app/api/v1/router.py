@@ -1,0 +1,21 @@
+from fastapi import APIRouter
+
+from app.api.v1.endpoints import (
+    core,
+    crm,
+    finance,
+    hr,
+    meetings,
+    projects,
+    timekeeping,
+)
+
+api_router = APIRouter()
+
+api_router.include_router(core.router)
+api_router.include_router(timekeeping.router)
+api_router.include_router(projects.router)
+api_router.include_router(crm.router)
+api_router.include_router(hr.router, tags=["hr"])
+api_router.include_router(finance.router)
+api_router.include_router(meetings.router)
