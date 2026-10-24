@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { meetingsService, type MeetingSummary } from '@/services/meetings.service';
@@ -9,6 +9,7 @@ import {
   Plus,
   Video,
 } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const MEETING_SECTIONS = [
   {
@@ -41,6 +42,12 @@ export function MeetingsLayout() {
   };
 
   const upcomingCount = weekMeetings?.length ?? 0;
+
+  const { hasPermission } = usePermissions();
+
+  if (!hasPermission('meetings.view')) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="flex gap-6 min-h-[calc(100vh-56px)]">

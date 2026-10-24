@@ -33,6 +33,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
+import { usePermissions } from '@/hooks/usePermissions';
 
 export function MeetingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -105,6 +106,13 @@ export function MeetingDetailPage() {
     },
   });
 
+    const { hasPermission } = usePermissions();
+    const canEdit = hasPermission('meetings.edit');
+    const canCancel = hasPermission('meetings.cancel');
+
+// Then use `canEdit` to show agenda buttons, `canCancel` for cancel button
+// (currently you use isOrganizer alone, which is the correct approach for
+//  "own meetings", but permissions add a second layer)
   const deleteAgendaMutation = useMutation({
     mutationFn: (itemId: string) => meetingsService.deleteAgendaItem(id!, itemId),
     onSuccess: () => {
