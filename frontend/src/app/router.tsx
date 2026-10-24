@@ -21,6 +21,7 @@ import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
 
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage';
 import { MyWorkPage } from '@/features/mywork/pages/MyWorkPage';
+import { ChatPage } from '@/features/chat/pages/ChatPage';
 import { NotificationsPage } from '@/features/notifications/pages/NotificationsPage';
 import { SettingsPage } from '@/features/settings/pages/SettingsPage';
 import { HelpPage } from '@/features/help/pages/HelpPage';
@@ -403,6 +404,20 @@ export function AppRouter() {
           <Route
             path="my-work"
             element={<MyWorkPage />}
+          />
+
+          {/* ======================================================= */}
+          {/* CHAT                                                    */}
+          {/* ======================================================= */}
+
+          <Route
+            path="chat"
+            element={<ChatPage />}
+          />
+
+          <Route
+            path="chat/:conversationId"
+            element={<ChatPage />}
           />
 
           {/* ======================================================= */}

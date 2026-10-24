@@ -2,6 +2,7 @@ import type { ElementType } from 'react';
 import {
   LayoutDashboard,
   Briefcase,
+  MessageSquare,
   FolderKanban,
   CheckSquare,
   Clock,
@@ -61,6 +62,11 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Briefcase,
         label: 'My Work',
         path: '/my-work',
+      },
+      {
+        icon: MessageSquare,
+        label: 'Chat',
+        path: '/chat',
       },
     ],
   },

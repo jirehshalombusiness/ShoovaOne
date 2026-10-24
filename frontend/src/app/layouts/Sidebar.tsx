@@ -8,6 +8,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { useHRAccess } from '@/hooks/useHRAccess';
+import { useChatUnread } from '@/hooks/useChatConversations';
 import { Avatar } from '@/components/ui/Avatar';
 import { NAV_SECTIONS } from '@/app/nav.config';
 
@@ -19,6 +20,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { user, logout } = useAuth();
   const access = useHRAccess();
+  const chatUnread = useChatUnread();
   const navigate = useNavigate();
 
   const [hovered, setHovered] = useState(false);
@@ -124,6 +126,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <div className="space-y-0.5">
               {section.items.map((item) => {
                 const Icon = item.icon;
+                const badgeCount = item.path === '/chat' ? chatUnread : 0;
+
                 return (
                   <NavLink
                     key={item.path}
@@ -142,14 +146,26 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                       )
                     }
                   >
-                    <Icon
-                      className="w-4 h-4 flex-shrink-0"
-                      strokeWidth={1.75}
-                    />
+                    <span className="relative flex-shrink-0">
+                      <Icon
+                        className="w-4 h-4"
+                        strokeWidth={1.75}
+                      />
+
+                      {!isExpanded && badgeCount > 0 && (
+                        <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary ring-2 ring-white" />
+                      )}
+                    </span>
 
                     {isExpanded && (
                       <span className="truncate whitespace-nowrap">
                         {item.label}
+                      </span>
+                    )}
+
+                    {isExpanded && badgeCount > 0 && (
+                      <span className="ml-auto flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-white">
+                        {badgeCount > 99 ? '99+' : badgeCount}
                       </span>
                     )}
 
