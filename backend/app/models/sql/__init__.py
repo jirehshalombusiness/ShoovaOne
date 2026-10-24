@@ -56,6 +56,8 @@ from app.models.sql.meetings.meeting import (
     MeetingAgendaItem,
 )
 
+from app.models.sql.chat import Conversation, ConversationMember, ChatMessage
+
 __all__ = [
     "Base",
     "BaseModel",
@@ -111,4 +113,7 @@ __all__ = [
     "Meeting",
     "MeetingAttendee",
     "MeetingAgendaItem",
+    "Conversation",
+    "ConversationMember",
+    "ChatMessage",
 ]

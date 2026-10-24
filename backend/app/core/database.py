@@ -84,6 +84,11 @@ from app.models.sql.core.password_reset_token import PasswordResetToken  # noqa:
 from app.models.sql.hr.compensation_request import CompensationRequest  # noqa: F401
 
 # --- Core operations ---
+from app.models.sql.chat import (  # noqa: F401
+    ChatMessage,
+    Conversation,
+    ConversationMember,
+)
 from app.models.sql.timekeeping.attendance import Attendance  # noqa: F401
 from app.models.sql.timekeeping.work_session import WorkSession  # noqa: F401
 from app.models.sql.core.notification import Notification  # noqa: F401
