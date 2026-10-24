@@ -548,10 +548,3 @@ async def delete_agenda_item(
     await db.delete(item)
     await db.commit()
     return None
-
-@router.post("", response_model=MeetingDetail, status_code=status.HTTP_201_CREATED)
-async def create_meeting(
-    payload: CreateMeetingRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission(Permissions.MEETINGS_CREATE)),  # ← changed
-):
