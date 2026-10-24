@@ -1,78 +1,19 @@
 import { useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import {
-  X,
-  LayoutDashboard,
-  Users,
-  Clock,
-  FileText,
-  Calendar,
-  CheckSquare,
-  Building2,
-  BookOpen,
-  CalendarDays,
-  Settings,
-  LogOut,
-  DollarSign,
-  Shield,
-  Briefcase,
-  BarChart3,
-  FolderKanban,
-} from 'lucide-react';
+import { X, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useHRAccess } from '@/hooks/useHRAccess';
+import { NAV_SECTIONS } from '@/app/nav.config';
 
 interface MobileMenuDrawerProps {
   open: boolean;
   onClose: () => void;
 }
 
-const NAV_SECTIONS = [
-  {
-    label: 'Main',
-    items: [
-      { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-      { icon: Briefcase, label: 'My Work', path: '/my-work' },
-    ],
-  },
-  {
-    label: 'Work',
-    items: [
-      { icon: FolderKanban, label: 'Projects', path: '/projects' },
-      { icon: CheckSquare, label: 'Tasks', path: '/tasks' },
-      { icon: Clock, label: 'Timesheets', path: '/timesheets' },
-      { icon: FileText, label: 'Attendance', path: '/attendance' },
-    ],
-  },
-  {
-    label: 'People & HR',
-    items: [
-      { icon: Users, label: 'People', path: '/people' },
-      { icon: Shield, label: 'HR', path: '/hr', permission: 'hr.view_sensitive' },
-    ],
-  },
-  {
-    label: 'Business',
-    items: [
-      { icon: Building2, label: 'CRM', path: '/organisations' },
-      { icon: BookOpen, label: 'Programmes', path: '/programmes' },
-      { icon: CalendarDays, label: 'Events', path: '/events' },
-      { icon: DollarSign, label: 'Finance', path: '/finance', permission: 'finance.view' },
-    ],
-  },
-  {
-    label: 'System',
-    items: [
-      { icon: BarChart3, label: 'Reports', path: '/reports' },
-      { icon: Settings, label: 'Settings', path: '/settings' },
-    ],
-  },
-];
-
 export function MobileMenuDrawer({ open, onClose }: MobileMenuDrawerProps) {
   const { user, logout } = useAuth();
-  const { hasPermission } = usePermissions();
+  const access = useHRAccess();
   const navigate = useNavigate();
 
   // Prevent body scroll when drawer is open
@@ -98,10 +39,9 @@ export function MobileMenuDrawer({ open, onClose }: MobileMenuDrawerProps) {
 
   const filtered = NAV_SECTIONS.map((section) => ({
     ...section,
-    items: section.items.filter((item: any) => {
-      if (!item.permission) return true;
-      return hasPermission(item.permission);
-    }),
+    items: section.items.filter(
+      (item) => !item.permission || access.has(item.permission),
+    ),
   })).filter((section) => section.items.length > 0);
 
   const initials = user
@@ -174,10 +114,11 @@ export function MobileMenuDrawer({ open, onClose }: MobileMenuDrawerProps) {
                 {section.label}
               </div>
               <div className="space-y-0.5">
-                {section.items.map((item: any) => (
+                {section.items.map((item) => (
                   <NavLink
                     key={item.path}
                     to={item.path}
+                    end={item.exact}
                     onClick={onClose}
                     className={({ isActive }) =>
                       cn(

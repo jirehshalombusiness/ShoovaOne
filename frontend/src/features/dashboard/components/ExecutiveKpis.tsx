@@ -115,7 +115,7 @@ export function ExecutiveKpis() {
       icon: FileWarning,
       tone:
         contracts && contracts.within_30.length > 0 ? 'danger' : 'default',
-      onClick: () => navigate('/hr/contracts'),
+      onClick: () => navigate('/hr/reports?tab=contracts'),
     },
   ];
 

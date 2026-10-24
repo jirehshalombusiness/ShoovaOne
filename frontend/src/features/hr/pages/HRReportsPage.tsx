@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import {
   Users,
   TrendingUp,
@@ -16,9 +17,23 @@ import { cn } from '@/lib/utils';
 
 type ReportTab = 'headcount' | 'turnover' | 'leave' | 'compensation' | 'contracts';
 
+const REPORT_TABS: ReportTab[] = [
+  'headcount',
+  'turnover',
+  'leave',
+  'compensation',
+  'contracts',
+];
+
 export function HRReportsPage() {
   const access = useHRAccess();
-  const [tab, setTab] = useState<ReportTab>('headcount');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab') as ReportTab | null;
+  const [tab, setTab] = useState<ReportTab>(
+    requestedTab && REPORT_TABS.includes(requestedTab)
+      ? requestedTab
+      : 'headcount',
+  );
 
   const tabs: { id: ReportTab; label: string; icon: React.ElementType; enabled: boolean }[] = [
     { id: 'headcount', label: 'Headcount', icon: Users, enabled: access.canViewSensitive },
@@ -68,7 +83,10 @@ export function HRReportsPage() {
             return (
               <button
                 key={t.id}
-                onClick={() => setTab(t.id)}
+                onClick={() => {
+                  setTab(t.id);
+                  setSearchParams({ tab: t.id }, { replace: true });
+                }}
                 className={cn(
                   'flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 whitespace-nowrap',
                   active

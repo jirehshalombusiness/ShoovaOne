@@ -1,4 +1,4 @@
-﻿import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
   Users,
@@ -10,12 +10,22 @@ import {
   ArrowRight,
   TrendingUp,
   UserPlus,
+  AlertCircle,
+  ChevronRight,
+  type LucideIcon,
 } from 'lucide-react';
-import { format, differenceInDays } from 'date-fns';
-import { hrService } from '@/services/hr.service';
+import { format } from 'date-fns';
+import { hrService, type ApprovalSummary } from '@/services/hr.service';
 import { useHRAccess } from '@/hooks/useHRAccess';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
+
+const STAGE_LABELS: Record<string, string> = {
+  manager: 'Manager',
+  hr: 'HR',
+  ceo: 'CEO',
+  exec: 'Exec',
+};
 
 export function HROverviewPage() {
   const navigate = useNavigate();
@@ -32,6 +42,12 @@ export function HROverviewPage() {
     enabled: access.canViewLeave,
   });
 
+  const approvalOverviewQuery = useQuery({
+    queryKey: ['hr', 'approvals', 'overview'],
+    queryFn: () => hrService.getApprovalOverview(),
+    enabled: access.canViewLeave,
+  });
+
   const approvalsQuery = useQuery({
     queryKey: ['hr', 'approvals', 'pending-preview'],
     queryFn: () =>
@@ -39,7 +55,7 @@ export function HROverviewPage() {
         status: 'pending',
         assigned_to_me: false,
         include_all_if_hr: true,
-        limit: 5,
+        limit: 6,
       }),
     enabled: access.canViewLeave,
   });
@@ -64,41 +80,62 @@ export function HROverviewPage() {
 
   const stats = statsQuery.data;
   const leaveStats = leaveStatsQuery.data;
+  const overview = approvalOverviewQuery.data;
   const approvals = approvalsQuery.data?.items ?? [];
   const celebrations = celebrationsQuery.data?.items ?? [];
   const docs = docsQuery.data;
   const contracts = contractsQuery.data;
 
-  const kpis = [
+  const kpis: {
+    label: string;
+    value: number | string;
+    sub: string;
+    icon: LucideIcon;
+    tone: 'primary' | 'warning' | 'danger' | 'info';
+    onClick: () => void;
+  }[] = [
     {
-      label: 'Active Employees',
+      label: 'Active employees',
       value: stats?.active ?? '—',
       sub:
         stats && stats.total !== stats.active
-          ? `${stats.total} total`
+          ? `${stats.total} on record`
           : 'all active',
       icon: UserCheck,
       tone: 'primary',
+      onClick: () => navigate('/hr/employees'),
     },
+    ...(access.canViewLeave
+      ? [
+          {
+            label: 'Pending approvals',
+            value: overview?.pending ?? leaveStats?.pending ?? '—',
+            sub:
+              overview && overview.overdue > 0
+                ? `${overview.overdue} past SLA`
+                : 'all within SLA',
+            icon: Inbox,
+            tone:
+              overview && overview.overdue > 0
+                ? ('danger' as const)
+                : ('warning' as const),
+            onClick: () => navigate('/hr/approvals'),
+          },
+          {
+            label: 'On leave today',
+            value: leaveStats?.currently_on_leave ?? '—',
+            sub:
+              leaveStats && leaveStats.upcoming_7_days > 0
+                ? `${leaveStats.upcoming_7_days} starting within 7d`
+                : 'no one starting soon',
+            icon: CalendarClock,
+            tone: 'info' as const,
+            onClick: () => navigate('/hr/time-off'),
+          },
+        ]
+      : []),
     {
-      label: 'Pending Approvals',
-      value: leaveStats?.pending ?? approvals.length ?? '—',
-      sub: 'awaiting decision',
-      icon: Inbox,
-      tone: 'warning',
-    },
-    {
-      label: 'On Leave Today',
-      value: leaveStats?.currently_on_leave ?? '—',
-      sub:
-        leaveStats && leaveStats.upcoming_7_days > 0
-          ? `${leaveStats.upcoming_7_days} starting within 7d`
-          : 'no one starting soon',
-      icon: CalendarClock,
-      tone: 'info',
-    },
-    {
-      label: 'Documents',
+      label: 'Documents to review',
       value: docs?.unverified ?? '—',
       sub:
         docs && docs.expiring_30 > 0
@@ -106,23 +143,41 @@ export function HROverviewPage() {
           : 'unverified',
       icon: FileWarning,
       tone: 'danger',
+      onClick: () => navigate('/hr/documents'),
     },
   ];
 
+  const departments = Object.entries(stats?.by_department ?? {})
+    .filter(([name]) => name && name !== 'Unassigned')
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+  const maxDept = Math.max(1, ...departments.map(([, count]) => count));
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">HR Overview</h2>
+          <h2 className="text-xl font-bold text-gray-900 tracking-tight">
+            Overview
+          </h2>
           <p className="text-sm text-gray-500 mt-0.5">
-            People, compliance, and organisational health
+            People, approvals, and organisational health
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {access.canViewLeave && (
+            <button
+              onClick={() => navigate('/hr/approvals')}
+              className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-dark transition-colors"
+            >
+              <Inbox className="w-4 h-4" />
+              Review queue
+            </button>
+          )}
           <button
             onClick={() => navigate('/hr/employees')}
-            className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-dark transition-colors"
+            className="flex items-center gap-2 px-3.5 py-2 border border-gray-200 bg-white rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             <Users className="w-4 h-4" />
             Employees
@@ -130,50 +185,33 @@ export function HROverviewPage() {
         </div>
       </div>
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <div
-              key={kpi.label}
-              className="border border-gray-200 rounded-lg bg-white p-5"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                  {kpi.label}
-                </span>
-                <Icon
-                  className={cn(
-                    'w-4 h-4',
-                    kpi.tone === 'warning' && 'text-amber-500',
-                    kpi.tone === 'info' && 'text-blue-500',
-                    kpi.tone === 'danger' && 'text-red-500',
-                    kpi.tone === 'primary' && 'text-primary',
-                  )}
-                  strokeWidth={1.75}
-                />
-              </div>
-              <div className="text-3xl font-bold text-gray-900 tabular-nums">
-                {kpi.value}
-              </div>
-              <div className="text-[11px] text-gray-500 mt-1">{kpi.sub}</div>
-            </div>
-          );
-        })}
+      {/* KPI strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        {kpis.map((kpi) => (
+          <KpiCard key={kpi.label} {...kpi} />
+        ))}
       </div>
 
-      {/* Two-column layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Pending approvals */}
+      {/* Queue + headcount */}
+      <div
+        className={cn(
+          'grid grid-cols-1 gap-5',
+          access.canViewLeave && 'lg:grid-cols-5',
+        )}
+      >
         {access.canViewLeave && (
-          <div className="border border-gray-200 rounded-lg bg-white">
+          <div className="lg:col-span-3 border border-gray-200 rounded-lg bg-white">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <Inbox className="w-4 h-4 text-gray-400" />
                 <h3 className="text-sm font-semibold text-gray-900">
-                  Approvals Waiting
+                  Approval queue
                 </h3>
+                {overview && overview.pending > 0 && (
+                  <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-semibold tabular-nums">
+                    {overview.pending}
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => navigate('/hr/approvals')}
@@ -191,58 +229,89 @@ export function HROverviewPage() {
                 ))}
               </div>
             ) : approvals.length === 0 ? (
-              <div className="text-center py-12">
+              <div className="text-center py-14">
                 <Inbox className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-xs text-gray-500">No pending approvals</p>
+                <p className="text-xs text-gray-500">
+                  No pending approvals
+                </p>
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {approvals.slice(0, 5).map((a) => {
-                  const overdue = a.due_at
-                    ? new Date(a.due_at) < new Date()
-                    : false;
-                  return (
-                    <button
-                      key={a.id}
-                      onClick={() => navigate(`/hr/approvals/${a.id}`)}
-                      className="w-full flex items-start gap-3 px-5 py-3 hover:bg-gray-50 transition-colors text-left"
-                    >
-                      <Avatar
-                        firstName={a.requested_by.first_name}
-                        lastName={a.requested_by.last_name}
-                        imageUrl={a.requested_by.profile_image_url}
-                        size="sm"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[13px] font-medium text-gray-900 truncate">
-                          {a.title}
-                        </div>
-                        <div className="text-[11px] text-gray-500 mt-0.5">
-                          {a.requested_by.first_name} {a.requested_by.last_name}
-                          {a.due_at && (
-                            <span className={overdue ? 'text-red-600 ml-1.5' : 'ml-1.5'}>
-                              · due {format(new Date(a.due_at), 'MMM d')}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <PriorityPill priority={a.priority} />
-                    </button>
-                  );
-                })}
+                {approvals.map((approval) => (
+                  <ApprovalPreview
+                    key={approval.id}
+                    approval={approval}
+                    onClick={() => navigate(`/hr/approvals/${approval.id}`)}
+                  />
+                ))}
               </div>
             )}
           </div>
         )}
 
-        {/* Upcoming celebrations */}
+        {/* Headcount by department */}
+        <div
+          className={cn(
+            'border border-gray-200 rounded-lg bg-white',
+            access.canViewLeave ? 'lg:col-span-2' : 'lg:col-span-5',
+          )}
+        >
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-900">
+              Headcount by department
+            </h3>
+            <span className="text-[11px] text-gray-400 tabular-nums">
+              {stats?.active ?? '—'} active
+            </span>
+          </div>
+
+          {departments.length === 0 ? (
+            <div className="text-center py-14">
+              <Users className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-xs text-gray-500">
+                No department data yet
+              </p>
+            </div>
+          ) : (
+            <div className="p-5 space-y-3">
+              {departments.map(([name, count]) => (
+                <div key={name}>
+                  <div className="flex items-center justify-between text-[12px] mb-1">
+                    <span className="text-gray-700 truncate">{name}</span>
+                    <span className="text-gray-500 tabular-nums font-medium">
+                      {count}
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary/70 rounded-full"
+                      style={{ width: `${Math.max(4, (count / maxDept) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={() => navigate('/hr/employees')}
+                className="mt-1 flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+              >
+                View all employees
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Lower row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Celebrations */}
         {access.canViewSensitive && (
           <div className="border border-gray-200 rounded-lg bg-white">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <Cake className="w-4 h-4 text-gray-400" />
                 <h3 className="text-sm font-semibold text-gray-900">
-                  Upcoming Celebrations
+                  Upcoming celebrations
                 </h3>
               </div>
               <button
@@ -269,11 +338,8 @@ export function HROverviewPage() {
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {celebrations.slice(0, 5).map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex items-center gap-3 px-5 py-3"
-                  >
+                {celebrations.slice(0, 4).map((c) => (
+                  <div key={c.id} className="flex items-center gap-3 px-5 py-3">
                     <Avatar
                       firstName={c.first_name}
                       lastName={c.last_name}
@@ -311,86 +377,85 @@ export function HROverviewPage() {
             )}
           </div>
         )}
-      </div>
 
-      {/* Bottom row — quick links + contract expiry */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Quick actions */}
-        <div className="border border-gray-200 rounded-lg bg-white p-5">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">
-            Quick Actions
-          </h3>
-          <div className="space-y-1">
-            <QuickLink
-              icon={UserPlus}
-              label="Add Employee"
-              description="Create a new person record"
-              onClick={() => navigate('/people/new')}
-            />
-            <QuickLink
-              icon={Inbox}
-              label="Approvals Inbox"
-              description="Review pending requests"
-              onClick={() => navigate('/hr/approvals')}
-            />
-            <QuickLink
-              icon={CalendarClock}
-              label="Time Off Oversight"
-              description="All leave requests and balances"
-              onClick={() => navigate('/hr/time-off')}
-            />
-            <QuickLink
-              icon={FileWarning}
-              label="Document Compliance"
-              description="Verify and track expiring docs"
+        {/* Compliance */}
+        <div className="border border-gray-200 rounded-lg bg-white">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-900">
+              Compliance watch
+            </h3>
+          </div>
+          <div className="divide-y divide-gray-100">
+            <ComplianceRow
+              label="Unverified documents"
+              value={docs?.unverified ?? 0}
+              tone={(docs?.unverified ?? 0) > 0 ? 'warning' : 'default'}
               onClick={() => navigate('/hr/documents')}
             />
-          </div>
-        </div>
-
-        {/* Contracts expiring */}
-        {access.canViewEmployment && contracts && (
-          <div className="border border-gray-200 rounded-lg bg-white p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-gray-900">
-                Contract Status
-              </h3>
-              <button
-                onClick={() => navigate('/hr/contracts')}
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                View all
-              </button>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <StatBlock
-                label="Expiring ≤30d"
-                value={contracts.expiring_30}
-                tone={contracts.expiring_30 > 0 ? 'danger' : 'default'}
-              />
-              <StatBlock
-                label="Expiring ≤60d"
-                value={contracts.expiring_60}
-                tone={contracts.expiring_60 > 0 ? 'warning' : 'default'}
-              />
-              <StatBlock
-                label="Expiring ≤90d"
-                value={contracts.expiring_90}
-                tone={contracts.expiring_90 > 0 ? 'info' : 'default'}
-              />
-            </div>
-            {contracts.expiring_30 > 0 && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-md flex items-start gap-2">
-                <FileWarning className="w-3.5 h-3.5 text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="text-[11px] text-red-800">
-                  {contracts.expiring_30} contract
-                  {contracts.expiring_30 === 1 ? '' : 's'} expiring within 30 days.
-                  Review and renew.
-                </div>
+            <ComplianceRow
+              label="Documents expiring in 30 days"
+              value={docs?.expiring_30 ?? 0}
+              tone={(docs?.expiring_30 ?? 0) > 0 ? 'danger' : 'default'}
+              onClick={() => navigate('/hr/documents')}
+            />
+            {access.canViewEmployment && contracts && (
+              <>
+                <ComplianceRow
+                  label="Contracts expiring in 30 days"
+                  value={contracts.expiring_30}
+                  tone={contracts.expiring_30 > 0 ? 'danger' : 'default'}
+                  onClick={() => navigate('/hr/reports')}
+                />
+                <ComplianceRow
+                  label="Contracts expiring in 90 days"
+                  value={contracts.expiring_90}
+                  tone={contracts.expiring_90 > 0 ? 'warning' : 'default'}
+                  onClick={() => navigate('/hr/reports')}
+                />
+              </>
+            )}
+            {!access.canViewEmployment && (
+              <div className="px-5 py-4 text-[12px] text-gray-500">
+                Contract data requires employment access.
               </div>
             )}
           </div>
-        )}
+        </div>
+      </div>
+
+      {/* Quick actions */}
+      <div className="border border-gray-200 rounded-lg bg-white p-5">
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">
+          Quick actions
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+          {access.has('people.create') && (
+            <QuickAction
+              icon={UserPlus}
+              label="Add employee"
+              onClick={() => navigate('/people/new')}
+            />
+          )}
+          {access.canViewLeave && (
+            <QuickAction
+              icon={Inbox}
+              label="Approvals inbox"
+              onClick={() => navigate('/hr/approvals')}
+            />
+          )}
+          {access.canViewLeave && (
+            <QuickAction
+              icon={CalendarClock}
+              label="Time off oversight"
+              onClick={() => navigate('/hr/time-off')}
+            />
+          )}
+          <QuickAction
+            icon={FileWarning}
+            label="Document compliance"
+            onClick={() => navigate('/hr/documents')}
+          />
+        </div>
       </div>
     </div>
   );
@@ -400,77 +465,164 @@ export function HROverviewPage() {
 // SUBCOMPONENTS
 // ============================================================
 
-function PriorityPill({ priority }: { priority: string }) {
-  const styles: Record<string, string> = {
-    low: 'bg-gray-100 text-gray-600',
-    normal: 'bg-blue-50 text-blue-700',
-    high: 'bg-amber-50 text-amber-700',
-    urgent: 'bg-red-50 text-red-700',
-  };
-  return (
-    <span
-      className={cn(
-        'px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider flex-shrink-0',
-        styles[priority] ?? styles.normal,
-      )}
-    >
-      {priority}
-    </span>
-  );
-}
+const TONE_STYLES = {
+  primary: 'bg-primary/10 text-primary',
+  warning: 'bg-amber-50 text-amber-600',
+  danger: 'bg-red-50 text-red-600',
+  info: 'bg-blue-50 text-blue-600',
+} as const;
 
-function QuickLink({
-  icon: Icon,
+function KpiCard({
   label,
-  description,
+  value,
+  sub,
+  icon: Icon,
+  tone,
   onClick,
 }: {
-  icon: React.ElementType;
   label: string;
-  description: string;
+  value: number | string;
+  sub: string;
+  icon: LucideIcon;
+  tone: keyof typeof TONE_STYLES;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-3 p-3 rounded-md hover:bg-gray-50 transition-colors text-left group"
+      className="text-left border border-gray-200 rounded-lg bg-white p-4 hover:border-gray-300 hover:shadow-sm transition-all group"
     >
-      <div className="w-8 h-8 rounded-md bg-gray-100 flex items-center justify-center flex-shrink-0">
-        <Icon className="w-4 h-4 text-gray-600" strokeWidth={1.75} />
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+          {label}
+        </span>
+        <span
+          className={cn(
+            'w-7 h-7 rounded-md flex items-center justify-center',
+            TONE_STYLES[tone],
+          )}
+        >
+          <Icon className="w-4 h-4" strokeWidth={1.75} />
+        </span>
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-medium text-gray-900">{label}</div>
-        <div className="text-[11px] text-gray-500">{description}</div>
+      <div className="text-[26px] leading-none font-bold text-gray-900 tabular-nums mt-2">
+        {value}
       </div>
-      <ArrowRight className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="flex items-center justify-between mt-1.5">
+        <span
+          className={cn(
+            'text-[11px]',
+            tone === 'danger' ? 'text-red-600' : 'text-gray-500',
+          )}
+        >
+          {sub}
+        </span>
+        <ChevronRight className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
     </button>
   );
 }
 
-function StatBlock({
+function ApprovalPreview({
+  approval,
+  onClick,
+}: {
+  approval: ApprovalSummary;
+  onClick: () => void;
+}) {
+  const overdue =
+    approval.due_at && new Date(approval.due_at) < new Date();
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-start gap-3 px-5 py-3 hover:bg-gray-50 transition-colors text-left"
+    >
+      <Avatar
+        firstName={approval.requested_by.first_name}
+        lastName={approval.requested_by.last_name}
+        imageUrl={approval.requested_by.profile_image_url}
+        size="sm"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="text-[13px] font-medium text-gray-900 truncate">
+          {approval.title}
+        </div>
+        <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+          <span>
+            {approval.requested_by.first_name} {approval.requested_by.last_name}
+          </span>
+          <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[9px] font-semibold uppercase tracking-wider">
+            {STAGE_LABELS[approval.stage] ?? approval.stage}
+          </span>
+          {approval.due_at && (
+            <span className={overdue ? 'text-red-600 font-medium' : ''}>
+              {overdue ? 'overdue' : `due ${format(new Date(approval.due_at), 'MMM d')}`}
+            </span>
+          )}
+        </div>
+      </div>
+      {overdue && (
+        <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-1" />
+      )}
+    </button>
+  );
+}
+
+function ComplianceRow({
   label,
   value,
   tone,
+  onClick,
 }: {
   label: string;
   value: number;
-  tone: 'default' | 'info' | 'warning' | 'danger';
+  tone: 'default' | 'warning' | 'danger';
+  onClick: () => void;
 }) {
-  const valueColor = {
-    default: 'text-gray-900',
-    info: 'text-blue-600',
-    warning: 'text-amber-600',
-    danger: 'text-red-600',
-  }[tone];
-
   return (
-    <div className="text-center p-3 bg-gray-50 rounded-md">
-      <div className={cn('text-2xl font-bold tabular-nums', valueColor)}>
-        {value}
-      </div>
-      <div className="text-[10px] text-gray-500 mt-0.5 uppercase tracking-wider font-semibold">
-        {label}
-      </div>
-    </div>
+    <button
+      onClick={onClick}
+      className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors text-left"
+    >
+      <span className="text-[12px] text-gray-700">{label}</span>
+      <span className="flex items-center gap-2">
+        <span
+          className={cn(
+            'text-sm font-semibold tabular-nums',
+            tone === 'danger'
+              ? 'text-red-600'
+              : tone === 'warning'
+                ? 'text-amber-600'
+                : 'text-gray-900',
+          )}
+        >
+          {value}
+        </span>
+        <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+      </span>
+    </button>
+  );
+}
+
+function QuickAction({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2.5 px-3 py-2.5 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors text-left"
+    >
+      <span className="w-7 h-7 rounded-md bg-gray-100 flex items-center justify-center flex-shrink-0">
+        <Icon className="w-3.5 h-3.5 text-gray-600" strokeWidth={1.75} />
+      </span>
+      <span className="text-[12px] font-medium text-gray-800">{label}</span>
+    </button>
   );
 }

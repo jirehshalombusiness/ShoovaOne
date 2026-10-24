@@ -92,7 +92,7 @@ export function MeHomePage() {
               </div>
             </div>
             <button
-              onClick={() => navigate('/hr/approvals')}
+              onClick={() => navigate('/me/approvals')}
               className="flex items-center gap-1 text-xs font-medium text-amber-800 hover:text-amber-900 transition-colors"
             >
               Open inbox

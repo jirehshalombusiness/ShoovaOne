@@ -35,6 +35,7 @@ export interface ApprovalSummary {
   summary: string | null;
   status: string;
   priority: string;
+  stage: string;
   escalation_level: number;
   due_at: string | null;
   escalated_at: string | null;
@@ -796,6 +797,11 @@ export const hrService = {
 
   async getMyApprovalStats(): Promise<ApprovalStats> {
     const { data } = await api.get<ApprovalStats>('/hr/approvals/stats/me');
+    return data;
+  },
+
+  async getApprovalOverview(): Promise<ApprovalStats> {
+    const { data } = await api.get<ApprovalStats>('/hr/approvals/stats/overview');
     return data;
   },
 

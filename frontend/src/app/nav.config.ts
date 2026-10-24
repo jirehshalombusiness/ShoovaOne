@@ -208,6 +208,7 @@ export const NAV_SECTIONS: NavSection[] = [
 
 export const ME_TABS: NavItem[] = [
   { icon: LayoutDashboard, label: 'Home', path: '/me', exact: true },
+  { icon: Inbox, label: 'Approvals', path: '/me/approvals' },
   { icon: CalendarDays, label: 'Time Off', path: '/me/time-off' },
   { icon: DollarSign, label: 'Compensation', path: '/me/compensation' },
   { icon: FileText, label: 'Documents', path: '/me/documents' },

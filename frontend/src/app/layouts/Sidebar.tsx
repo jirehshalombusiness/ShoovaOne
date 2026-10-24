@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useHRAccess } from '@/hooks/useHRAccess';
 import { Avatar } from '@/components/ui/Avatar';
 import { NAV_SECTIONS } from '@/app/nav.config';
 
@@ -18,7 +18,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { user, logout } = useAuth();
-  const { hasPermission } = usePermissions();
+  const access = useHRAccess();
   const navigate = useNavigate();
 
   const [hovered, setHovered] = useState(false);
@@ -29,13 +29,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   // Filter nav items by permission.
   const filtered = NAV_SECTIONS.map((section) => ({
     ...section,
-    items: section.items.filter((item) => {
-      if (!item.permission) return true;
-      if (Array.isArray(item.permission)) {
-        return item.permission.some((p) => hasPermission(p));
-      }
-      return hasPermission(item.permission);
-    }),
+    items: section.items.filter(
+      (item) => !item.permission || access.has(item.permission),
+    ),
   })).filter((section) => section.items.length > 0);
 
   const handleLogout = async () => {

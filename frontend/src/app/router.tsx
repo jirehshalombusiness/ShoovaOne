@@ -419,6 +419,18 @@ export function AppRouter() {
             />
 
             <Route
+              path="approvals"
+              element={
+                <HRApprovalsPage defaultScope="mine" basePath="/me/approvals" />
+              }
+            />
+
+            <Route
+              path="approvals/:id"
+              element={<HRApprovalDetailPage backTo="/me/approvals" />}
+            />
+
+            <Route
               path="time-off"
               element={<MeTimeOffPage />}
             />
@@ -471,7 +483,11 @@ export function AppRouter() {
               path="approvals"
               element={
                 <PermissionRoute permission="hr.view_leave">
-                  <HRApprovalsPage />
+                  <HRApprovalsPage
+                    defaultScope="all"
+                    allowScopeToggle
+                    basePath="/hr/approvals"
+                  />
                 </PermissionRoute>
               }
             />

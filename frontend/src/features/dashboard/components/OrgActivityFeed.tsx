@@ -348,7 +348,7 @@ function linkFor(log: AuditLog): string | null {
     return `/users`;
   }
   if (log.entity_type === 'employment_contract') {
-    return `/hr/contracts`;
+    return `/hr/reports?tab=contracts`;
   }
   return null;
 }

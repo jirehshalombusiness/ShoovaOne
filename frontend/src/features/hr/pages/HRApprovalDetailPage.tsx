@@ -12,15 +12,29 @@ import {
   Send,
   Lock,
   User,
+  Circle,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isBefore, parseISO } from 'date-fns';
 import toast from 'react-hot-toast';
 import { hrService, type ApprovalComment } from '@/services/hr.service';
 import { Avatar } from '@/components/ui/Avatar';
 import { useHRAccess } from '@/hooks/useHRAccess';
 import { cn } from '@/lib/utils';
 
-export function HRApprovalDetailPage() {
+interface HRApprovalDetailPageProps {
+  backTo?: string;
+}
+
+const STAGE_LABELS: Record<string, string> = {
+  manager: 'Manager review',
+  hr: 'HR review',
+  ceo: 'CEO approval',
+  exec: 'Executive review',
+};
+
+export function HRApprovalDetailPage({
+  backTo = '/hr/approvals',
+}: HRApprovalDetailPageProps = {}) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -114,11 +128,11 @@ export function HRApprovalDetailPage() {
     return (
       <div className="space-y-4">
         <button
-          onClick={() => navigate('/hr/approvals')}
+          onClick={() => navigate(backTo)}
           className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to inbox
+          Back to approvals
         </button>
         <div className="border border-red-200 bg-red-50 rounded-lg p-6">
           <div className="flex items-start gap-3">
@@ -145,16 +159,21 @@ export function HRApprovalDetailPage() {
   };
 
   const canAct = approval.status === 'pending' && approval.can_act;
+  const overdue =
+    approval.status === 'pending' &&
+    !!approval.due_at &&
+    isBefore(new Date(approval.due_at), new Date());
+  const stageLabel = STAGE_LABELS[approval.stage] ?? 'Review';
 
   return (
     <div className="space-y-5">
       {/* Back */}
       <button
-        onClick={() => navigate('/hr/approvals')}
+        onClick={() => navigate(backTo)}
         className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Back to inbox
+        Back to approvals
       </button>
 
       {/* Header card */}
@@ -196,9 +215,15 @@ export function HRApprovalDetailPage() {
                 Submitted {format(new Date(approval.created_at), 'MMM d, yyyy h:mm a')}
               </span>
               {approval.due_at && approval.status === 'pending' && (
-                <span className="flex items-center gap-1 text-amber-700">
+                <span
+                  className={cn(
+                    'flex items-center gap-1',
+                    overdue ? 'text-red-600 font-medium' : 'text-amber-700',
+                  )}
+                >
                   <Clock className="w-3 h-3" />
-                  Due {format(new Date(approval.due_at), 'MMM d, yyyy h:mm a')}
+                  {overdue ? 'SLA expired ' : 'Due '}
+                  {format(new Date(approval.due_at), 'MMM d, yyyy h:mm a')}
                 </span>
               )}
             </div>
@@ -274,19 +299,19 @@ export function HRApprovalDetailPage() {
               <div>
                 <div className="text-gray-500 text-xs">Total Days</div>
                 <div className="font-medium text-gray-900 mt-0.5">
-                  {(approval.detail.payload as any).total_days ?? '—'}
+                  {formatDays((approval.detail.payload as any).total_days)}
                 </div>
               </div>
               <div>
                 <div className="text-gray-500 text-xs">Start Date</div>
                 <div className="font-medium text-gray-900 mt-0.5">
-                  {(approval.detail.payload as any).start_date ?? '—'}
+                  {formatDate((approval.detail.payload as any).start_date)}
                 </div>
               </div>
               <div>
                 <div className="text-gray-500 text-xs">End Date</div>
                 <div className="font-medium text-gray-900 mt-0.5">
-                  {(approval.detail.payload as any).end_date ?? '—'}
+                  {formatDate((approval.detail.payload as any).end_date)}
                 </div>
               </div>
               {(approval.detail.payload as any).reason && (
@@ -298,6 +323,16 @@ export function HRApprovalDetailPage() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Employee-change detail */}
+        {approval.detail?.kind === 'employee_change' && approval.detail.payload && (
+          <div className="mt-5 pt-5 border-t border-gray-100">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+              Proposed Changes
+            </h3>
+            <EmployeeChangeDiff payload={approval.detail.payload} />
           </div>
         )}
 
@@ -319,7 +354,8 @@ export function HRApprovalDetailPage() {
               <XCircle className="w-4 h-4" />
               Reject
             </button>
-            {approval.escalation_level < 2 && (
+            {approval.escalation_level < 2 &&
+              approval.entity_type !== 'compensation_request' && (
               <button
                 onClick={() => escalateMutation.mutate()}
                 disabled={escalateMutation.isPending}
@@ -331,6 +367,60 @@ export function HRApprovalDetailPage() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Workflow */}
+      <div className="border border-gray-200 rounded-lg bg-white p-5">
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          Workflow
+        </h3>
+        <ol className="mt-4 space-y-4">
+          <WorkflowStep
+            state="done"
+            title="Submitted"
+            meta={`${approval.requested_by.first_name} ${approval.requested_by.last_name} · ${format(
+              new Date(approval.created_at),
+              'MMM d, yyyy h:mm a',
+            )}`}
+          />
+          <WorkflowStep
+            state={approval.status === 'pending' ? 'current' : 'done'}
+            title={stageLabel}
+            meta={
+              approval.assigned_to_name
+                ? `Assigned to ${approval.assigned_to_name}`
+                : 'Awaiting assignment'
+            }
+          />
+          <WorkflowStep
+            state={
+              approval.status === 'approved'
+                ? 'done'
+                : approval.status === 'rejected'
+                  ? 'rejected'
+                  : approval.status === 'cancelled'
+                    ? 'muted'
+                    : 'upcoming'
+            }
+            title={
+              approval.status === 'approved'
+                ? 'Approved'
+                : approval.status === 'rejected'
+                  ? 'Rejected'
+                  : approval.status === 'cancelled'
+                    ? 'Cancelled'
+                    : 'Decision'
+            }
+            meta={
+              approval.decided_at
+                ? `${approval.decided_by_name ?? 'Unknown'} · ${format(
+                    new Date(approval.decided_at),
+                    'MMM d, yyyy h:mm a',
+                  )}`
+                : 'Not decided yet'
+            }
+          />
+        </ol>
       </div>
 
       {/* Comments thread */}
@@ -455,6 +545,138 @@ export function HRApprovalDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// ============================================================
+// EMPLOYEE CHANGE DIFF
+// ============================================================
+
+function formatDate(value: unknown): string {
+  if (!value) return '—';
+  const date = typeof value === 'string' ? parseISO(value) : new Date(String(value));
+  return Number.isNaN(date.getTime()) ? String(value) : format(date, 'MMM d, yyyy');
+}
+
+function formatDays(value: unknown): string {
+  const days = Number(value);
+  if (!Number.isFinite(days)) return '—';
+  const label = days === 1 ? 'day' : 'days';
+  return `${Number.isInteger(days) ? days : days.toFixed(1)} ${label}`;
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  job_title: 'Job title',
+  department: 'Department',
+  employment_type: 'Employment type',
+  reports_to_id: 'Reports to',
+  status: 'Status',
+  type: 'Type',
+};
+
+function displayValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—';
+  return String(value).replace(/_/g, ' ');
+}
+
+function EmployeeChangeDiff({
+  payload,
+}: {
+  payload: Record<string, unknown>;
+}) {
+  const changes = (payload.changes ?? {}) as Record<string, unknown>;
+  const current = (payload.current ?? {}) as Record<string, unknown>;
+  const fields = Object.keys(changes);
+
+  if (fields.length === 0) {
+    return (
+      <p className="text-sm text-gray-500">
+        No structured changes were captured for this request.
+      </p>
+    );
+  }
+
+  const render = (field: string, value: unknown, managerName: unknown) => {
+    if (field === 'reports_to_id' && managerName) return String(managerName);
+    return displayValue(value);
+  };
+
+  return (
+    <div className="rounded-md border border-gray-200 overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-gray-50 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+            <th className="text-left px-4 py-2">Field</th>
+            <th className="text-left px-4 py-2">Current</th>
+            <th className="text-left px-4 py-2">Proposed</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {fields.map((field) => (
+            <tr key={field}>
+              <td className="px-4 py-2.5 text-gray-500 align-top">
+                {FIELD_LABELS[field] ?? field}
+              </td>
+              <td className="px-4 py-2.5 text-gray-600 align-top">
+                {render(field, current[field], payload.current_reports_to_name)}
+              </td>
+              <td className="px-4 py-2.5 align-top">
+                <span className="inline-flex items-center gap-1.5 font-medium text-gray-900">
+                  <span className="w-1 h-1 rounded-full bg-primary" />
+                  {render(field, changes[field], payload.reports_to_name)}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ============================================================
+// WORKFLOW STEP
+// ============================================================
+
+function WorkflowStep({
+  state,
+  title,
+  meta,
+}: {
+  state: 'done' | 'current' | 'upcoming' | 'rejected' | 'muted';
+  title: string;
+  meta: string;
+}) {
+  const icon =
+    state === 'done' ? (
+      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+    ) : state === 'rejected' ? (
+      <XCircle className="w-4 h-4 text-red-600" />
+    ) : state === 'current' ? (
+      <Clock className="w-4 h-4 text-amber-500" />
+    ) : (
+      <Circle className="w-4 h-4 text-gray-300" />
+    );
+
+  return (
+    <li className="flex items-start gap-3">
+      <span className="mt-0.5 flex-shrink-0">{icon}</span>
+      <div className="min-w-0">
+        <div
+          className={cn(
+            'text-[13px] font-medium',
+            state === 'current'
+              ? 'text-gray-900'
+              : state === 'upcoming' || state === 'muted'
+                ? 'text-gray-400'
+                : 'text-gray-900',
+          )}
+        >
+          {title}
+        </div>
+        <div className="text-[11px] text-gray-500 mt-0.5">{meta}</div>
+      </div>
+    </li>
   );
 }
 
