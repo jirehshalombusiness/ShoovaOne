@@ -16,20 +16,33 @@ class GUID(TypeDecorator):
 
     def load_dialect_impl(self, dialect):
         if dialect.name == 'postgresql':
-            return dialect.type_descriptor(PG_UUID(as_uuid=False))
+            # asyncpg returns UUID objects; bind UUIDs too so batched
+            # INSERT..RETURNING sentinel matching can correlate rows.
+            return dialect.type_descriptor(PG_UUID(as_uuid=True))
         return dialect.type_descriptor(CHAR(36))
 
     def process_bind_param(self, value, dialect):
         if value is None:
             return value
-        if isinstance(value, uuid.UUID):
-            return str(value)
+        if dialect.name == 'postgresql':
+            return value if isinstance(value, uuid.UUID) else uuid.UUID(str(value))
         return str(value)
 
     def process_result_value(self, value, dialect):
         if value is None:
             return value
         return str(value)
+
+    def _sentinel_value_resolver(self, dialect):
+        # SQLAlchemy matches batched INSERT..RETURNING rows on raw DBAPI
+        # values; asyncpg returns uuid.UUID while our params are strings.
+        if dialect.name != 'postgresql':
+            return None
+
+        def resolve(value):
+            return value if isinstance(value, uuid.UUID) else uuid.UUID(str(value))
+
+        return resolve
 
 
 Base = declarative_base()
