@@ -6,11 +6,6 @@ import {
   Plus,
   Search,
   X,
-  Mail,
-  Phone,
-  MapPin,
-  Globe,
-  Users,
   ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -18,45 +13,30 @@ import {
   organisationService,
   type Organisation,
   type OrganisationCreatePayload,
-  type OrganisationType,
 } from '@/services/organisation.service';
 import { usePermissions } from '@/hooks/usePermissions';
-import { cn } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 
-const TYPE_LABELS: Record<OrganisationType, string> = {
-  government: 'Government',
-  ngo: 'NGO',
-  corporate: 'Corporate',
-  school: 'School',
-  community: 'Community',
-  other: 'Other',
-};
-
-const TYPE_COLORS: Record<OrganisationType, string> = {
-  government: 'bg-blue-50 text-blue-700',
-  ngo: 'bg-emerald-50 text-emerald-700',
-  corporate: 'bg-purple-50 text-purple-700',
-  school: 'bg-amber-50 text-amber-700',
-  community: 'bg-pink-50 text-pink-700',
-  other: 'bg-gray-100 text-gray-700',
+const STATUS_STYLES: Record<string, string> = {
+  active: 'bg-emerald-50 text-emerald-700',
+  inactive: 'bg-gray-100 text-gray-600',
+  archived: 'bg-red-50 text-red-700',
 };
 
 export function CrmOrganisationsPage() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { hasPermission } = usePermissions();
-  const canCreate = hasPermission('crm.create');
+  const canCreate = hasPermission('organisation.manage');
 
   const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState<OrganisationType | ''>('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['crm', 'organisations', { search, type: typeFilter }],
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['crm', 'organisations', { status: statusFilter }],
     queryFn: () =>
       organisationService.list({
-        search: search.trim() || undefined,
-        type: typeFilter || undefined,
+        status: statusFilter || undefined,
         limit: 500,
       }),
   });
@@ -65,7 +45,12 @@ export function CrmOrganisationsPage() {
     const items = data?.items ?? [];
     if (!search.trim()) return items;
     const q = search.toLowerCase();
-    return items.filter((o) => o.name.toLowerCase().includes(q));
+    return items.filter(
+      (o) =>
+        o.name.toLowerCase().includes(q) ||
+        (o.code || '').toLowerCase().includes(q) ||
+        (o.description || '').toLowerCase().includes(q),
+    );
   }, [data, search]);
 
   return (
@@ -97,26 +82,23 @@ export function CrmOrganisationsPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search organisations…"
+            placeholder="Search by name, code or description…"
             className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
           />
         </div>
 
         <div className="flex items-center gap-1 flex-wrap">
           {[
-            { value: '' as const, label: 'All' },
-            { value: 'government' as const, label: 'Government' },
-            { value: 'ngo' as const, label: 'NGO' },
-            { value: 'corporate' as const, label: 'Corporate' },
-            { value: 'school' as const, label: 'School' },
-            { value: 'community' as const, label: 'Community' },
+            { value: '', label: 'All' },
+            { value: 'active', label: 'Active' },
+            { value: 'inactive', label: 'Inactive' },
           ].map((f) => (
             <button
               key={f.value}
-              onClick={() => setTypeFilter(f.value)}
+              onClick={() => setStatusFilter(f.value)}
               className={cn(
                 'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                typeFilter === f.value
+                statusFilter === f.value
                   ? 'bg-gray-900 text-white'
                   : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50',
               )}
@@ -134,14 +116,25 @@ export function CrmOrganisationsPage() {
             <div key={i} className="h-20 bg-gray-100 rounded-lg animate-pulse" />
           ))}
         </div>
+      ) : error ? (
+        <div className="border border-red-200 bg-red-50 rounded-lg p-6">
+          <p className="text-sm font-semibold text-red-900">
+            Could not load organisations
+          </p>
+          <p className="text-xs text-red-700 mt-1">
+            {(error as Error)?.message ?? 'Please try again.'}
+          </p>
+        </div>
       ) : organisations.length === 0 ? (
         <div className="border border-gray-200 rounded-lg bg-white text-center py-16">
           <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-3" strokeWidth={1.5} />
           <p className="text-sm font-medium text-gray-700">
-            {search || typeFilter ? 'No organisations match your filters' : 'No organisations yet'}
+            {search || statusFilter
+              ? 'No organisations match your filters'
+              : 'No organisations yet'}
           </p>
           <p className="text-xs text-gray-500 mt-1">
-            {search || typeFilter
+            {search || statusFilter
               ? 'Try a different search or filter'
               : 'Create your first organisation to start tracking opportunities'}
           </p>
@@ -173,15 +166,12 @@ export function CrmOrganisationsPage() {
 
 function OrgRow({ organisation }: { organisation: Organisation }) {
   const navigate = useNavigate();
-
-  const type = (organisation.type || 'other') as OrganisationType;
-  const badgeClass = TYPE_COLORS[type] ?? TYPE_COLORS.other;
+  const statusStyle =
+    STATUS_STYLES[organisation.status] ?? STATUS_STYLES.inactive;
 
   return (
     <button
-      onClick={() =>
-        navigate(`/crm/organisations/${organisation.id}`)
-      }
+      onClick={() => navigate(`/crm/organisations/${organisation.id}`)}
       className="w-full flex items-start gap-4 p-4 hover:bg-gray-50 transition-colors text-left group"
     >
       <div className="w-10 h-10 rounded-md bg-gray-100 flex items-center justify-center flex-shrink-0">
@@ -193,42 +183,19 @@ function OrgRow({ organisation }: { organisation: Organisation }) {
           <span className="text-[14px] font-semibold text-gray-900">
             {organisation.name}
           </span>
+          {organisation.code && (
+            <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[9px] font-semibold uppercase tracking-wider">
+              {organisation.code}
+            </span>
+          )}
           <span
             className={cn(
               'px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider',
-              badgeClass,
+              statusStyle,
             )}
           >
-            {TYPE_LABELS[type] ?? 'Other'}
+            {organisation.status}
           </span>
-        </div>
-
-        <div className="flex items-center gap-4 text-[11px] text-gray-500 mt-1 flex-wrap">
-          {organisation.email && (
-            <span className="flex items-center gap-1">
-              <Mail className="w-2.5 h-2.5" />
-              {organisation.email}
-            </span>
-          )}
-          {organisation.phone && (
-            <span className="flex items-center gap-1">
-              <Phone className="w-2.5 h-2.5" />
-              {organisation.phone}
-            </span>
-          )}
-          {organisation.country && (
-            <span className="flex items-center gap-1">
-              <MapPin className="w-2.5 h-2.5" />
-              {organisation.city ? `${organisation.city}, ` : ''}
-              {organisation.country}
-            </span>
-          )}
-          {organisation.website && (
-            <span className="flex items-center gap-1">
-              <Globe className="w-2.5 h-2.5" />
-              {organisation.website}
-            </span>
-          )}
         </div>
 
         {organisation.description && (
@@ -236,6 +203,10 @@ function OrgRow({ organisation }: { organisation: Organisation }) {
             {organisation.description}
           </div>
         )}
+
+        <div className="text-[11px] text-gray-500 mt-1">
+          Added {formatDate(organisation.created_at)}
+        </div>
       </div>
 
       <ChevronRight className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-2" />
@@ -254,10 +225,9 @@ function CreateOrganisationModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [form, setForm] = useState<OrganisationCreatePayload>({
-    name: '',
-    type: 'ngo',
-  });
+  const [name, setName] = useState('');
+  const [code, setCode] = useState('');
+  const [description, setDescription] = useState('');
 
   const createMutation = useMutation({
     mutationFn: (payload: OrganisationCreatePayload) =>
@@ -267,17 +237,23 @@ function CreateOrganisationModal({
       onSuccess();
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.detail ?? 'Failed to create organisation');
+      toast.error(
+        err?.response?.data?.detail ?? 'Failed to create organisation',
+      );
     },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) {
+    if (!name.trim()) {
       toast.error('Name is required');
       return;
     }
-    createMutation.mutate(form);
+    createMutation.mutate({
+      name: name.trim(),
+      code: code.trim() || undefined,
+      description: description.trim() || undefined,
+    });
   };
 
   return (
@@ -301,6 +277,7 @@ function CreateOrganisationModal({
           <button
             onClick={onClose}
             className="p-1.5 rounded-md hover:bg-gray-100"
+            aria-label="Close"
           >
             <X className="w-4 h-4 text-gray-500" />
           </button>
@@ -317,8 +294,8 @@ function CreateOrganisationModal({
             <input
               type="text"
               required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Ghana Education Service"
               className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
@@ -326,86 +303,18 @@ function CreateOrganisationModal({
 
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-              Type
-            </label>
-            <select
-              value={form.type}
-              onChange={(e) =>
-                setForm({ ...form, type: e.target.value as OrganisationType })
-              }
-              className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option value="ngo">NGO</option>
-              <option value="government">Government</option>
-              <option value="corporate">Corporate</option>
-              <option value="school">School</option>
-              <option value="community">Community</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                Email
-              </label>
-              <input
-                type="email"
-                value={form.email || ''}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                Phone
-              </label>
-              <input
-                type="text"
-                value={form.phone || ''}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-              Website
+              Code
             </label>
             <input
               type="text"
-              value={form.website || ''}
-              onChange={(e) => setForm({ ...form, website: e.target.value })}
-              placeholder="https://"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="e.g. GES"
               className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                City
-              </label>
-              <input
-                type="text"
-                value={form.city || ''}
-                onChange={(e) => setForm({ ...form, city: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                Country
-              </label>
-              <input
-                type="text"
-                value={form.country || ''}
-                onChange={(e) => setForm({ ...form, country: e.target.value })}
-                placeholder="Ghana"
-                className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </div>
+            <p className="text-[11px] text-gray-500 mt-1">
+              Optional short code used across projects and finance.
+            </p>
           </div>
 
           <div>
@@ -413,9 +322,10 @@ function CreateOrganisationModal({
               Description
             </label>
             <textarea
-              value={form.description || ''}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              placeholder="What is this organisation to Shoova?"
               className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
             />
           </div>
@@ -430,7 +340,7 @@ function CreateOrganisationModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={createMutation.isPending || !form.name.trim()}
+            disabled={createMutation.isPending || !name.trim()}
             className="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-dark disabled:opacity-50"
           >
             {createMutation.isPending ? 'Creating…' : 'Create Organisation'}

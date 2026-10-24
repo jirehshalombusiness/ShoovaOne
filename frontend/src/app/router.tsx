@@ -57,6 +57,7 @@ import { CrmLayout } from '@/features/crm/layouts/CrmLayout';
 import { CrmOverviewPage } from '@/features/crm/pages/CrmOverviewPage';
 import { CrmPipelinePage } from '@/features/crm/pages/CrmPipelinePage';
 import { CrmOrganisationsPage } from '@/features/crm/pages/CrmOrganisationsPage';
+import { CrmOrganisationDetailPage } from '@/features/crm/pages/CrmOrganisationDetailPage';
 import { CrmContactsPage } from '@/features/crm/pages/CrmContactsPage';
 import { CrmReportsPage } from '@/features/crm/pages/CrmReportsPage';
 import { NewOpportunityPage } from '@/features/crm/pages/NewOpportunityPage';
@@ -750,6 +751,10 @@ export function AppRouter() {
             <Route path="opportunities/:id" element={<OpportunityDetailPage />} />
             <Route path="pipeline" element={<CrmPipelinePage />} />
             <Route path="organisations" element={<CrmOrganisationsPage />} />
+            <Route
+              path="organisations/:id"
+              element={<CrmOrganisationDetailPage />}
+            />
             <Route path="contacts" element={<CrmContactsPage />} />
             <Route path="reports" element={<CrmReportsPage />} />
             </Route>
