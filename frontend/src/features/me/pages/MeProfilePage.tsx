@@ -9,6 +9,7 @@ import {
   MapPin,
   Briefcase,
   Shield,
+  Cake,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -32,6 +33,7 @@ export function MeProfilePage() {
     const p = profileQuery.data;
     setForm({
       phone: p.phone ?? '',
+      date_of_birth: p.date_of_birth ?? '',
       address: p.address ?? '',
       city: p.city ?? '',
       state: p.state ?? '',
@@ -46,7 +48,11 @@ export function MeProfilePage() {
   }, [profileQuery.data]);
 
   const updateMutation = useMutation({
-    mutationFn: () => meService.updateProfile(form),
+    mutationFn: () =>
+      meService.updateProfile({
+        ...form,
+        date_of_birth: form.date_of_birth || null,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me', 'profile'] });
       queryClient.invalidateQueries({ queryKey: ['me', 'home'] });
@@ -171,6 +177,15 @@ export function MeProfilePage() {
               placeholder="+233 20 123 4567"
             />
             <Field
+              icon={Cake}
+              label="Date of Birth"
+              type="date"
+              value={form.date_of_birth ?? ''}
+              onChange={(v) => handleChange('date_of_birth', v)}
+              max={new Date().toISOString().slice(0, 10)}
+              hint="HR uses this for birthday celebrations and official records"
+            />
+            <Field
               label="Address"
               value={form.address ?? ''}
               onChange={(v) => handleChange('address', v)}
@@ -282,6 +297,8 @@ function Field({
   placeholder,
   hint,
   className,
+  type = 'text',
+  max,
 }: {
   icon?: React.ElementType;
   label: string;
@@ -291,6 +308,8 @@ function Field({
   placeholder?: string;
   hint?: string;
   className?: string;
+  type?: string;
+  max?: string;
 }) {
   return (
     <div className={className}>
@@ -299,11 +318,12 @@ function Field({
         {label}
       </label>
       <input
-        type="text"
+        type={type}
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
         disabled={disabled}
         placeholder={placeholder}
+        max={max}
         className={cn(
           'w-full px-3 py-2 border rounded-md text-sm transition-colors',
           disabled

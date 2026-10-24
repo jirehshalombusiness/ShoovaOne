@@ -11,6 +11,8 @@ import {
   AlertCircle,
   FileText,
   Ban,
+  Paperclip,
+  Trash2,
 } from 'lucide-react';
 import {
   format,
@@ -20,6 +22,7 @@ import {
 } from 'date-fns';
 import toast from 'react-hot-toast';
 import { meService, type MeBalance, type MeLeaveRequest } from '@/services/me.service';
+import { documentService } from '@/services/document.service';
 import { cn } from '@/lib/utils';
 
 // ============================================================
@@ -96,7 +99,8 @@ export function MeTimeOffPage() {
               No leave balances configured
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              HR has not set up your leave allocation for this year yet
+              Your allocation is created automatically from HR leave policy
+              when it is available
             </p>
           </div>
         ) : (
@@ -359,6 +363,13 @@ function RequestLeaveModal({ onClose }: { onClose: () => void }) {
     end_date: '',
     reason: '',
   });
+  const [attachments, setAttachments] = useState<Array<{ id: string; name: string }>>([]);
+  const [uploading, setUploading] = useState(false);
+
+  const homeQuery = useQuery({
+    queryKey: ['me', 'home'],
+    queryFn: () => meService.getHome(),
+  });
 
   const typesQuery = useQuery({
     queryKey: ['me', 'time-off', 'types'],
@@ -386,6 +397,53 @@ function RequestLeaveModal({ onClose }: { onClose: () => void }) {
     return diff > 0 ? diff : 0;
   }, [form.start_date, form.end_date]);
 
+  // Mirrors the backend's documentation rules.
+  const docsRequired =
+    (selectedType?.requires_documentation ?? false) ||
+    selectedType?.code === 'study' ||
+    selectedType?.code === 'parental' ||
+    (selectedType?.code === 'sick' && daysCount >= 2);
+
+  const handleFileSelect = async (file?: File) => {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File must be 10 MB or smaller');
+      return;
+    }
+    const personId = homeQuery.data?.person.id;
+    if (!personId) {
+      toast.error('Could not resolve your employee record');
+      return;
+    }
+    setUploading(true);
+    try {
+      const doc = await documentService.upload(file, 'person', personId);
+      setAttachments((prev) => [...prev, { id: doc.id, name: doc.name }]);
+      toast.success('Document attached');
+    } catch (err) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data
+          ?.detail ??
+        (err as Error)?.message ??
+        'Failed to upload document';
+      toast.error(detail);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+    void documentService.delete(id).catch(() => undefined);
+  };
+
+  const handleClose = () => {
+    attachments.forEach((a) => {
+      void documentService.delete(a.id).catch(() => undefined);
+    });
+    onClose();
+  };
+
   const mutation = useMutation({
     mutationFn: () =>
       meService.createLeaveRequest({
@@ -393,6 +451,7 @@ function RequestLeaveModal({ onClose }: { onClose: () => void }) {
         start_date: form.start_date,
         end_date: form.end_date,
         reason: form.reason || undefined,
+        attachment_ids: attachments.map((a) => a.id),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['me', 'time-off'] });
@@ -427,16 +486,17 @@ function RequestLeaveModal({ onClose }: { onClose: () => void }) {
       );
       return;
     }
+    if (docsRequired && attachments.length === 0) {
+      toast.error('Attach the required supporting document before submitting');
+      return;
+    }
     mutation.mutate();
   };
-
-  const needsDocs = selectedType?.requires_documentation ?? false;
-  const docsBlocked = needsDocs; // we don't have attachment UI yet
 
   return (
     <div
       className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="bg-white rounded-lg max-w-lg w-full shadow-xl max-h-[90vh] flex flex-col"
@@ -453,7 +513,7 @@ function RequestLeaveModal({ onClose }: { onClose: () => void }) {
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
             aria-label="Close"
           >
@@ -565,12 +625,80 @@ function RequestLeaveModal({ onClose }: { onClose: () => void }) {
             />
           </div>
 
-          {docsBlocked && (
+          {/* Supporting documents */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+              Supporting Document{' '}
+              {docsRequired ? (
+                <span className="text-red-500">*</span>
+              ) : (
+                <span className="text-gray-400">(optional)</span>
+              )}
+            </label>
+
+            {attachments.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {attachments.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center gap-2 p-2 border border-gray-200 rounded-md bg-gray-50"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <span className="flex-1 truncate text-[11px] text-gray-700">
+                      {a.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(a.id)}
+                      className="p-1 rounded hover:bg-gray-200 transition-colors"
+                      aria-label={`Remove ${a.name}`}
+                    >
+                      <Trash2 className="w-3 h-3 text-gray-500" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <label
+              className={cn(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-md text-[11px] font-medium cursor-pointer hover:bg-gray-50 transition-colors',
+                uploading && 'opacity-60 pointer-events-none',
+              )}
+            >
+              <Paperclip className="w-3 h-3" />
+              {uploading ? 'Uploading…' : 'Attach a file'}
+              <input
+                type="file"
+                className="hidden"
+                accept=".pdf,.png,.jpg,.jpeg"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  void handleFileSelect(file);
+                }}
+                disabled={uploading}
+              />
+            </label>
+
+            {docsRequired ? (
+              <p className="text-[10px] text-amber-700 mt-1.5">
+                {selectedType?.code === 'sick'
+                  ? 'Sick leave of 2+ working days requires a medical certificate.'
+                  : 'This leave type requires supporting documentation.'}
+              </p>
+            ) : (
+              <p className="text-[10px] text-gray-400 mt-1.5">
+                PDF or image, up to 10 MB
+              </p>
+            )}
+          </div>
+
+          {docsRequired && attachments.length === 0 && (
             <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
               <AlertCircle className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
               <div className="text-xs text-amber-800">
-                This leave type requires supporting documentation. Please
-                contact HR to attach it after submitting.
+                Attach at least one supporting document to submit this request.
               </div>
             </div>
           )}
@@ -580,14 +708,19 @@ function RequestLeaveModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="px-4 py-2 border border-gray-200 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
-            disabled={mutation.isPending || daysCount <= 0}
+            disabled={
+              mutation.isPending ||
+              uploading ||
+              daysCount <= 0 ||
+              (docsRequired && attachments.length === 0)
+            }
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-dark disabled:opacity-50 transition-colors"
           >
             <Send className="w-3.5 h-3.5" />

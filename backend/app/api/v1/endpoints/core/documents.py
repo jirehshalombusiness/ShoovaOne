@@ -6,12 +6,26 @@ import uuid
 from datetime import datetime, timezone
 
 from app.core.database import get_db
-from app.core.security import require_permission, Permissions, get_current_active_user
+from app.core.security import Permissions, get_current_active_user
 from app.models.sql.core.document import Document
 from app.models.pydantic.core.document import DocumentResponse
+from app.services.core.permission_service import PermissionService
 
 
 router = APIRouter()
+
+
+def _is_own_person_document(current_user, entity_type: str, entity_id: str) -> bool:
+    """True when the caller is acting on their own employee document set."""
+    return (
+        entity_type == "person"
+        and current_user.person_id is not None
+        and str(entity_id) == str(current_user.person_id)
+    )
+
+
+async def _has_permission(db: AsyncSession, user, permission: str) -> bool:
+    return await PermissionService.has_permission(db, user.id, permission)
 
 
 @router.get("/{entity_type}/{entity_id}", response_model=List[DocumentResponse])
@@ -19,9 +33,16 @@ async def list_documents(
     entity_type: str,
     entity_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(require_permission(Permissions.PROJECTS_VIEW)),
+    current_user = Depends(get_current_active_user),
 ):
     """List documents for an entity (project, person, programme, etc.)."""
+    if not _is_own_person_document(current_user, entity_type, entity_id):
+        if not await _has_permission(db, current_user, Permissions.PROJECTS_VIEW):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permission denied: projects.view required",
+            )
+
     result = await db.execute(
         select(Document)
         .where(
@@ -62,9 +83,16 @@ async def upload_document(
     file_size_bytes: Optional[int] = Form(None),
     mime_type: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(require_permission(Permissions.DOCUMENTS_UPLOAD)),
+    current_user = Depends(get_current_active_user),
 ):
     """Register an uploaded file (upload happens on frontend via Supabase SDK)."""
+    if not _is_own_person_document(current_user, entity_type, entity_id):
+        if not await _has_permission(db, current_user, Permissions.DOCUMENTS_UPLOAD):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permission denied: documents.upload required",
+            )
+
     doc = Document(
         id=str(uuid.uuid4()),
         name=name,
@@ -103,13 +131,25 @@ async def upload_document(
 async def delete_document(
     document_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(require_permission(Permissions.DOCUMENTS_UPLOAD)),
+    current_user = Depends(get_current_active_user),
 ):
     """Soft delete a document."""
     result = await db.execute(select(Document).where(Document.id == document_id))
     doc = result.scalar_one_or_none()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    is_owner = (
+        doc.owner_id is not None
+        and current_user.person_id is not None
+        and str(doc.owner_id) == str(current_user.person_id)
+    )
+    if not is_owner:
+        if not await _has_permission(db, current_user, Permissions.DOCUMENTS_UPLOAD):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permission denied: documents.upload required",
+            )
 
     doc.deleted_at = datetime.now(timezone.utc)
     await db.commit()

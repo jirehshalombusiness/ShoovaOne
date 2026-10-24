@@ -70,6 +70,17 @@ def _iso(d) -> Optional[str]:
     return str(d)
 
 
+def _date_iso(d) -> Optional[str]:
+    """Serialize a date or datetime as a plain YYYY-MM-DD string."""
+    if d is None:
+        return None
+    if isinstance(d, datetime):
+        return d.date().isoformat()
+    if isinstance(d, date):
+        return d.isoformat()
+    return str(d)
+
+
 def _dec(value) -> float:
     if value is None:
         return 0.0
@@ -88,6 +99,7 @@ class MeHomePerson(BaseModel):
     profile_image_url: Optional[str] = None
     department: Optional[str] = None
     location: Optional[str] = None
+    date_of_birth: Optional[str] = None
 
 
 class MeHomeBalance(BaseModel):
@@ -159,6 +171,18 @@ class MeProfileUpdate(BaseModel):
     emergency_contact_relationship: Optional[str] = Field(None, max_length=100)
     bio: Optional[str] = Field(None, max_length=2000)
     profile_image_url: Optional[str] = None
+    date_of_birth: Optional[date] = None
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_date_of_birth(cls, value: Optional[date]) -> Optional[date]:
+        if value is None:
+            return value
+        if value > date.today():
+            raise ValueError("date_of_birth cannot be in the future")
+        if value < date(1900, 1, 1):
+            raise ValueError("date_of_birth is not a valid date")
+        return value
 
 
 # ============================================================
@@ -186,6 +210,14 @@ async def get_my_home(
     year = today.year
 
     # ---- balances ----
+    # Provision this year's default allocations on first visit so a
+    # new employee never sees an empty dashboard.
+    created = await leave_service.ensure_balances_for_year(
+        db, person_id=person.id, year=year
+    )
+    if created:
+        await db.commit()
+
     balances = await leave_service.list_my_balances(
         db, person_id=person.id, year=year
     )
@@ -253,8 +285,9 @@ async def get_my_home(
             last_name=person.last_name,
             job_title=person.job_title,
             profile_image_url=person.profile_image_url,
-            department=None,  # set once Person.department exists
+            department=person.department,
             location=person.location,
+            date_of_birth=_date_iso(person.date_of_birth),
         ),
         balances=[
             MeHomeBalance(
@@ -388,6 +421,12 @@ async def get_my_balances(
     """
     if year is None:
         year = date.today().year
+
+    created = await leave_service.ensure_balances_for_year(
+        db, person_id=person.id, year=year
+    )
+    if created:
+        await db.commit()
 
     balances = await leave_service.list_my_balances(
         db, person_id=person.id, year=year
@@ -845,6 +884,7 @@ class MeProfileResponse(BaseModel):
     date_of_birth: Optional[str] = None
     gender: Optional[str] = None
     job_title: Optional[str] = None
+    department: Optional[str] = None
     location: Optional[str] = None
     employment_type: Optional[str] = None
     type: str
@@ -860,6 +900,7 @@ class MeProfileResponse(BaseModel):
     emergency_contact_relationship: Optional[str] = None
     bio: Optional[str] = None
     skills: Optional[str] = None
+    created_at: Optional[str] = None
 
 
 @router.get("/profile", response_model=MeProfileResponse)
@@ -879,9 +920,10 @@ async def get_my_profile(
         last_name=person.last_name,
         email=person.email,
         phone=person.phone,
-        date_of_birth=_iso(person.date_of_birth),
+        date_of_birth=_date_iso(person.date_of_birth),
         gender=person.gender,
         job_title=person.job_title,
+        department=person.department,
         location=person.location,
         employment_type=person.employment_type,
         type=person.type,
@@ -897,6 +939,7 @@ async def get_my_profile(
         emergency_contact_relationship=person.emergency_contact_relationship,
         bio=person.bio,
         skills=person.skills,
+        created_at=_iso(person.created_at),
     )
 
 
@@ -931,6 +974,10 @@ async def update_my_profile(
 
     for key, value in changes.items():
         old_values[key] = _iso(getattr(person, key, None))
+        if key == "date_of_birth" and isinstance(value, date) and not isinstance(
+            value, datetime
+        ):
+            value = datetime.combine(value, datetime.min.time())
         setattr(person, key, value)
         new_values[key] = _iso(value)
 
@@ -954,9 +1001,10 @@ async def update_my_profile(
         last_name=person.last_name,
         email=person.email,
         phone=person.phone,
-        date_of_birth=_iso(person.date_of_birth),
+        date_of_birth=_date_iso(person.date_of_birth),
         gender=person.gender,
         job_title=person.job_title,
+        department=person.department,
         location=person.location,
         employment_type=person.employment_type,
         type=person.type,
@@ -972,6 +1020,7 @@ async def update_my_profile(
         emergency_contact_relationship=person.emergency_contact_relationship,
         bio=person.bio,
         skills=person.skills,
+        created_at=_iso(person.created_at),
     )
 
 

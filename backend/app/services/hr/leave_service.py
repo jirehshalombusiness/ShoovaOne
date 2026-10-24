@@ -203,8 +203,8 @@ def _validate_balance(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                f"No leave balance exists for '{leave_type.name}'. "
-                "Contact HR to set up your allocation."
+                f"'{leave_type.name}' has no leave allocation yet. "
+                "Ask HR to set up your allocation for this leave type."
             ),
         )
 
@@ -303,6 +303,25 @@ async def create_leave_request(
         leave_type_id,
         start_date.year,
     )
+
+    # Self-service requests must not fail just because HR has not
+    # provisioned this year's allocation yet. Create the person's
+    # missing balances from each leave type's default allocation,
+    # then re-read the row we need.
+    if balance is None:
+        await ensure_balances_for_year(
+            db,
+            person_id=person_id,
+            year=start_date.year,
+        )
+        await db.flush()
+        balance = await _load_balance(
+            db,
+            person_id,
+            leave_type_id,
+            start_date.year,
+        )
+
     _validate_balance(balance, total_days, leave_type)
 
     # ---- documents ----

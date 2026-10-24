@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+from datetime import date
 from typing import List
 from uuid import UUID
 
@@ -25,6 +26,7 @@ from app.models.pydantic.core.user import (
 )
 from app.services.core.permission_service import PermissionService
 from app.services.core.audit_service import AuditService
+from app.services.hr import leave_service
 
 
 router = APIRouter()
@@ -428,6 +430,14 @@ async def create_user(
                 for role in roles
             ],
         },
+    )
+
+    # Provision current-year leave balances so self-service works
+    # from the first login without manual HR setup.
+    await leave_service.ensure_balances_for_year(
+        db,
+        person_id=person.id,
+        year=date.today().year,
     )
 
     try:

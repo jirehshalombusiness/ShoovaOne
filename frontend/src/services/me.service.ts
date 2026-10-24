@@ -12,6 +12,7 @@ export interface MeHomePerson {
   profile_image_url: string | null;
   department: string | null;
   location: string | null;
+  date_of_birth: string | null;
 }
 
 export interface MeHomeBalance {
@@ -74,6 +75,7 @@ export interface MeProfile {
   date_of_birth: string | null;
   gender: string | null;
   job_title: string | null;
+  department: string | null;
   location: string | null;
   employment_type: string | null;
   type: string;
@@ -95,6 +97,7 @@ export interface MeProfile {
 
 export interface MeProfileUpdate {
   phone?: string;
+  date_of_birth?: string | null;
   address?: string;
   city?: string;
   state?: string;
