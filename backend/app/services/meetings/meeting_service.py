@@ -60,7 +60,7 @@ async def _notify_attendee(
         user_id=user.id,
         title="You've been invited to a meeting",
         body=f"{organizer_name} invited you: {meeting.title} — {starts}",
-        type="info",
+        type="meeting",
         link=f"/meetings/{meeting.id}",
     )
     db.add(notification)
@@ -473,7 +473,7 @@ async def cancel_meeting(
                     f"{organizer_name} cancelled: {meeting.title}"
                     + (f" — {reason}" if reason else "")
                 ),
-                type="warning",
+                type="meeting",
                 link=f"/meetings/{meeting.id}",
             )
         )
@@ -545,9 +545,33 @@ async def respond_to_meeting(
             "You are the organizer and are always marked as accepted",
         )
 
+    previous_response = attendee.response
     attendee.response = response
     attendee.responded_at = _now_utc()
     attendee.response_note = note
+
+    # Let the organizer know when an attendee changes their answer.
+    if previous_response != response and meeting.organizer_id != actor.person_id:
+        actor_name = (
+            f"{actor.person.first_name} {actor.person.last_name}".strip()
+            if actor.person
+            else "Someone"
+        )
+        organizer_user_result = await db.execute(
+            select(User).where(User.person_id == meeting.organizer_id)
+        )
+        organizer_user = organizer_user_result.scalar_one_or_none()
+        if organizer_user:
+            db.add(
+                Notification(
+                    id=str(uuid.uuid4()),
+                    user_id=organizer_user.id,
+                    title=f"RSVP: {actor_name} {response}",
+                    body=f"{actor_name} responded '{response}' to {meeting.title}",
+                    type="meeting",
+                    link=f"/meetings/{meeting.id}",
+                )
+            )
 
     await AuditService.log(
         db=db,

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { hrService } from '@/services/hr.service';
+import { useHRAccess } from '@/hooks/useHRAccess';
 import {
   Users,
   UserCheck,
@@ -13,12 +14,14 @@ import { cn } from '@/lib/utils';
 
 export function ExecutiveKpis() {
   const navigate = useNavigate();
+  const access = useHRAccess();
 
   // Headcount
   const headcountQuery = useQuery({
     queryKey: ['hr', 'reports', 'headcount'],
     queryFn: () => hrService.getHeadcountReport(),
     refetchInterval: 5 * 60_000, // 5 min
+    enabled: access.canViewSensitive,
   });
 
   // Today's attendance
@@ -26,6 +29,7 @@ export function ExecutiveKpis() {
     queryKey: ['hr', 'reports', 'attendance-today'],
     queryFn: () => hrService.getAttendanceToday(),
     refetchInterval: 60_000,
+    enabled: access.canViewSensitive,
   });
 
   // My approval stats
@@ -40,6 +44,7 @@ export function ExecutiveKpis() {
     queryKey: ['hr', 'reports', 'leave-usage', new Date().getFullYear()],
     queryFn: () => hrService.getLeaveUsageReport(new Date().getFullYear()),
     refetchInterval: 5 * 60_000,
+    enabled: access.canViewLeave,
   });
 
   // Contract expiry
@@ -47,6 +52,7 @@ export function ExecutiveKpis() {
     queryKey: ['hr', 'reports', 'contracts-expiring'],
     queryFn: () => hrService.getContractsExpiring(),
     refetchInterval: 5 * 60_000,
+    enabled: access.canViewEmployment,
   });
 
   const headcount = headcountQuery.data;
@@ -56,31 +62,34 @@ export function ExecutiveKpis() {
   const contracts = contractsQuery.data;
 
   const kpis = [
-    {
-      key: 'headcount',
-      label: 'Active Workforce',
-      value: headcount?.active ?? '—',
-      sub:
-        headcount
-          ? `${headcount.hired_this_year} hired · ${headcount.left_this_year} left this year`
-          : 'loading',
-      icon: Users,
-      tone: 'primary' as const,
-      onClick: () => navigate('/hr/employees'),
-    },
-    {
-      key: 'attendance',
-      label: 'Checked In Today',
-      value: attendance
-        ? `${attendance.checked_in} / ${attendance.total_active}`
-        : '—',
-      sub: attendance
-        ? `${attendance.percentage_checked_in}% of active workforce`
-        : 'loading',
-      icon: UserCheck,
-      tone: 'success' as const,
-      onClick: () => navigate('/attendance'),
-    },
+    ...(access.canViewSensitive
+      ? [
+          {
+            key: 'headcount',
+            label: 'Active Workforce',
+            value: headcount?.active ?? '—',
+            sub: headcount
+              ? `${headcount.hired_this_year} hired · ${headcount.left_this_year} left this year`
+              : 'loading',
+            icon: Users,
+            tone: 'primary' as const,
+            onClick: () => navigate('/hr/employees'),
+          },
+          {
+            key: 'attendance',
+            label: 'Checked In Today',
+            value: attendance
+              ? `${attendance.checked_in} / ${attendance.total_active}`
+              : '—',
+            sub: attendance
+              ? `${attendance.percentage_checked_in}% of active workforce`
+              : 'loading',
+            icon: UserCheck,
+            tone: 'success' as const,
+            onClick: () => navigate('/attendance'),
+          },
+        ]
+      : []),
     {
       key: 'approvals',
       label: 'Awaiting My Decision',
@@ -90,33 +99,46 @@ export function ExecutiveKpis() {
           ? `${approvals.overdue} overdue`
           : 'no pending items',
       icon: Inbox,
-      tone: approvals && approvals.overdue > 0 ? 'warning' : 'info',
-      onClick: () => navigate('/hr/approvals'),
-    },
-    {
-      key: 'leave',
-      label: 'Leave Used This Year',
-      value: leave ? `${leave.total_approved_days.toFixed(0)}d` : '—',
-      sub: leave
-        ? `${leave.total_pending_days.toFixed(0)}d pending`
-        : 'loading',
-      icon: CalendarDays,
-      tone: 'info' as const,
-      onClick: () => navigate('/hr/time-off'),
-    },
-    {
-      key: 'contracts',
-      label: 'Contracts Expiring',
-      value: contracts?.within_30.length ?? '—',
-      sub:
-        contracts && contracts.within_30.length > 0
-          ? 'within 30 days'
-          : 'nothing urgent',
-      icon: FileWarning,
       tone:
-        contracts && contracts.within_30.length > 0 ? 'danger' : 'default',
-      onClick: () => navigate('/hr/reports?tab=contracts'),
+        approvals && approvals.overdue > 0
+          ? ('warning' as const)
+          : ('info' as const),
+      onClick: () => navigate('/me/approvals'),
     },
+    ...(access.canViewLeave
+      ? [
+          {
+            key: 'leave',
+            label: 'Leave Used This Year',
+            value: leave ? `${leave.total_approved_days.toFixed(0)}d` : '—',
+            sub: leave
+              ? `${leave.total_pending_days.toFixed(0)}d pending`
+              : 'loading',
+            icon: CalendarDays,
+            tone: 'info' as const,
+            onClick: () => navigate('/hr/time-off'),
+          },
+        ]
+      : []),
+    ...(access.canViewEmployment
+      ? [
+          {
+            key: 'contracts',
+            label: 'Contracts Expiring',
+            value: contracts?.within_30.length ?? '—',
+            sub:
+              contracts && contracts.within_30.length > 0
+                ? 'within 30 days'
+                : 'nothing urgent',
+            icon: FileWarning,
+            tone:
+              contracts && contracts.within_30.length > 0
+                ? ('danger' as const)
+                : ('default' as const),
+            onClick: () => navigate('/hr/reports?tab=contracts'),
+          },
+        ]
+      : []),
   ];
 
   return (

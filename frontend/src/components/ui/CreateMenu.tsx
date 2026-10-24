@@ -5,14 +5,11 @@ import {
   ChevronDown,
   UserPlus,
   FolderPlus,
-  CheckSquare,
-  Building2,
   CalendarPlus,
-  FileUp,
   Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useHRAccess } from '@/hooks/useHRAccess';
 
 interface CreateAction {
   icon: React.ElementType;
@@ -24,7 +21,7 @@ interface CreateAction {
 
 export function CreateMenu() {
   const navigate = useNavigate();
-  const { hasPermission } = usePermissions();
+  const access = useHRAccess();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -55,18 +52,17 @@ export function CreateMenu() {
       onClick: () => navigate('/people/new'),
     },
     {
-      icon: CheckSquare,
-      label: 'Create Task',
-      description: 'Assign work to your team',
-      permission: 'tasks.create',
-      onClick: () => navigate('/tasks/new'),
-    },
-    {
       icon: FolderPlus,
       label: 'Create Project',
       description: 'Start a new project',
       permission: 'projects.create',
       onClick: () => navigate('/projects/new'),
+    },
+    {
+      icon: CalendarPlus,
+      label: 'Schedule Meeting',
+      description: 'Invite people to a meeting',
+      onClick: () => navigate('/meetings/new'),
     },
     {
       icon: Clock,
@@ -75,32 +71,11 @@ export function CreateMenu() {
       permission: 'timesheets.submit',
       onClick: () => navigate('/timesheets'),
     },
-    {
-      icon: Building2,
-      label: 'Add Organisation',
-      description: 'Partner, donor or contact',
-      permission: 'crm.create',
-      onClick: () => navigate('/organisations/new'),
-    },
-    {
-      icon: CalendarPlus,
-      label: 'Create Event',
-      description: 'Schedule a new event',
-      permission: 'events.create',
-      onClick: () => navigate('/events/new'),
-    },
-    {
-      icon: FileUp,
-      label: 'Upload Document',
-      description: 'Add a file to the library',
-      permission: 'documents.upload',
-      onClick: () => navigate('/documents/upload'),
-    },
   ];
 
   // Filter to actions the user can perform
   const visibleActions = actions.filter(
-    (a) => !a.permission || hasPermission(a.permission)
+    (a) => !a.permission || access.has(a.permission)
   );
 
   if (visibleActions.length === 0) return null;

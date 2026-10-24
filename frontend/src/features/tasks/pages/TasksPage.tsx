@@ -239,7 +239,7 @@ export function TasksPage() {
             <TaskRow
               key={task.id}
               task={task}
-              currentUserId={user?.id}
+              currentUserId={user?.person_id ?? undefined}
               onClick={() => handleTaskClick(task)}
             />
           ))}

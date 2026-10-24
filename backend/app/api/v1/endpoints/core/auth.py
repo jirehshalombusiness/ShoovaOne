@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -91,11 +91,15 @@ async def login(
 
     roles = [role.name for role in user.roles]
 
+    user.last_login_at = datetime.now(timezone.utc)
+    await db.commit()
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
         "user": {
             "id": str(user.id),
+            "person_id": str(user.person_id) if user.person_id else None,
             "email": user.email,
             "first_name": person.first_name,
             "last_name": person.last_name,
@@ -157,6 +161,7 @@ async def get_current_user_info(
 
     return {
         "id": str(user.id),
+        "person_id": str(user.person_id) if user.person_id else None,
         "email": user.email,
         "first_name": person.first_name,
         "last_name": person.last_name,

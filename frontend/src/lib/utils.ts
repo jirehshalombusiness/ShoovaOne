@@ -22,3 +22,16 @@ export const formatDateTime = (date: string | Date) => {
     minute: '2-digit',
   });
 };
+
+const ROLE_ACRONYMS = new Set(['ceo', 'cto', 'cfo', 'coo', 'hr', 'crm']);
+
+export function formatRoleLabel(role: string) {
+  return role
+    .split('_')
+    .map((part) =>
+      ROLE_ACRONYMS.has(part.toLowerCase())
+        ? part.toUpperCase()
+        : part.charAt(0).toUpperCase() + part.slice(1),
+    )
+    .join(' ');
+}

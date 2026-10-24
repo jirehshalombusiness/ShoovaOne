@@ -9,7 +9,7 @@ import {
   HelpCircle,
   Command,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatRoleLabel } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { Avatar } from './Avatar';
 
@@ -105,9 +105,9 @@ export function UserMenu() {
                 {user.roles.slice(0, 3).map((role) => (
                   <span
                     key={role}
-                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-700 capitalize"
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-700"
                   >
-                    {role.replace(/_/g, ' ')}
+                    {formatRoleLabel(role)}
                   </span>
                 ))}
               </div>

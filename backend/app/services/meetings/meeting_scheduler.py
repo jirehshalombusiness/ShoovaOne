@@ -148,7 +148,7 @@ async def send_meeting_reminders() -> None:
                         user_id=user.id,
                         title=f"{title_prefix} {meeting.title}",
                         body=f"Starts at {starts_str} — 15 minutes",
-                        type="info",
+                        type="meeting",
                         link=f"/meetings/{meeting.id}",
                     )
                 )

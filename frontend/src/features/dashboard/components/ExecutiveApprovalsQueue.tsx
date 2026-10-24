@@ -6,16 +6,28 @@ import { Inbox, ArrowRight, Clock, AlertCircle, ChevronRight } from 'lucide-reac
 import { format, isBefore } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-export function ExecutiveApprovalsQueue() {
+interface ExecutiveApprovalsQueueProps {
+  basePath?: string;
+  title?: string;
+  emptyTitle?: string;
+  limit?: number;
+}
+
+export function ExecutiveApprovalsQueue({
+  basePath = '/hr/approvals',
+  title = 'Awaiting My Decision',
+  emptyTitle = 'Nothing needs your decision',
+  limit = 5,
+}: ExecutiveApprovalsQueueProps) {
   const navigate = useNavigate();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['hr', 'approvals', 'ceo-queue'],
+    queryKey: ['hr', 'approvals', 'queue', basePath],
     queryFn: () =>
       hrService.getApprovals({
         status: 'pending',
         assigned_to_me: true,
-        limit: 5,
+        limit,
       }),
     refetchInterval: 60_000,
   });
@@ -24,14 +36,12 @@ export function ExecutiveApprovalsQueue() {
   const pendingCount = data?.pending ?? 0;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg">
+    <div className="bg-white border border-gray-200 rounded-lg h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2">
           <Inbox className="w-4 h-4 text-gray-400" strokeWidth={1.75} />
-          <h3 className="text-sm font-semibold text-gray-900">
-            Awaiting My Decision
-          </h3>
+          <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
           {pendingCount > 0 && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
               {pendingCount}
@@ -39,7 +49,7 @@ export function ExecutiveApprovalsQueue() {
           )}
         </div>
         <button
-          onClick={() => navigate('/hr/approvals')}
+          onClick={() => navigate(basePath)}
           className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
         >
           Open inbox
@@ -55,24 +65,22 @@ export function ExecutiveApprovalsQueue() {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-14">
-          <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-3">
+        <div className="flex-1 flex flex-col items-center justify-center py-14">
+          <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center mb-3">
             <Inbox className="w-5 h-5 text-emerald-600" strokeWidth={1.75} />
           </div>
-          <p className="text-sm font-medium text-gray-700">
-            Nothing needs your decision
-          </p>
+          <p className="text-sm font-medium text-gray-700">{emptyTitle}</p>
           <p className="text-xs text-gray-500 mt-1">
             You're all caught up
           </p>
         </div>
       ) : (
-        <div className="max-h-[420px] overflow-y-auto divide-y divide-gray-100">
+        <div className="flex-1 max-h-[420px] overflow-y-auto divide-y divide-gray-100">
           {items.map((item) => (
             <ApprovalRow
               key={item.id}
               approval={item}
-              onOpen={() => navigate(`/hr/approvals/${item.id}`)}
+              onOpen={() => navigate(`${basePath}/${item.id}`)}
             />
           ))}
         </div>
@@ -82,7 +90,7 @@ export function ExecutiveApprovalsQueue() {
       {items.length > 0 && (
         <div className="px-5 py-3 border-t border-gray-100 bg-gray-50">
           <button
-            onClick={() => navigate('/hr/approvals')}
+            onClick={() => navigate(basePath)}
             className="w-full flex items-center justify-center gap-2 text-xs font-medium text-primary hover:text-primary-dark transition-colors"
           >
             View all approvals

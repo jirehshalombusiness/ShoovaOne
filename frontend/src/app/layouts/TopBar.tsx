@@ -3,6 +3,7 @@ import { Menu, Search } from 'lucide-react';
 import { NotificationBell } from '@/components/ui/NotificationBell';
 import { UserMenu } from '@/components/ui/UserMenu';
 import { CreateMenu } from '@/components/ui/CreateMenu';
+import { CommandPalette } from '@/components/ui/CommandPalette';
 import { cn } from '@/lib/utils';
 import { SessionIndicator } from '@/components/ui/SessionIndicator';
 
@@ -12,6 +13,13 @@ interface TopBarProps {
 
 export function TopBar({ onMenuClick }: TopBarProps) {
   const [scrolled, setScrolled] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  const shortcutLabel =
+    typeof navigator !== 'undefined' &&
+    /Mac|iPhone|iPad/.test(navigator.platform)
+      ? '⌘K'
+      : 'Ctrl K';
 
   useEffect(() => {
     const main = document.querySelector('main');
@@ -21,6 +29,18 @@ export function TopBar({ onMenuClick }: TopBarProps) {
 
     main.addEventListener('scroll', handleScroll);
     return () => main.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    };
+
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
   }, []);
 
   return (
@@ -50,16 +70,18 @@ export function TopBar({ onMenuClick }: TopBarProps) {
         </span>
       </div>
 
-      {/* Desktop search */}
+      {/* Desktop search — opens the command palette */}
       <div className="hidden lg:flex flex-1 max-w-md">
-        <div className="relative w-full">
+        <button
+          onClick={() => setPaletteOpen(true)}
+          className="relative w-full pl-9 pr-16 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-left text-sm text-gray-400 hover:bg-white hover:border-gray-300 transition-colors"
+        >
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search people, projects, tasks..."
-            className="w-full pl-9 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-md text-sm placeholder-gray-400 focus:outline-none focus:bg-white focus:border-gray-300 transition-colors"
-          />
-        </div>
+          Search people, projects, tasks...
+          <kbd className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 bg-white border border-gray-200 rounded text-[10px] font-mono text-gray-400">
+            {shortcutLabel}
+          </kbd>
+        </button>
       </div>
 
       {/* Desktop right actions */}
@@ -72,11 +94,23 @@ export function TopBar({ onMenuClick }: TopBarProps) {
         </div>
       </div>
 
-      {/* Mobile: notification + user */}
+      {/* Mobile: search + notification + user */}
       <div className="lg:hidden flex items-center gap-1 ml-auto">
+        <button
+          onClick={() => setPaletteOpen(true)}
+          className="p-2 rounded-md hover:bg-gray-100 transition-colors"
+          aria-label="Search"
+        >
+          <Search className="w-5 h-5 text-gray-700" strokeWidth={1.75} />
+        </button>
         <NotificationBell />
         <UserMenu />
       </div>
+
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+      />
     </header>
   );
 }

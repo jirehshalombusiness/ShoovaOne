@@ -11,6 +11,7 @@ import { sessionService } from '@/services/session.service';
 import { useIdleDetection } from '@/hooks/useIdleDetection';
 import { CheckInModal } from '@/features/attendance/components/CheckInModal';
 import { useAuth } from '@/lib/auth';
+import { useHRAccess } from '@/hooks/useHRAccess';
 import { attendanceService } from '@/services/attendance.service';
 
 export function Layout() {
@@ -19,9 +20,12 @@ export function Layout() {
     return localStorage.getItem('sidebar_collapsed') === 'true';
   });
   const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [checkInDismissed, setCheckInDismissed] = useState(false);
 
   const queryClient = useQueryClient();
   const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const access = useHRAccess();
+  const canCheckIn = access.has('attendance.checkin');
 
   const toggleSidebar = () => {
     setSidebarCollapsed((prev) => {
@@ -57,12 +61,19 @@ export function Layout() {
     if (!isAuthenticated) return;
     if (!sessionStatus) return;
 
-    if (!sessionStatus.has_attendance) {
-      setShowCheckInModal(true);
-    } else {
+    if (sessionStatus.has_attendance) {
       setShowCheckInModal(false);
+    } else if (canCheckIn && !checkInDismissed) {
+      setShowCheckInModal(true);
     }
-  }, [sessionStatus, authLoading, sessionLoading, isAuthenticated]);
+  }, [
+    sessionStatus,
+    authLoading,
+    sessionLoading,
+    isAuthenticated,
+    canCheckIn,
+    checkInDismissed,
+  ]);
 
   // Idle detection
   useIdleDetection({
@@ -136,6 +147,10 @@ export function Layout() {
           onCheckedIn={() => {
             setShowCheckInModal(false);
             queryClient.invalidateQueries({ queryKey: ['session', 'status'] });
+          }}
+          onDismiss={() => {
+            setCheckInDismissed(true);
+            setShowCheckInModal(false);
           }}
         />
       )}

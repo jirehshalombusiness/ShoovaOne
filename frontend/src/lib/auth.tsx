@@ -17,6 +17,7 @@ function normalizeUser(raw: any): User | null {
   if (!raw) return null;
   return {
     id: raw.id,
+    person_id: raw.person_id ?? null,
     email: raw.email,
     first_name: raw.first_name ?? '',
     last_name: raw.last_name ?? '',

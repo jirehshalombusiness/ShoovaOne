@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { attendanceService } from '@/services/attendance.service';
 import { sessionService } from '@/services/session.service';
@@ -35,12 +35,26 @@ const WORK_TYPES = [
   },
 ];
 
-export function CheckInModal({ onCheckedIn }: { onCheckedIn: () => void }) {
+export function CheckInModal({
+  onCheckedIn,
+  onDismiss,
+}: {
+  onCheckedIn: () => void;
+  onDismiss: () => void;
+}) {
   const [selected, setSelected] = useState<string[]>([]);
   const [workType, setWorkType] = useState('office');
   const [adhocTasks, setAdhocTasks] = useState<{ title: string; priority: string }[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState('medium');
+
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onDismiss();
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [onDismiss]);
 
   const { data: today } = useQuery({
     queryKey: ['attendance', 'today'],
@@ -79,14 +93,29 @@ export function CheckInModal({ onCheckedIn }: { onCheckedIn: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-lg w-full shadow-2xl max-h-[90vh] flex flex-col">
+    <div
+      className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4"
+      onClick={onDismiss}
+    >
+      <div
+        className="bg-white rounded-lg max-w-lg w-full shadow-2xl max-h-[90vh] flex flex-col"
+        onClick={(event) => event.stopPropagation()}
+      >
         {/* Header */}
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900">Welcome back</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Start your day. Your time will be tracked while you're active.
-          </p>
+        <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Welcome back</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Start your day. Your time will be tracked while you're active.
+            </p>
+          </div>
+          <button
+            onClick={onDismiss}
+            className="p-1.5 -mr-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            aria-label="Close check-in"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">

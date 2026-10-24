@@ -33,7 +33,6 @@ import {
 import { useAuth } from '@/lib/auth';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
-import { usePermissions } from '@/hooks/usePermissions';
 
 export function MeetingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -106,13 +105,6 @@ export function MeetingDetailPage() {
     },
   });
 
-    const { hasPermission } = usePermissions();
-    const canEdit = hasPermission('meetings.edit');
-    const canCancel = hasPermission('meetings.cancel');
-
-// Then use `canEdit` to show agenda buttons, `canCancel` for cancel button
-// (currently you use isOrganizer alone, which is the correct approach for
-//  "own meetings", but permissions add a second layer)
   const deleteAgendaMutation = useMutation({
     mutationFn: (itemId: string) => meetingsService.deleteAgendaItem(id!, itemId),
     onSuccess: () => {
@@ -157,12 +149,14 @@ export function MeetingDetailPage() {
     );
   }
 
-  const isOrganizer = user?.id === meeting.organizer.id;
+  const isOrganizer = !!user?.person_id && user.person_id === meeting.organizer.id;
   const isCancelled = meeting.status === 'cancelled';
   const isFinished = meeting.status === 'completed';
   const starts = new Date(meeting.starts_at);
   const ends = new Date(meeting.ends_at);
-  const myAttendee = meeting.attendees.find((a) => a.person.id === user?.id);
+  const myAttendee = meeting.attendees.find(
+    (a) => a.person.id === user?.person_id,
+  );
 
   const LocationIcon =
     meeting.location_type === 'video'
@@ -375,7 +369,7 @@ export function MeetingDetailPage() {
                 key={att.id}
                 attendee={att}
                 isOrganizer={att.person.id === meeting.organizer.id}
-                isMe={att.person.id === user?.id}
+                isMe={att.person.id === user?.person_id}
               />
             ))}
           </div>

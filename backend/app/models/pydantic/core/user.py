@@ -19,6 +19,7 @@ class UserCreate(UserBase):
 
 class UserResponse(BaseModel):
     id: str
+    person_id: Optional[str] = None
     email: EmailStr
     first_name: str
     last_name: str

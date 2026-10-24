@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, and_, func
-from typing import List, Optional
-from datetime import date, datetime, timedelta
+from sqlalchemy import func, or_, select
+from typing import Optional
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import selectinload
-from sqlalchemy import select, func
 from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.sql.core.user import Person
+from app.models.sql.hr.approval import ApprovalRequest
+from app.models.sql.meetings.meeting import Meeting, MeetingAttendee
 from app.models.sql.projects.project import Task, Project
 from app.models.sql.timekeeping.timesheet import Timesheet, TimesheetEntry
 
@@ -21,12 +22,7 @@ async def get_my_work_summary(
     current_user = Depends(get_current_active_user),
 ):
     """
-    Aggregated summary for the My Work page.
-    Returns:
-    - tasks_count
-    - meetings_count (placeholder for now)
-    - timesheet_hours_this_week
-    - pending_approvals_count
+    Aggregated summary used by My Work and the personal dashboard.
     """
     person_id = current_user.person_id
 
@@ -80,6 +76,36 @@ async def get_my_work_summary(
     timesheet_expected = float(timesheet.expected_hours) if timesheet else 40
     timesheet_status = timesheet.status if timesheet else "not_started"
 
+    # 5. Approvals waiting on my decision
+    approvals_result = await db.execute(
+        select(func.count(ApprovalRequest.id)).where(
+            ApprovalRequest.assigned_to_id == person_id,
+            ApprovalRequest.status == "pending",
+        )
+    )
+    pending_approvals = approvals_result.scalar() or 0
+
+    # 6. Meetings today where I'm organizer or attendee
+    now = datetime.now(timezone.utc)
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    day_end = day_start + timedelta(days=1)
+
+    my_meeting_ids = select(MeetingAttendee.meeting_id).where(
+        MeetingAttendee.person_id == person_id
+    )
+    meetings_result = await db.execute(
+        select(func.count(Meeting.id)).where(
+            Meeting.status == "scheduled",
+            Meeting.starts_at >= day_start,
+            Meeting.starts_at < day_end,
+            or_(
+                Meeting.organizer_id == person_id,
+                Meeting.id.in_(my_meeting_ids),
+            ),
+        )
+    )
+    meetings_today = meetings_result.scalar() or 0
+
     return {
         "open_tasks": open_tasks,
         "tasks_due_today": tasks_due_today,
@@ -89,8 +115,8 @@ async def get_my_work_summary(
         "timesheet_status": timesheet_status,
         "timesheet_week_start": week_start.isoformat(),
         "timesheet_week_end": week_end.isoformat(),
-        "pending_approvals": 0,  # TODO
-        "meetings_today": 0,  # TODO
+        "pending_approvals": pending_approvals,
+        "meetings_today": meetings_today,
     }
 
 
@@ -233,14 +259,82 @@ async def get_my_projects(
 
 @router.get("/meetings")
 async def get_my_meetings(
+    window: str = Query("upcoming", description="upcoming / today / all"),
+    limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_active_user),
 ):
-    """
-    Get upcoming meetings where I'm an attendee.
-    Returns empty for now — will populate when Meetings module is built.
-    """
-    return []
+    """Get meetings where I'm the organizer or an attendee."""
+    person_id = current_user.person_id
+    now = datetime.now(timezone.utc)
+
+    my_meeting_ids = select(MeetingAttendee.meeting_id).where(
+        MeetingAttendee.person_id == person_id
+    )
+
+    query = (
+        select(Meeting)
+        .options(selectinload(Meeting.attendees))
+        .where(
+            or_(
+                Meeting.organizer_id == person_id,
+                Meeting.id.in_(my_meeting_ids),
+            )
+        )
+    )
+
+    if window == "today":
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        query = query.where(
+            Meeting.status == "scheduled",
+            Meeting.starts_at >= day_start,
+            Meeting.starts_at < day_start + timedelta(days=1),
+        ).order_by(Meeting.starts_at)
+    elif window == "all":
+        query = query.order_by(Meeting.starts_at.desc())
+    else:
+        query = query.where(
+            Meeting.status == "scheduled",
+            Meeting.starts_at >= now,
+        ).order_by(Meeting.starts_at)
+
+    query = query.limit(limit)
+    result = await db.execute(query)
+    meetings = result.scalars().all()
+
+    responses = []
+    for meeting in meetings:
+        my_response = next(
+            (
+                attendee.response
+                for attendee in meeting.attendees
+                if attendee.person_id == person_id
+            ),
+            None,
+        )
+        responses.append(
+            {
+                "id": str(meeting.id),
+                "title": meeting.title,
+                "description": meeting.description,
+                "starts_at": meeting.starts_at.isoformat() if meeting.starts_at else None,
+                "ends_at": meeting.ends_at.isoformat() if meeting.ends_at else None,
+                "duration_minutes": meeting.duration_minutes,
+                "location_type": meeting.location_type,
+                "location": meeting.location,
+                "meeting_url": meeting.meeting_url,
+                "status": meeting.status,
+                "attendee_count": len(meeting.attendees),
+                "my_response": my_response,
+                "organizer_name": (
+                    f"{meeting.organizer.first_name} {meeting.organizer.last_name}".strip()
+                    if meeting.organizer
+                    else None
+                ),
+            }
+        )
+
+    return responses
 
 @router.get("/activity")
 async def get_my_activity(

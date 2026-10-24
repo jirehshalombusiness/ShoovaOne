@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from typing import List
 from datetime import datetime
 
@@ -8,21 +8,25 @@ from app.core.database import get_db
 from app.core.security import get_current_active_user
 from app.models.sql.core.notification import Notification
 from app.models.pydantic.core.notification import NotificationResponse, NotificationCreate
+from app.services.core.permission_service import PermissionService
 
 router = APIRouter()
 
 
 @router.get("/", response_model=List[NotificationResponse])
 async def get_notifications(
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_active_user),
 ):
-    """Get all notifications for the current user."""
+    """Get notifications for the current user, newest first."""
     result = await db.execute(
         select(Notification)
         .where(Notification.user_id == current_user.id)
         .order_by(Notification.created_at.desc())
-        .limit(50)
+        .offset(offset)
+        .limit(limit)
     )
     return result.scalars().all()
 
@@ -34,14 +38,12 @@ async def get_unread_count(
 ):
     """Get unread notification count."""
     result = await db.execute(
-        select(Notification)
-        .where(
+        select(func.count(Notification.id)).where(
             Notification.user_id == current_user.id,
-            Notification.is_read == False
+            Notification.is_read == False,
         )
     )
-    notifications = result.scalars().all()
-    return {"count": len(notifications)}
+    return {"count": result.scalar() or 0}
 
 
 @router.put("/{notification_id}/read", response_model=dict)
@@ -93,7 +95,21 @@ async def create_notification(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_active_user),
 ):
-    """Create a notification for a user."""
+    """
+    Create a notification for yourself, or for another user if you
+    administer users. System-generated notifications use the service
+    layer directly, so this endpoint must not allow arbitrary targeting.
+    """
+    if str(notification_data.user_id) != str(current_user.id):
+        allowed = await PermissionService.has_permission(
+            db, current_user.id, "users.manage"
+        )
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only create notifications for yourself",
+            )
+
     import uuid
     notification = Notification(
         id=str(uuid.uuid4()),

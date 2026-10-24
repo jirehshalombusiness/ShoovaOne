@@ -21,6 +21,9 @@ import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
 
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage';
 import { MyWorkPage } from '@/features/mywork/pages/MyWorkPage';
+import { NotificationsPage } from '@/features/notifications/pages/NotificationsPage';
+import { SettingsPage } from '@/features/settings/pages/SettingsPage';
+import { HelpPage } from '@/features/help/pages/HelpPage';
 
 import { PeoplePage } from '@/features/people/pages/PeoplePage';
 import { PersonDetailPage } from '@/features/people/pages/PersonDetailPage';
@@ -384,16 +387,12 @@ export function AppRouter() {
           />
 
           {/* ======================================================= */}
-          {/* EXECUTIVE DASHBOARD                                     */}
+          {/* DASHBOARD — universal, portfolio-aware                  */}
           {/* ======================================================= */}
 
           <Route
             path="dashboard"
-            element={
-              <PermissionRoute permission="dashboard.executive">
-                <DashboardPage />
-              </PermissionRoute>
-            }
+            element={<DashboardPage />}
           />
 
           {/* ======================================================= */}
@@ -713,11 +712,7 @@ export function AppRouter() {
 
           <Route
             path="people/org-chart"
-            element={
-              <PermissionRoute permission="people.view">
-                <OrgChartPage />
-              </PermissionRoute>
-            }
+            element={<OrgChartPage />}
           />
 
           <Route
@@ -951,9 +946,7 @@ export function AppRouter() {
 
           <Route
             path="settings"
-            element={
-              <Placeholder title="Settings" />
-            }
+            element={<SettingsPage />}
           />
 
           <Route
@@ -1003,16 +996,12 @@ export function AppRouter() {
 
           <Route
             path="notifications"
-            element={
-              <Placeholder title="Notifications" />
-            }
+            element={<NotificationsPage />}
           />
 
           <Route
             path="help"
-            element={
-              <Placeholder title="Help & Support" />
-            }
+            element={<HelpPage />}
           />
 
         </Route>

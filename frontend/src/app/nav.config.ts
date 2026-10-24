@@ -24,6 +24,8 @@ import {
   BookOpen,
   CalendarPlus,
   DollarSign,
+  Bell,
+  HelpCircle,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -54,7 +56,6 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: LayoutDashboard,
         label: 'Dashboard',
         path: '/dashboard',
-        permission: 'dashboard.executive',
       },
       {
         icon: Briefcase,
@@ -72,6 +73,11 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'My HR',
         path: '/me',
       },
+      {
+        icon: Bell,
+        label: 'Notifications',
+        path: '/notifications',
+      },
     ],
   },
 
@@ -84,11 +90,10 @@ export const NAV_SECTIONS: NavSection[] = [
         path: '/projects',
         permission: 'projects.view',
       },
-{
+      {
         icon: CalendarDays,
         label: 'Meetings',
         path: '/meetings',
-        permission: 'meetings.view',
       },
 
       {
@@ -179,6 +184,11 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Settings,
         label: 'Settings',
         path: '/settings',
+      },
+      {
+        icon: HelpCircle,
+        label: 'Help & Support',
+        path: '/help',
       },
       {
         icon: UserCog,

@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Briefcase, CheckSquare, Users, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useHRAccess } from '@/hooks/useHRAccess';
 
 interface MobileBottomNavProps {
   onMoreClick: () => void;
@@ -9,14 +10,19 @@ interface MobileBottomNavProps {
 const TABS = [
   { icon: LayoutDashboard, label: 'Home', path: '/dashboard' },
   { icon: Briefcase, label: 'Work', path: '/my-work' },
-  { icon: CheckSquare, label: 'Tasks', path: '/tasks' },
-  { icon: Users, label: 'People', path: '/people' },
+  { icon: CheckSquare, label: 'Tasks', path: '/tasks', permission: 'tasks.view' },
+  { icon: Users, label: 'People', path: '/people', permission: 'people.view' },
 ];
 
 export function MobileBottomNav({ onMoreClick }: MobileBottomNavProps) {
+  const access = useHRAccess();
+  const tabs = TABS.filter(
+    (tab) => !tab.permission || access.has(tab.permission),
+  );
+
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-gray-200 z-30 flex items-stretch safe-area-inset-bottom">
-      {TABS.map((tab) => (
+      {tabs.map((tab) => (
         <NavLink
           key={tab.path}
           to={tab.path}

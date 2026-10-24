@@ -154,7 +154,8 @@ export const peopleService = {
 
   // ---------- ORG CHART ----------
   async getOrgChart(): Promise<OrgChartResponse> {
-    const response = await api.get<OrgChartResponse>('/people/org-chart');
+    // /hr/org-chart is intentionally open to every authenticated user.
+    const response = await api.get<OrgChartResponse>('/hr/org-chart');
     return response.data;
   },
 

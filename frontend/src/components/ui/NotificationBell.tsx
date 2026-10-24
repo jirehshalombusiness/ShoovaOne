@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck, Inbox } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNotifications } from '@/lib/notifications';
+import { notificationMeta } from '@/lib/notificationMeta';
 import { formatDistanceToNow } from 'date-fns';
+import type { Notification } from '@/services/notification.service';
+
+const MAX_PREVIEW = 8;
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
@@ -12,7 +16,6 @@ export function NotificationBell() {
   const { notifications, unreadCount, markAsRead, markAllAsRead, loading } =
     useNotifications();
 
-  // Close on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
@@ -23,7 +26,6 @@ export function NotificationBell() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Close on Escape
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
@@ -32,41 +34,27 @@ export function NotificationBell() {
     return () => document.removeEventListener('keydown', handleKey);
   }, []);
 
-  const handleNotificationClick = async (notif: any) => {
-    if (!notif.is_read) {
+  const handleNotificationClick = async (notification: Notification) => {
+    if (!notification.is_read) {
       try {
-        await markAsRead(notif.id);
+        await markAsRead(notification.id);
       } catch {
-        // ignore
+        // Non-blocking — navigation still matters.
       }
     }
     setOpen(false);
-    if (notif.link) {
-      navigate(notif.link);
-    }
-  };
-
-  const getTypeDot = (type: string) => {
-    switch (type) {
-      case 'success':
-        return 'bg-emerald-500';
-      case 'warning':
-        return 'bg-amber-500';
-      case 'error':
-        return 'bg-red-500';
-      default:
-        return 'bg-blue-500';
+    if (notification.link) {
+      navigate(notification.link);
     }
   };
 
   return (
     <div className="relative" ref={ref}>
-      {/* Bell button */}
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((value) => !value)}
         className={cn(
           'relative p-2 rounded-md transition-colors',
-          open ? 'bg-gray-100' : 'hover:bg-gray-100'
+          open ? 'bg-gray-100' : 'hover:bg-gray-100',
         )}
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
         aria-expanded={open}
@@ -79,27 +67,23 @@ export function NotificationBell() {
         )}
       </button>
 
-      {/* Dropdown */}
       {open && (
         <div
           role="menu"
           className="absolute right-0 top-full mt-1.5 w-[380px] max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden animate-fade-in z-50"
         >
-          {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <div>
               <div className="text-sm font-semibold text-gray-900">
                 Notifications
               </div>
-              {unreadCount > 0 && (
-                <div className="text-[11px] text-gray-500 mt-0.5">
-                  {unreadCount} unread
-                </div>
-              )}
+              <div className="text-[11px] text-gray-500 mt-0.5">
+                {unreadCount > 0 ? `${unreadCount} unread` : "You're all caught up"}
+              </div>
             </div>
             {unreadCount > 0 && (
               <button
-                onClick={markAllAsRead}
+                onClick={() => markAllAsRead()}
                 className="flex items-center gap-1 text-[12px] font-medium text-primary hover:text-primary-dark transition-colors"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
@@ -108,16 +92,15 @@ export function NotificationBell() {
             )}
           </div>
 
-          {/* Body */}
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-[420px] overflow-y-auto">
             {loading ? (
               <div className="p-4 space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex gap-3 animate-pulse">
-                    <div className="w-2 h-2 rounded-full bg-gray-200 mt-2" />
+                {[1, 2, 3].map((item) => (
+                  <div key={item} className="flex gap-3 animate-pulse">
+                    <div className="w-7 h-7 rounded-full bg-gray-100 flex-shrink-0" />
                     <div className="flex-1 space-y-2">
-                      <div className="h-3 bg-gray-200 rounded w-3/4" />
-                      <div className="h-2.5 bg-gray-200 rounded w-1/2" />
+                      <div className="h-3 bg-gray-100 rounded w-3/4" />
+                      <div className="h-2.5 bg-gray-100 rounded w-1/2" />
                     </div>
                   </div>
                 ))}
@@ -131,70 +114,87 @@ export function NotificationBell() {
                   No notifications
                 </div>
                 <div className="text-xs text-gray-500 mt-0.5">
-                  You're all caught up
+                  You'll see meetings, approvals and updates here
                 </div>
               </div>
             ) : (
-              notifications.map((notif) => (
-                <button
-                  key={notif.id}
-                  onClick={() => handleNotificationClick(notif)}
-                  className={cn(
-                    'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors border-b border-gray-50 last:border-0',
-                    notif.is_read
-                      ? 'hover:bg-gray-50'
-                      : 'bg-blue-50/30 hover:bg-blue-50/60'
-                  )}
-                >
-                  <div className="pt-1.5 flex-shrink-0">
+              notifications.slice(0, MAX_PREVIEW).map((notification) => {
+                const meta = notificationMeta(
+                  notification.type,
+                  notification.link,
+                );
+                const Icon = meta.icon;
+
+                return (
+                  <button
+                    key={notification.id}
+                    onClick={() => handleNotificationClick(notification)}
+                    className={cn(
+                      'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors border-b border-gray-50 last:border-0',
+                      notification.is_read
+                        ? 'hover:bg-gray-50'
+                        : 'bg-blue-50/30 hover:bg-blue-50/60',
+                    )}
+                  >
                     <div
                       className={cn(
-                        'w-2 h-2 rounded-full',
-                        notif.is_read ? 'bg-gray-300' : getTypeDot(notif.type)
-                      )}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div
-                      className={cn(
-                        'text-[13px] leading-snug',
-                        notif.is_read
-                          ? 'text-gray-700'
-                          : 'text-gray-900 font-medium'
+                        'w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5',
+                        meta.iconClass,
                       )}
                     >
-                      {notif.title}
+                      <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
                     </div>
-                    {notif.body && (
-                      <div className="text-[12px] text-gray-500 mt-0.5 line-clamp-2">
-                        {notif.body}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-2">
+                        <div
+                          className={cn(
+                            'flex-1 text-[13px] leading-snug',
+                            notification.is_read
+                              ? 'text-gray-700'
+                              : 'text-gray-900 font-medium',
+                          )}
+                        >
+                          {notification.title}
+                        </div>
+                        {!notification.is_read && (
+                          <span
+                            className={cn(
+                              'w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5',
+                              meta.dotClass,
+                            )}
+                          />
+                        )}
                       </div>
-                    )}
-                    <div className="text-[10px] text-gray-400 mt-1">
-                      {formatDistanceToNow(new Date(notif.created_at), {
-                        addSuffix: true,
-                      })}
+
+                      {notification.body && (
+                        <div className="text-[12px] text-gray-500 mt-0.5 line-clamp-2">
+                          {notification.body}
+                        </div>
+                      )}
+                      <div className="text-[10px] text-gray-400 mt-1">
+                        {formatDistanceToNow(new Date(notification.created_at), {
+                          addSuffix: true,
+                        })}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))
+                  </button>
+                );
+              })
             )}
           </div>
 
-          {/* Footer */}
-          {notifications.length > 0 && (
-            <div className="border-t border-gray-100 px-4 py-2 text-center">
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  navigate('/notifications');
-                }}
-                className="text-[12px] font-medium text-primary hover:text-primary-dark transition-colors"
-              >
-                View all notifications
-              </button>
-            </div>
-          )}
+          <div className="border-t border-gray-100 px-4 py-2 text-center">
+            <button
+              onClick={() => {
+                setOpen(false);
+                navigate('/notifications');
+              }}
+              className="text-[12px] font-medium text-primary hover:text-primary-dark transition-colors"
+            >
+              View all notifications
+            </button>
+          </div>
         </div>
       )}
     </div>

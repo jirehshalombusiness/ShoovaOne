@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { formatRoleLabel } from '@/lib/utils';
 import { rolesService } from '../roles.service';
 
 import type {
@@ -75,16 +76,6 @@ const ACTION_LABELS: Record<string, string> = {
 /* ============================================================
    HELPERS
    ============================================================ */
-
-function formatRoleName(name: string) {
-  return name
-    .split('_')
-    .map(
-      (part) =>
-        part.charAt(0).toUpperCase() + part.slice(1),
-    )
-    .join(' ');
-}
 
 function formatResource(resource: string) {
   return (
@@ -271,7 +262,7 @@ function RoleDetailPanel({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-xl font-semibold text-gray-900">
-                  {formatRoleName(role.name)}
+                  {formatRoleLabel(role.name)}
                 </h2>
 
                 {role.is_system && (
@@ -965,7 +956,7 @@ export function RolesPermissionsPage() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="truncate text-sm font-semibold text-gray-900">
-                            {formatRoleName(
+                            {formatRoleLabel(
                               role.name,
                             )}
                           </p>
@@ -1069,7 +1060,7 @@ export function RolesPermissionsPage() {
               onDelete={() => {
                 if (
                   window.confirm(
-                    `Delete the role "${formatRoleName(
+                    `Delete the role "${formatRoleLabel(
                       selectedRole.data!.name,
                     )}"?`,
                   )
