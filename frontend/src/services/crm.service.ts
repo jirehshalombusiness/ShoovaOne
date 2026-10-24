@@ -45,6 +45,7 @@ export interface OpportunitySummary {
   owner: PersonBrief;
   amount?: number | null;
   currency: string;
+  amount_base?: number | null;
   expected_close_date?: string | null;
   stage: OpportunityStage;
   probability: number;
@@ -186,6 +187,155 @@ export interface ContributorCreatePayload {
   role?: 'contributor' | 'advisor' | 'sponsor';
 }
 
+export type CrmReportPeriod =
+  | 'this_quarter'
+  | 'this_year'
+  | 'last_12_months'
+  | 'all_time';
+
+export interface CurrencyOption {
+  code: string;
+  name: string;
+  symbol: string;
+  rate_to_base: number;
+}
+
+export interface CurrencyRates {
+  base_currency: string;
+  currencies: CurrencyOption[];
+  rates: Record<string, number>;
+  source: 'live' | 'fallback';
+  updated_at?: string | null;
+}
+
+export interface CrmReportSummary {
+  open_count: number;
+  open_value: number;
+  weighted_value: number;
+  won_count: number;
+  won_value: number;
+  lost_count: number;
+  lost_value: number;
+  win_rate: number;
+  avg_deal_size: number;
+  avg_sales_cycle_days: number;
+  overdue_count: number;
+  overdue_value: number;
+  stalled_count: number;
+  unconverted_count: number;
+  unconverted_currencies: string[];
+}
+
+export interface CrmStageMetric {
+  stage: OpportunityStage;
+  count: number;
+  value: number;
+  weighted_value: number;
+}
+
+export interface CrmBreakdown {
+  open_count: number;
+  open_value: number;
+  weighted_value: number;
+  won_count: number;
+  won_value: number;
+  lost_count: number;
+  win_rate: number;
+  type?: OpportunityType;
+  source?: OpportunitySource;
+}
+
+export interface CrmOwnerMetric {
+  owner_id: string;
+  owner_name: string;
+  open_count: number;
+  open_value: number;
+  weighted_value: number;
+  won_count: number;
+  won_value: number;
+  lost_count: number;
+  win_rate: number;
+}
+
+export interface CrmMonthlyPoint {
+  month: string;
+  label: string;
+  won_count: number;
+  won_value: number;
+  lost_count: number;
+  created_count: number;
+}
+
+export interface CrmForecastBucket {
+  count: number;
+  value: number;
+  weighted_value: number;
+}
+
+export interface CrmForecastMonth extends CrmForecastBucket {
+  month: string;
+  label: string;
+}
+
+export interface CrmReportOpportunity {
+  id: string;
+  title: string;
+  organisation: string;
+  owner: string;
+  stage: OpportunityStage;
+  probability: number;
+  currency: string;
+  amount?: number | null;
+  amount_base: number;
+  expected_close_date?: string | null;
+}
+
+export interface CrmAttentionItem extends CrmReportOpportunity {
+  reasons: ('overdue' | 'stalled')[];
+  overdue_days: number;
+  days_since_activity: number;
+  last_activity_at?: string | null;
+}
+
+export interface CrmReport {
+  base_currency: string;
+  fx: CurrencyRates;
+  period: CrmReportPeriod;
+  period_start?: string | null;
+  filters: {
+    owner_id?: string | null;
+    type?: OpportunityType | null;
+  };
+  summary: CrmReportSummary;
+  by_stage: CrmStageMetric[];
+  by_type: CrmBreakdown[];
+  by_source: CrmBreakdown[];
+  by_owner: CrmOwnerMetric[];
+  monthly: CrmMonthlyPoint[];
+  forecast: {
+    months: CrmForecastMonth[];
+    overdue: CrmForecastBucket;
+    later: CrmForecastBucket;
+  };
+  win_loss: {
+    won_count: number;
+    won_value: number;
+    lost_count: number;
+    lost_value: number;
+    win_rate: number;
+    lost_reasons: { reason: string; count: number; value: number }[];
+  };
+  top_opportunities: CrmReportOpportunity[];
+  needs_attention: CrmAttentionItem[];
+  owner_options: { id: string; name: string }[];
+}
+
+export interface CrmReportParams {
+  period?: CrmReportPeriod;
+  owner_id?: string;
+  type?: OpportunityType;
+}
+
 export const crmService = {
   async listOpportunities(params?: OpportunityListParams): Promise<OpportunityListResponse> {
     const { data } = await api.get<OpportunityListResponse>('/crm/opportunities', { params });
@@ -249,5 +399,15 @@ export const crmService = {
 
   async removeContributor(id: string, contributorId: string): Promise<void> {
     await api.delete(`/crm/opportunities/${id}/contributors/${contributorId}`);
+  },
+
+  async getCurrencyRates(): Promise<CurrencyRates> {
+    const { data } = await api.get<CurrencyRates>('/crm/currency-rates');
+    return data;
+  },
+
+  async getReport(params?: CrmReportParams): Promise<CrmReport> {
+    const { data } = await api.get<CrmReport>('/crm/reports', { params });
+    return data;
   },
 };

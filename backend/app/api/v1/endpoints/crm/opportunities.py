@@ -20,9 +20,10 @@ from app.models.sql.crm.opportunity import (
 from app.models.sql.core.user import User, Person
 from app.models.sql.core.organisation import Organisation
 from app.services.core.audit_service import AuditService
+from app.services.crm import currency_service
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(currency_service.refresh_if_stale)])
 
 
 # ============================================================
@@ -91,6 +92,7 @@ class OpportunitySummary(BaseModel):
     owner: PersonBrief
     amount: Optional[float] = None
     currency: str
+    amount_base: Optional[float] = None
     expected_close_date: Optional[str] = None
     stage: str
     probability: int
@@ -145,6 +147,7 @@ class OpportunityDetail(BaseModel):
 
     amount: Optional[float] = None
     currency: str
+    amount_base: Optional[float] = None
     amount_type: str
     expected_close_date: Optional[str] = None
     expected_start_date: Optional[str] = None
@@ -262,6 +265,14 @@ class OpportunityCreate(BaseModel):
             raise ValueError(f"eligibility_check must be one of {sorted(allowed)}")
         return v
 
+    @field_validator("currency")
+    @classmethod
+    def valid_currency(cls, v):
+        code = currency_service.normalize_currency(v)
+        if not currency_service.is_supported(code):
+            raise ValueError(f"Unsupported currency: {v}")
+        return code
+
 
 # ============================================================
 # HELPERS
@@ -306,6 +317,7 @@ def _summary(o: Opportunity) -> OpportunitySummary:
         owner=_person_brief(o.owner) or PersonBrief(id="", first_name="Unknown", last_name=""),
         amount=float(o.amount) if o.amount is not None else None,
         currency=o.currency,
+        amount_base=currency_service.convert_to_base(o.amount, o.currency),
         expected_close_date=_iso(o.expected_close_date),
         stage=o.stage,
         probability=o.probability,
@@ -362,6 +374,7 @@ def _detail(o: Opportunity) -> OpportunityDetail:
         contributors=contributors,
         amount=float(o.amount) if o.amount is not None else None,
         currency=o.currency,
+        amount_base=currency_service.convert_to_base(o.amount, o.currency),
         amount_type=o.amount_type,
         expected_close_date=_iso(o.expected_close_date),
         expected_start_date=_iso(o.expected_start_date),
@@ -484,25 +497,30 @@ async def list_opportunities(
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
-    # Open count + value (independent of status filter)
-    open_query = select(func.count(Opportunity.id), func.coalesce(func.sum(Opportunity.amount), 0)).where(
-        Opportunity.stage.in_(OPEN_STAGES)
+    # Open count + value and stage breakdown, standardised to GHS.
+    metrics_result = await db.execute(
+        select(
+            Opportunity.stage,
+            Opportunity.amount,
+            Opportunity.currency,
+            Opportunity.probability,
+        )
     )
-    open_result = await db.execute(open_query)
-    open_row = open_result.first()
-    open_count = open_row[0] or 0
-    open_value = float(open_row[1] or 0)
+    open_count = 0
+    open_value = 0.0
+    by_stage: dict = {}
+    for stage, amount, currency, _probability in metrics_result.all():
+        base_value = currency_service.convert_to_base(amount, currency) or 0.0
+        bucket = by_stage.setdefault(stage, {"count": 0, "value": 0.0})
+        bucket["count"] += 1
+        bucket["value"] += base_value
+        if stage in OPEN_STAGES:
+            open_count += 1
+            open_value += base_value
 
-    # By stage breakdown
-    stage_query = (
-        select(Opportunity.stage, func.count(Opportunity.id), func.coalesce(func.sum(Opportunity.amount), 0))
-        .group_by(Opportunity.stage)
-    )
-    stage_result = await db.execute(stage_query)
-    by_stage = {
-        row[0]: {"count": row[1], "value": float(row[2] or 0)}
-        for row in stage_result.all()
-    }
+    for bucket in by_stage.values():
+        bucket["value"] = round(bucket["value"], 2)
+    open_value = round(open_value, 2)
 
     # Items
     query = (
@@ -710,6 +728,16 @@ class OpportunityUpdate(BaseModel):
     qualification_notes: Optional[str] = None
 
     attributed_to_id: Optional[str] = None
+
+    @field_validator("currency")
+    @classmethod
+    def valid_currency(cls, v):
+        if v is None:
+            return v
+        code = currency_service.normalize_currency(v)
+        if not currency_service.is_supported(code):
+            raise ValueError(f"Unsupported currency: {v}")
+        return code
 
 
 @router.patch("/{opportunity_id}", response_model=OpportunityDetail)

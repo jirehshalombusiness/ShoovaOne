@@ -12,7 +12,7 @@ export interface Notification {
 
 export const notificationService = {
   async getNotifications(): Promise<Notification[]> {
-    const response = await api.get<Notification[]>('/notifications');
+    const response = await api.get<Notification[]>('/notifications/');
     return response.data;
   },
 

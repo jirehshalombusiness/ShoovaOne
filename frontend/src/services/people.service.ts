@@ -65,7 +65,7 @@ export interface OrgChartResponse {
 export const peopleService = {
   // ---------- PEOPLE CRUD ----------
   async getAll(params?: PeopleFilters): Promise<Person[]> {
-    const response = await api.get<Person[]>('/people', { params });
+    const response = await api.get<Person[]>('/people/', { params });
     return response.data;
   },
 

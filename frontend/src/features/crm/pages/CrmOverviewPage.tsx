@@ -46,12 +46,12 @@ export function CrmOverviewPage() {
   const lost = opportunities.filter((o) => o.stage === 'lost');
   const closed = [...won, ...lost];
 
-  const openValue = open.reduce((s, o) => s + (o.amount || 0), 0);
+  const openValue = open.reduce((s, o) => s + (o.amount_base || 0), 0);
   const weightedValue = open.reduce(
-    (s, o) => s + ((o.amount || 0) * o.probability) / 100,
+    (s, o) => s + ((o.amount_base || 0) * o.probability) / 100,
     0,
   );
-  const wonValue = won.reduce((s, o) => s + (o.amount || 0), 0);
+  const wonValue = won.reduce((s, o) => s + (o.amount_base || 0), 0);
 
   const winRate =
     closed.length > 0 ? Math.round((won.length / closed.length) * 100) : 0;
@@ -61,7 +61,7 @@ export function CrmOverviewPage() {
 
   // Top open opportunities
   const topOpps = [...open]
-    .sort((a, b) => (b.amount || 0) - (a.amount || 0))
+    .sort((a, b) => (b.amount_base || 0) - (a.amount_base || 0))
     .slice(0, 5);
 
   // Recent wins
@@ -79,7 +79,7 @@ export function CrmOverviewPage() {
   };
   for (const o of opportunities) {
     byStage[o.stage].count += 1;
-    byStage[o.stage].value += o.amount || 0;
+    byStage[o.stage].value += o.amount_base || 0;
   }
 
   const stageLabels: Record<string, string> = {
@@ -257,11 +257,21 @@ export function CrmOverviewPage() {
                       {opp.stage}
                     </div>
                   </div>
-                  <div className="text-[11px] font-semibold text-gray-900 tabular-nums flex-shrink-0">
-                    {opp.currency}{' '}
-                    {(opp.amount || 0).toLocaleString(undefined, {
-                      maximumFractionDigits: 0,
-                    })}
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-[11px] font-semibold text-gray-900 tabular-nums">
+                      {opp.currency}{' '}
+                      {(opp.amount || 0).toLocaleString(undefined, {
+                        maximumFractionDigits: 0,
+                      })}
+                    </div>
+                    {opp.currency !== 'GHS' && opp.amount_base != null && (
+                      <div className="text-[9px] text-gray-400 tabular-nums">
+                        ≈ GHS{' '}
+                        {opp.amount_base.toLocaleString(undefined, {
+                          maximumFractionDigits: 0,
+                        })}
+                      </div>
+                    )}
                   </div>
                 </button>
               ))}
@@ -317,6 +327,14 @@ export function CrmOverviewPage() {
                         maximumFractionDigits: 0,
                       })}
                     </div>
+                    {opp.currency !== 'GHS' && opp.amount_base != null && (
+                      <div className="text-[9px] text-emerald-600 tabular-nums">
+                        ≈ GHS{' '}
+                        {opp.amount_base.toLocaleString(undefined, {
+                          maximumFractionDigits: 0,
+                        })}
+                      </div>
+                    )}
                   </div>
                 </button>
               ))}

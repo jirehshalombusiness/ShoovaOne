@@ -37,9 +37,10 @@ export function CrmSnapshot() {
   const won = items.filter((o) => o.stage === 'won');
   const lost = items.filter((o) => o.stage === 'lost');
 
-  const openValue = open.reduce((s, o) => s + (o.amount || 0), 0);
+  const baseValue = (o: (typeof items)[number]) => o.amount_base ?? 0;
+  const openValue = open.reduce((s, o) => s + baseValue(o), 0);
   const weightedValue = open.reduce(
-    (s, o) => s + ((o.amount || 0) * o.probability) / 100,
+    (s, o) => s + (baseValue(o) * o.probability) / 100,
     0,
   );
   const winRate =
@@ -48,7 +49,7 @@ export function CrmSnapshot() {
       : 0;
 
   const topThree = [...open]
-    .sort((a, b) => (b.amount || 0) - (a.amount || 0))
+    .sort((a, b) => baseValue(b) - baseValue(a))
     .slice(0, 3);
 
   return (
@@ -156,12 +157,22 @@ export function CrmSnapshot() {
                       {opp.organisation.name} · {opp.stage}
                     </div>
                   </div>
-                  <span className="text-[11px] font-semibold text-gray-900 tabular-nums flex-shrink-0">
-                    {opp.currency}{' '}
-                    {(opp.amount || 0).toLocaleString(undefined, {
-                      maximumFractionDigits: 0,
-                    })}
-                  </span>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-[11px] font-semibold text-gray-900 tabular-nums">
+                      {opp.currency}{' '}
+                      {(opp.amount || 0).toLocaleString(undefined, {
+                        maximumFractionDigits: 0,
+                      })}
+                    </div>
+                    {opp.currency !== 'GHS' && (
+                      <div className="text-[9px] text-gray-400 tabular-nums">
+                        ≈ GHS{' '}
+                        {baseValue(opp).toLocaleString(undefined, {
+                          maximumFractionDigits: 0,
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </button>
               ))}
             </div>

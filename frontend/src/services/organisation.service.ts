@@ -56,7 +56,7 @@ export interface OrganisationListParams {
 
 export const organisationService = {
   async list(params?: OrganisationListParams): Promise<OrganisationListResponse> {
-    const { data } = await api.get<Organisation[]>('/organisation', { params });
+    const { data } = await api.get<Organisation[]>('/organisation/', { params });
     // Backend returns a raw array — wrap it into a response shape
     return { items: data, total: data.length };
   },

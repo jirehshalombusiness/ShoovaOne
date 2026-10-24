@@ -221,5 +221,5 @@ function SmallTile({
         {value}
       </div>
     </div>
-  );
+  ); 
 }

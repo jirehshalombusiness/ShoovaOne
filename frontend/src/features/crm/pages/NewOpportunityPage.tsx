@@ -5,10 +5,10 @@ import {
   ArrowLeft,
   Save,
   AlertCircle,
+  ArrowLeftRight,
   Building2,
   User,
   DollarSign,
-  Calendar,
   Target,
   Users,
   FileText,
@@ -62,12 +62,19 @@ export function NewOpportunityPage() {
   const [competitorInput, setCompetitorInput] = useState('');
   const [documentInput, setDocumentInput] = useState('');
 
+  // Load supported currencies and live GHS rates
+  const { data: rates } = useQuery({
+    queryKey: ['crm', 'currency-rates'],
+    queryFn: () => crmService.getCurrencyRates(),
+    staleTime: 30 * 60_000,
+  });
+
   // Load organisations
   const { data: orgs } = useQuery({
     queryKey: ['organisations', 'for-select'],
     queryFn: async (): Promise<OrgOption[]> => {
       try {
-        const { data } = await api.get<OrgOption[]>('/organisation');
+        const { data } = await api.get<OrgOption[]>('/organisation/');
         return data;
       } catch {
         return [];
@@ -138,6 +145,25 @@ export function NewOpportunityPage() {
   const removeDocument = (idx: number) => {
     updateField('required_documents', (form.required_documents || []).filter((_, i) => i !== idx));
   };
+
+  const selectedCurrencyCode = form.currency ?? 'GHS';
+  const selectedCurrency = rates?.currencies.find(
+    (currency) => currency.code === selectedCurrencyCode,
+  );
+  const fxRate = rates?.rates[selectedCurrencyCode];
+  const baseAmount =
+    form.amount != null && fxRate ? form.amount * fxRate : null;
+  const rateUpdatedAt = rates?.updated_at
+    ? new Date(rates.updated_at)
+    : null;
+  const rateUpdatedLabel =
+    rateUpdatedAt && !Number.isNaN(rateUpdatedAt.getTime())
+      ? rateUpdatedAt.toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      : null;
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -259,32 +285,38 @@ export function NewOpportunityPage() {
         {/* ============================================================ */}
         <Section icon={DollarSign} title="Value & Timing">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <Field label="Amount">
-                <div className="flex gap-1">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.amount ?? ''}
-                    onChange={(e) =>
-                      updateField('amount', e.target.value ? Number(e.target.value) : undefined)
-                    }
-                    placeholder="0.00"
-                    className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-              </Field>
-            </div>
+            <Field label="Amount">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-400">
+                  {selectedCurrency?.symbol ?? selectedCurrencyCode}
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.amount ?? ''}
+                  onChange={(e) =>
+                    updateField('amount', e.target.value ? Number(e.target.value) : undefined)
+                  }
+                  placeholder="0.00"
+                  className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-md text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            </Field>
 
             <Field label="Currency">
-              <input
-                type="text"
-                maxLength={3}
-                value={form.currency ?? 'GHS'}
-                onChange={(e) => updateField('currency', e.target.value.toUpperCase())}
-                className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
+              <select
+                value={selectedCurrencyCode}
+                onChange={(e) => updateField('currency', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                {(rates?.currencies ?? []).map((currency) => (
+                  <option key={currency.code} value={currency.code}>
+                    {currency.code} — {currency.name}
+                  </option>
+                ))}
+                {!rates && <option value="GHS">GHS — Ghanaian Cedi</option>}
+              </select>
             </Field>
 
             <Field label="Amount type">
@@ -307,6 +339,75 @@ export function NewOpportunityPage() {
                 className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </Field>
+
+            {form.amount != null && form.amount > 0 && (
+              <div className="md:col-span-4 rounded-md border border-primary/15 bg-primary/[0.03] px-3.5 py-3">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-md bg-white border border-primary/15 flex items-center justify-center flex-shrink-0">
+                      <ArrowLeftRight className="w-3.5 h-3.5 text-primary" />
+                    </div>
+                    <div>
+                      {selectedCurrencyCode === 'GHS' ? (
+                        <>
+                          <div className="text-[12px] font-medium text-gray-800">
+                            Recorded in GHS
+                          </div>
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            Pipeline and reports use GHS as the standard currency.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-[11px] font-medium text-gray-500">
+                            Standardised value
+                          </div>
+                          <div className="text-lg font-bold text-gray-900 tabular-nums">
+                            ≈ GHS{' '}
+                            {baseAmount != null
+                              ? baseAmount.toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })
+                              : '—'}
+                          </div>
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            {fxRate
+                              ? `1 ${selectedCurrencyCode} = ${fxRate.toFixed(4)} GHS`
+                              : 'Fetching today’s rate…'}
+                            {rateUpdatedLabel && (
+                              <>
+                                {' · '}
+                                {rates?.source === 'live' ? 'live rate' : 'fallback rate'},{' '}
+                                {rateUpdatedLabel}
+                              </>
+                            )}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                      Original value
+                    </div>
+                    <div className="text-[12px] font-semibold text-gray-700 tabular-nums">
+                      {selectedCurrencyCode}{' '}
+                      {form.amount.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-gray-400 mt-2 pl-9">
+                  We keep the original currency and convert it automatically for
+                  pipeline totals and reports.
+                </p>
+              </div>
+            )}
 
             <Field label="Expected start">
               <input

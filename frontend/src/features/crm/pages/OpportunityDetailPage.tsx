@@ -267,6 +267,14 @@ export function OpportunityDetailPage() {
                 {opp.currency}{' '}
                 {opp.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </div>
+              {opp.currency !== 'GHS' && opp.amount_base != null && (
+                <div className="text-[11px] text-gray-600 mt-0.5 tabular-nums">
+                  ≈ GHS{' '}
+                  {opp.amount_base.toLocaleString(undefined, {
+                    maximumFractionDigits: 0,
+                  })}
+                </div>
+              )}
               <div className="text-[11px] text-gray-500 mt-0.5">
                 {opp.amount_type.replace(/_/g, ' ')}
               </div>
@@ -592,6 +600,14 @@ export function OpportunityDetailPage() {
                   {opp.currency}{' '}
                   {opp.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </div>
+                {opp.currency !== 'GHS' && opp.amount_base != null && (
+                  <div className="text-xs text-gray-600 mt-0.5 tabular-nums">
+                    ≈ GHS{' '}
+                    {opp.amount_base.toLocaleString(undefined, {
+                      maximumFractionDigits: 0,
+                    })}
+                  </div>
+                )}
                 <div className="text-xs text-gray-500 capitalize">
                   {opp.amount_type.replace(/_/g, ' ')}
                 </div>

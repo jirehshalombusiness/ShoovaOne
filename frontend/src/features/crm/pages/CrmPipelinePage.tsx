@@ -175,9 +175,9 @@ export function CrmPipelinePage() {
     const open = filtered.filter(
       (o) => o.stage !== 'won' && o.stage !== 'lost',
     );
-    const total = open.reduce((sum, o) => sum + (o.amount || 0), 0);
+    const total = open.reduce((sum, o) => sum + (o.amount_base || 0), 0);
     const weighted = open.reduce(
-      (sum, o) => sum + ((o.amount || 0) * o.probability) / 100,
+      (sum, o) => sum + ((o.amount_base || 0) * o.probability) / 100,
       0,
     );
     return { openCount: open.length, total, weighted };
@@ -281,7 +281,7 @@ export function CrmPipelinePage() {
         >
           {visibleStages.map((stage) => {
             const items = byStage[stage.key];
-            const stageValue = items.reduce((s, o) => s + (o.amount || 0), 0);
+            const stageValue = items.reduce((s, o) => s + (o.amount_base || 0), 0);
             const isDropTarget = dropTargetStage === stage.key;
 
             return (
@@ -447,11 +447,22 @@ function KanbanCard({
       </div>
 
       {opportunity.amount != null && (
-        <div className="text-[13px] font-bold text-gray-900 tabular-nums mb-1">
-          {opportunity.currency}{' '}
-          {opportunity.amount.toLocaleString(undefined, {
-            maximumFractionDigits: 0,
-          })}
+        <div className="mb-1">
+          <div className="text-[13px] font-bold text-gray-900 tabular-nums">
+            {opportunity.currency}{' '}
+            {opportunity.amount.toLocaleString(undefined, {
+              maximumFractionDigits: 0,
+            })}
+          </div>
+          {opportunity.currency !== 'GHS' &&
+            opportunity.amount_base != null && (
+              <div className="text-[9px] text-gray-500 tabular-nums">
+                ≈ GHS{' '}
+                {opportunity.amount_base.toLocaleString(undefined, {
+                  maximumFractionDigits: 0,
+                })}
+              </div>
+            )}
         </div>
       )}
 
