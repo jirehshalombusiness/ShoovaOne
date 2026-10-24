@@ -88,7 +88,7 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: CalendarDays,
         label: 'Meetings',
         path: '/meetings',
-        // no permission — everyone can schedule and view their own
+        permission: 'meetings.view',
       },
 
       {

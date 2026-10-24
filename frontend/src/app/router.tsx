@@ -123,16 +123,18 @@ import { FinancialReportsPage } from '../features/finance/pages/FinancialReports
 // ============================================================
 // AUDIT
 // ============================================================
-
-// Meeting pages
-import { MeetingsLayout } from '@/features/meetings/layouts/MeetingsLayout';
-import { MeetingsListPage } from '@/features/meetings/pages/MeetingsListPage';
-import { MeetingDetailPage } from '@/features/meetings/pages/MeetingDetailPage';
-import { NewMeetingPage } from '@/features/meetings/pages/NewMeetingPage';
-
 import { AuditLogsPage } from '@/features/audit/pages/AuditLogsPage';
 import { RolesPermissionsPage } from '@/features/roles/pages/RolesPermissionsPage';
 // ============================================================
+
+// MEETINGS
+import { MeetingsLayout } from '@/features/meetings/layouts/MeetingsLayout';
+import { MeetingsListPage } from '@/features/meetings/pages/MeetingsListPage';
+import { NewMeetingPage } from '@/features/meetings/pages/NewMeetingPage';
+import { MeetingDetailPage } from '@/features/meetings/pages/MeetingDetailPage';
+
+
+
 // HELPERS
 // ============================================================
 
@@ -557,6 +559,18 @@ export function AppRouter() {
 
           </Route>
 
+        {/* ======================================================= */}
+        {/* MEETINGS                                                */}
+        {/* ======================================================= */}
+
+        <Route path="meetings" element={<MeetingsLayout />}>
+          <Route index element={<MeetingsListPage />} />
+          <Route path="today" element={<MeetingsListPage />} />
+          <Route path="past" element={<MeetingsListPage />} />
+          <Route path="new" element={<NewMeetingPage />} />
+          <Route path=":id" element={<MeetingDetailPage />} />
+        </Route>
+
           {/* ======================================================= */}
           {/* PROJECTS                                                */}
           {/* ======================================================= */}
@@ -842,13 +856,7 @@ export function AppRouter() {
               path="payments/:paymentId"
               element={<PaymentDetailPage />}
             />
-            <Route path="meetings" element={<MeetingsLayout />}>
-              <Route index element={<MeetingsListPage />} />
-              <Route path="today" element={<MeetingsListPage />} />
-              <Route path="past" element={<MeetingsListPage />} />
-              <Route path="new" element={<NewMeetingPage />} />
-              <Route path=":id" element={<MeetingDetailPage />} />
-            </Route>
+
 
             {/* ----------------------------------------------------- */}
             {/* PLANNING                                              */}
