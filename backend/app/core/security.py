@@ -275,5 +275,12 @@ class Permissions:
     DOCUMENTS_VIEW = "documents.view"
     DOCUMENTS_UPLOAD = "documents.upload"
 
+    # ============================================
+    # MEETINGS
+    # ============================================
+    MEETINGS_VIEW = "meetings.view"
+    MEETINGS_CREATE = "meetings.create"
+    MEETINGS_EDIT = "meetings.edit"
+    MEETINGS_CANCEL = "meetings.cancel"
 
     
