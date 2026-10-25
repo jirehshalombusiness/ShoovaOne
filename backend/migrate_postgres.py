@@ -365,6 +365,18 @@ async def migrate():
             ("finance", "view", "View finance data"),
             ("finance", "approve", "Approve finance records"),
 
+            # PAYROLL
+            ("payroll", "view", "View payroll records"),
+            ("payroll", "view_all", "View payroll records for all employees"),
+            ("payroll", "view_own", "View own payslips and pay profile"),
+            ("payroll", "prepare", "Prepare pay periods and pay runs"),
+            ("payroll", "review_hr", "Submit payroll to Finance on behalf of HR"),
+            ("payroll", "review_finance", "Review payroll at the Finance stage"),
+            ("payroll", "approve", "Give final approval for payroll"),
+            ("payroll", "disburse", "Create, approve and reconcile disbursements"),
+            ("payroll", "config", "Manage payroll configuration"),
+            ("payroll", "reports", "View payroll reports and statutory remittances"),
+
             # USERS & ROLES
             ("users", "manage", "Manage user accounts"),
             ("roles", "manage", "Manage roles and permissions"),
@@ -448,6 +460,43 @@ async def migrate():
             # -----------------------------------------------------
             if role_name == "ceo":
                 return True
+
+            # -----------------------------------------------------
+            # PAYROLL
+            # Payroll follows a separate approval chain and must not
+            # be inherited from the generic rules below.
+            # -----------------------------------------------------
+            if resource == "payroll":
+                if role_name == "head_of_hr":
+                    return action in (
+                        "view",
+                        "view_all",
+                        "view_own",
+                        "prepare",
+                        "review_hr",
+                        "config",
+                        "reports",
+                    )
+
+                if role_name == "executive_director":
+                    return action in (
+                        "view",
+                        "view_all",
+                        "view_own",
+                        "approve",
+                        "reports",
+                    )
+
+                if role_name == "system_admin":
+                    return action in (
+                        "view_all",
+                        "config",
+                    )
+
+                if role_name in ("director", "manager", "staff", "volunteer"):
+                    return action == "view_own"
+
+                return False
 
             # -----------------------------------------------------
             # SYSTEM ADMINISTRATOR

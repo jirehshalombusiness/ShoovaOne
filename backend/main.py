@@ -6,8 +6,9 @@ from contextlib import asynccontextmanager
 import traceback
 
 from app.core.config import settings
-from app.core.database import engine, Base
+from app.core.database import engine, Base, AsyncSessionLocal
 from app.api.v1 import api_router
+from app.services.core.permission_service import PermissionService
 
 # Import ALL models so they register with SQLAlchemy
 import app.models.sql  # noqa: F401
@@ -26,7 +27,18 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"❌ Database error: {e}")
         traceback.print_exc()
-    
+
+    # Make newly shipped permissions assignable without a manual migration.
+    try:
+        async with AsyncSessionLocal() as session:
+            created = await PermissionService.ensure_permission_catalog(session)
+        if created:
+            print(f"✅ Added {created} permission(s) from the catalog")
+        else:
+            print("✅ Permission catalog is up to date")
+    except Exception as e:
+        print(f"⚠️ Permission catalog sync skipped: {e}")
+
     # Start the meeting reminder scheduler
     start_scheduler()
     

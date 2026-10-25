@@ -897,7 +897,8 @@ function WinLossDonut({ won, lost }: { won: number; lost: number }) {
           cy="18"
           r="15.915"
           fill="none"
-          stroke="#f3f4f6"
+          className="text-gray-200"
+          stroke="currentColor"
           strokeWidth="4"
         />
         {total > 0 && (
@@ -906,7 +907,8 @@ function WinLossDonut({ won, lost }: { won: number; lost: number }) {
             cy="18"
             r="15.915"
             fill="none"
-            stroke="#10b981"
+            className="text-emerald-500"
+            stroke="currentColor"
             strokeWidth="4"
             strokeLinecap="round"
             pathLength={100}

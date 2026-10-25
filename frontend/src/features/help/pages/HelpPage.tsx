@@ -222,7 +222,7 @@ export function HelpPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Hero */}
-      <section className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-900 to-gray-800 px-6 py-8 text-white">
+      <section className="rounded-xl border border-border bg-gradient-to-br from-primary to-primary-dark px-6 py-8 text-white">
         <div className="max-w-2xl">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60">
             Help & Support
@@ -236,12 +236,12 @@ export function HelpPage() {
           </p>
 
           <div className="relative mt-5">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search help articles..."
-              className="w-full pl-10 pr-4 py-2.5 bg-white text-gray-900 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/30"
+              className="w-full pl-10 pr-4 py-2.5 bg-card text-text rounded-lg text-sm placeholder:text-muted border border-border focus:outline-none focus:ring-2 focus:ring-white/30"
             />
           </div>
         </div>
@@ -249,7 +249,7 @@ export function HelpPage() {
 
       {/* Quick links */}
       <section>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">
+        <h2 className="text-sm font-semibold text-text mb-3">
           Quick links
         </h2>
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
@@ -259,21 +259,21 @@ export function HelpPage() {
               <Link
                 key={link.path}
                 to={link.path}
-                className="group bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 hover:shadow-sm transition-all"
+                className="group bg-card border border-border rounded-lg p-4 hover:border-gray-300 hover:shadow-sm transition-all"
               >
                 <div className="flex items-start justify-between">
                   <div className="w-9 h-9 rounded-lg bg-gray-50 flex items-center justify-center">
                     <Icon
-                      className="w-4 h-4 text-gray-500"
+                      className="w-4 h-4 text-muted"
                       strokeWidth={1.75}
                     />
                   </div>
                   <ArrowRight className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-                <div className="text-sm font-semibold text-gray-900 mt-3">
+                <div className="text-sm font-semibold text-text mt-3">
                   {link.label}
                 </div>
-                <div className="text-[11px] text-gray-500 mt-0.5">
+                <div className="text-[11px] text-muted mt-0.5">
                   {link.description}
                 </div>
               </Link>
@@ -283,13 +283,13 @@ export function HelpPage() {
       </section>
 
       {/* FAQ */}
-      <section className="bg-white border border-gray-200 rounded-lg">
+      <section className="bg-card border border-border rounded-lg">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="text-sm font-semibold text-gray-900">
+            <h2 className="text-sm font-semibold text-text">
               Frequently asked questions
             </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-muted mt-0.5">
               {filteredFaqs.length} article
               {filteredFaqs.length === 1 ? '' : 's'}
             </p>
@@ -304,8 +304,8 @@ export function HelpPage() {
               className={cn(
                 'px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors',
                 category === option
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-600 hover:bg-gray-100',
+                  ? 'bg-primary text-white'
+                  : 'text-muted hover:bg-gray-100 hover:text-text',
               )}
             >
               {option}
@@ -319,7 +319,7 @@ export function HelpPage() {
             <p className="text-sm font-medium text-gray-700">
               No articles match “{query}”
             </p>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted mt-1">
               Try a different word, or contact support below.
             </p>
           </div>
@@ -336,10 +336,10 @@ export function HelpPage() {
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-sm font-medium text-text">
                           {faq.question}
                         </span>
-                        <span className="px-1.5 py-0.5 rounded bg-gray-100 text-[9px] font-semibold uppercase tracking-wider text-gray-500">
+                        <span className="px-1.5 py-0.5 rounded bg-gray-100 text-[9px] font-semibold uppercase tracking-wider text-muted">
                           {faq.category}
                         </span>
                       </div>
@@ -364,17 +364,17 @@ export function HelpPage() {
       </section>
 
       {/* Support */}
-      <section className="bg-white border border-gray-200 rounded-lg p-5">
+      <section className="bg-card border border-border rounded-lg p-5">
         <div className="flex items-start gap-4">
           <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
             <LifeBuoy className="w-5 h-5 text-primary" strokeWidth={1.75} />
           </div>
 
           <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-semibold text-gray-900">
+            <h2 className="text-sm font-semibold text-text">
               Still need help?
             </h2>
-            <p className="text-xs text-gray-500 mt-1 max-w-2xl">
+            <p className="text-xs text-muted mt-1 max-w-2xl">
               Your HR administrator can help with people records, leave and
               approvals. Your system administrator can help with access,
               passwords and technical issues.
@@ -401,7 +401,7 @@ export function HelpPage() {
 
               <Link
                 to="/me"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border rounded-md text-xs font-medium text-text hover:bg-gray-50 transition-colors"
               >
                 <UserCircle2 className="w-3.5 h-3.5" />
                 Open My HR
@@ -409,7 +409,7 @@ export function HelpPage() {
 
               <Link
                 to="/settings"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-md text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border rounded-md text-xs font-medium text-text hover:bg-gray-50 transition-colors"
               >
                 <Settings className="w-3.5 h-3.5" />
                 Settings
