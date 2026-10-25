@@ -23,13 +23,15 @@ export function TopBar({ onMenuClick }: TopBarProps) {
       : 'Ctrl K';
 
   useEffect(() => {
-    const main = document.querySelector('main');
-    if (!main) return;
+    const handleScroll = (event: Event) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && target.tagName === 'MAIN') {
+        setScrolled(target.scrollTop > 0);
+      }
+    };
 
-    const handleScroll = () => setScrolled(main.scrollTop > 0);
-
-    main.addEventListener('scroll', handleScroll);
-    return () => main.removeEventListener('scroll', handleScroll);
+    document.addEventListener('scroll', handleScroll, true);
+    return () => document.removeEventListener('scroll', handleScroll, true);
   }, []);
 
   useEffect(() => {

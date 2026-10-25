@@ -5,17 +5,16 @@ import { Person } from '@/types/person.types';
 import { Search, Filter, Plus, User, Mail, Phone, Building2, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '@/hooks/useDebounce';
-import { useAuth } from '@/lib/auth';
+import { useHRAccess } from '@/hooks/useHRAccess';
 import { Avatar } from '@/components/ui/Avatar';
 
 interface PeopleDirectoryProps {
   onSelectPerson?: (person: Person) => void;
-  onAddPerson?: () => void;
 }
 
-export function PeopleDirectory({ onSelectPerson, onAddPerson }: PeopleDirectoryProps) {
+export function PeopleDirectory({ onSelectPerson }: PeopleDirectoryProps) {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const access = useHRAccess();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<PeopleFilters>({});
   const [showFilters, setShowFilters] = useState(false);
@@ -112,9 +111,9 @@ export function PeopleDirectory({ onSelectPerson, onAddPerson }: PeopleDirectory
           <Filter className="h-4 w-4" />
           Filters
         </button>
-        {user?.permissions.includes('people.create') && (
+        {access.has('people.create') && (
           <button
-            onClick={onAddPerson}
+            onClick={() => navigate('/people/new')}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark transition-colors"
           >
             <Plus className="h-4 w-4" />

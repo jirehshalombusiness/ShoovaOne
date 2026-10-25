@@ -892,6 +892,7 @@ async def get_hr_timesheet_overview(
         .where(
             Person.deleted_at.is_(None),
             Person.status == "active",
+            Person.type == "staff",
         )
         .group_by(
             Person.id,
@@ -911,7 +912,10 @@ async def get_hr_timesheet_overview(
             func.coalesce(func.sum(TimesheetEntry.overtime_minutes), 0),
         )
         .join(TimesheetEntry, TimesheetEntry.timesheet_id == Timesheet.id)
+        .join(Person, Person.id == Timesheet.person_id)
         .where(
+            Person.type == "staff",
+            Person.deleted_at.is_(None),
             Timesheet.week_end_date >= start_date,
             Timesheet.week_start_date <= end_date,
             TimesheetEntry.date >= start_date,
@@ -975,9 +979,13 @@ async def get_hr_timesheet_overview(
                 0,
             ),
         )
+        .join(Person, Person.id == Timesheet.person_id)
         .where(
             Timesheet.week_end_date >= start_date,
             Timesheet.week_start_date <= end_date,
+            Person.type == "staff",
+            Person.deleted_at.is_(None),
+            Person.status == "active",
         )
         .group_by(Timesheet.week_start_date, Timesheet.week_end_date)
         .order_by(Timesheet.week_start_date)

@@ -140,7 +140,7 @@ export function PayrollLayout() {
   };
 
   return (
-    <div className="flex gap-6 -m-4 lg:-m-6 min-h-[calc(100vh-56px)]">
+    <div className="flex gap-6 -m-4 lg:-m-6 min-h-[calc(100vh-56px)] lg:h-[calc(100vh-56px)] lg:min-h-0 lg:overflow-hidden">
       {/* Secondary sidebar */}
       <aside className="hidden lg:flex flex-col w-[220px] flex-shrink-0 border-r border-gray-200 bg-white">
         <div className="px-4 py-5 border-b border-gray-100">
@@ -243,7 +243,7 @@ export function PayrollLayout() {
       </div>
 
       {/* Content */}
-      <main className="flex-1 min-w-0 py-4 lg:py-6 pr-4 lg:pr-6 pb-24 lg:pb-6">
+      <main className="flex-1 min-w-0 py-4 lg:py-6 pr-4 lg:pr-6 pb-24 lg:pb-6 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain">
         <Outlet />
       </main>
     </div>

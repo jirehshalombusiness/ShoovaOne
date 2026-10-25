@@ -16,10 +16,12 @@ import { format } from 'date-fns';
 import { hrService, type AdminLeaveRequest } from '@/services/hr.service';
 import { Avatar } from '@/components/ui/Avatar';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useHRAccess } from '@/hooks/useHRAccess';
 import { cn } from '@/lib/utils';
 
 export function HRTimeOffPage() {
   const navigate = useNavigate();
+  const access = useHRAccess();
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('');
@@ -89,12 +91,14 @@ export function HRTimeOffPage() {
             Organisation-wide leave requests, balances, and calendar
           </p>
         </div>
-        <button
-          onClick={() => navigate('/hr/leave-policies')}
-          className="flex items-center gap-2 px-3.5 py-2 border border-gray-200 bg-white rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-        >
-          Leave Policies
-        </button>
+        {access.canEditLeave && (
+          <button
+            onClick={() => navigate('/hr/settings')}
+            className="flex items-center gap-2 px-3.5 py-2 border border-gray-200 bg-white rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Leave Policies
+          </button>
+        )}
       </div>
 
       {/* KPI strip */}

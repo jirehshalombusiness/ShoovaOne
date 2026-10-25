@@ -40,6 +40,11 @@ export interface Person {
   country?: string | null;
   postal_code?: string | null;
 
+  // Emergency contact
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  emergency_contact_relationship?: string | null;
+
   // Profile
   profile_image_url?: string | null;
   bio?: string | null;

@@ -196,8 +196,8 @@ export function HRTimesheetsOverviewPage() {
       : 0;
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="space-y-5 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:gap-5 lg:space-y-0">
+      <div className="flex flex-wrap items-start justify-between gap-4 lg:flex-shrink-0">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Timesheets</h2>
           <p className="mt-0.5 text-sm text-gray-500">
@@ -228,7 +228,7 @@ export function HRTimesheetsOverviewPage() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <div className="rounded-lg border border-gray-200 bg-white p-4 lg:flex-shrink-0">
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="mb-1 block text-[11px] font-semibold text-gray-600" htmlFor="ts-start">
@@ -282,15 +282,16 @@ export function HRTimesheetsOverviewPage() {
         </div>
       </div>
 
-      {query.error && (
-        <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-          <div>
-            <p className="font-semibold">Unable to load timesheet overview</p>
-            <p className="mt-0.5 text-xs leading-5">{getErrorMessage(query.error)}</p>
+      <div className="space-y-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
+        {query.error && (
+          <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            <div>
+              <p className="font-semibold">Unable to load timesheet overview</p>
+              <p className="mt-0.5 text-xs leading-5">{getErrorMessage(query.error)}</p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {query.isLoading ? (
         <div className="flex min-h-[260px] items-center justify-center rounded-lg border border-gray-200 bg-white text-sm text-gray-500">
@@ -493,6 +494,7 @@ export function HRTimesheetsOverviewPage() {
           </div>
         </>
       ) : null}
+      </div>
     </div>
   );
 }

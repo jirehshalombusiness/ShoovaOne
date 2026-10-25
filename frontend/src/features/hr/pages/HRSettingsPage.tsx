@@ -48,15 +48,15 @@ export function HRSettingsPage() {
   ];
 
   return (
-    <div className="space-y-5">
-      <div>
+    <div className="space-y-5 lg:flex lg:h-full lg:min-h-0 lg:flex-col lg:gap-5 lg:space-y-0">
+      <div className="lg:flex-shrink-0">
         <h2 className="text-xl font-bold text-gray-900">HR Settings</h2>
         <p className="text-sm text-gray-500 mt-0.5">
           Configure leave policies and public holidays
         </p>
       </div>
 
-      <div className="border-b border-gray-200">
+      <div className="border-b border-gray-200 lg:flex-shrink-0">
         <nav className="flex gap-1 overflow-x-auto -mb-px">
           {tabs.map((t) => {
             const Icon = t.icon;
@@ -80,8 +80,10 @@ export function HRSettingsPage() {
         </nav>
       </div>
 
-      {tab === 'leave-types' && <LeaveTypesSection />}
-      {tab === 'holidays' && <HolidaysSection />}
+      <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
+        {tab === 'leave-types' && <LeaveTypesSection />}
+        {tab === 'holidays' && <HolidaysSection />}
+      </div>
     </div>
   );
 }

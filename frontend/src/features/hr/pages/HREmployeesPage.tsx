@@ -14,10 +14,12 @@ import {
 import { hrService, type EmployeeListItem } from '@/services/hr.service';
 import { Avatar } from '@/components/ui/Avatar';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useHRAccess } from '@/hooks/useHRAccess';
 import { cn } from '@/lib/utils';
 
 export function HREmployeesPage() {
   const navigate = useNavigate();
+  const access = useHRAccess();
 
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -86,13 +88,15 @@ export function HREmployeesPage() {
             )}
           </p>
         </div>
-        <button
-          onClick={() => navigate('/people/new')}
-          className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-dark transition-colors"
-        >
-          <UserPlus className="w-4 h-4" />
-          Add Person to Directory
-        </button>
+        {access.has('people.create') && (
+          <button
+            onClick={() => navigate('/people/new')}
+            className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-dark transition-colors"
+          >
+            <UserPlus className="w-4 h-4" />
+            Add Person to Directory
+          </button>
+        )}
       </div>
 
       {/* Filters */}
