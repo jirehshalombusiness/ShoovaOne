@@ -27,6 +27,8 @@ import {
   DollarSign,
   Bell,
   HelpCircle,
+  Wallet,
+  Receipt,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -174,6 +176,21 @@ export const NAV_SECTIONS: NavSection[] = [
         path: '/finance',
         permission: 'finance.view',
       },
+      {
+        icon: Wallet,
+        label: 'Payroll',
+        path: '/payroll',
+        permission: [
+          'payroll.view_all',
+          'payroll.prepare',
+          'payroll.review_hr',
+          'payroll.review_finance',
+          'payroll.approve',
+          'payroll.disburse',
+          'payroll.reports',
+          'payroll.config',
+        ],
+      },
     ],
   },
 
@@ -227,6 +244,7 @@ export const ME_TABS: NavItem[] = [
   { icon: Inbox, label: 'Approvals', path: '/me/approvals' },
   { icon: CalendarDays, label: 'Time Off', path: '/me/time-off' },
   { icon: DollarSign, label: 'Compensation', path: '/me/compensation' },
+  { icon: Receipt, label: 'Payslips', path: '/me/payslips' },
   { icon: FileText, label: 'Documents', path: '/me/documents' },
   { icon: FileSignature, label: 'Contract', path: '/me/contract' },
   { icon: Laptop, label: 'Devices', path: '/me/devices' },
@@ -238,6 +256,7 @@ export const HR_TABS: NavItem[] = [
   { icon: Inbox, label: 'Approvals', path: '/hr/approvals' },
   { icon: Users, label: 'Employees', path: '/hr/employees' },
   { icon: CalendarDays, label: 'Time Off', path: '/hr/time-off' },
+  { icon: Clock, label: 'Timesheets', path: '/hr/timesheets' },
   { icon: Award, label: 'Celebrations', path: '/hr/celebrations' },
   { icon: FileText, label: 'Documents', path: '/hr/documents' },
   { icon: DollarSign, label: 'Compensation', path: '/hr/compensation' },

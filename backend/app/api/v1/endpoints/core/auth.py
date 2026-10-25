@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.email_utils import normalize_email
 from app.core.security import (
     create_access_token,
     get_current_user,
@@ -47,7 +48,7 @@ async def login(
             selectinload(User.person),
             selectinload(User.roles).selectinload(Role.permissions),
         )
-        .where(User.email == form_data.username.lower().strip())
+        .where(User.email == normalize_email(form_data.username).lower())
     )
 
     user = result.scalar_one_or_none()

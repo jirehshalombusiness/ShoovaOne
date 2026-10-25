@@ -65,6 +65,42 @@ export interface TimesheetAnalytics {
   by_project: { name: string; hours: number }[];
 }
 
+export interface HROverviewEmployee {
+  person_id: string;
+  person_name: string;
+  employee_number: string | null;
+  department: string | null;
+  timesheet_count: number;
+  total_hours: number;
+  expected_hours: number;
+  approved_hours: number;
+  submitted_hours: number;
+  draft_hours: number;
+  overtime_hours: number;
+}
+
+export interface HROverviewWeek {
+  week_start: string;
+  week_end: string;
+  employee_count: number;
+  total_hours: number;
+  approved_hours: number;
+}
+
+export interface HROverview {
+  start_date: string;
+  end_date: string;
+  summary: {
+    employee_count: number;
+    total_hours: number;
+    approved_hours: number;
+    submitted_hours: number;
+    overtime_hours: number;
+  };
+  employees: HROverviewEmployee[];
+  by_week: HROverviewWeek[];
+}
+
 function toNumber(value: number | string | null | undefined, fallback = 0): number {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -150,6 +186,21 @@ export const timesheetService = {
 
   async getApprovalHistory(timesheetId: string): Promise<any[]> {
     const response = await api.get(`/timesheets/history/${timesheetId}`);
+    return response.data;
+  },
+
+  async getHROverview(params: {
+    start_date: string;
+    end_date: string;
+    status?: string;
+  }): Promise<HROverview> {
+    const response = await api.get<HROverview>('/timesheets/hr-overview', {
+      params: {
+        start_date: params.start_date,
+        end_date: params.end_date,
+        ...(params.status ? { status: params.status } : {}),
+      },
+    });
     return response.data;
   },
 };

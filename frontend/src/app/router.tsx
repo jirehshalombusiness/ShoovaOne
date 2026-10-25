@@ -90,6 +90,21 @@ import { HRDocumentsPage } from '@/features/hr/pages/HRDocumentsPage';
 import { HRCompensationPage } from '@/features/hr/pages/HRCompensationPage';
 import { HRReportsPage } from '@/features/hr/pages/HRReportsPage';
 import { HRSettingsPage } from '@/features/hr/pages/HRSettingsPage';
+import { HRTimesheetsOverviewPage } from '@/features/hr/pages/HRTimesheetsOverviewPage';
+
+// ============================================================
+// PAYROLL
+// ============================================================
+
+import { PayrollLayout } from '@/features/payroll/PayrollLayout';
+import { PayrollOverviewPage } from '@/features/payroll/pages/PayrollOverviewPage';
+import { PayRunsPage } from '@/features/payroll/pages/PayRunsPage';
+import { PayRunDetailPage } from '@/features/payroll/pages/PayRunDetailPage';
+import { PayrollPeoplePage } from '@/features/payroll/pages/PayrollPeoplePage';
+import { PayrollDisbursementsPage } from '@/features/payroll/pages/PayrollDisbursementsPage';
+import { PayrollReportsPage } from '@/features/payroll/pages/PayrollReportsPage';
+import { PayrollConfigurationPage } from '@/features/payroll/pages/PayrollConfigurationPage';
+import { MePayslipsPage } from '@/features/payroll/pages/MePayslipsPage';
 
 // ============================================================
 // FINANCE
@@ -456,6 +471,11 @@ export function AppRouter() {
             />
 
             <Route
+              path="payslips"
+              element={<MePayslipsPage />}
+            />
+
+            <Route
               path="documents"
               element={<MeDocumentsPage />}
             />
@@ -566,6 +586,15 @@ export function AppRouter() {
               element={
                 <PermissionRoute permission="hr.view_compensation">
                   <HRCompensationPage />
+                </PermissionRoute>
+              }
+            />
+
+            <Route
+              path="timesheets"
+              element={
+                <PermissionRoute permission="hr.view_sensitive">
+                  <HRTimesheetsOverviewPage />
                 </PermissionRoute>
               }
             />
@@ -951,6 +980,38 @@ export function AppRouter() {
               }
             />
 
+          </Route>
+
+          {/* ======================================================= */}
+          {/* PAYROLL                                                 */}
+          {/* ======================================================= */}
+
+          <Route
+            path="payroll"
+            element={
+              <PermissionRoute
+                permission={[
+                  'payroll.view_all',
+                  'payroll.prepare',
+                  'payroll.review_hr',
+                  'payroll.review_finance',
+                  'payroll.approve',
+                  'payroll.disburse',
+                  'payroll.reports',
+                  'payroll.config',
+                ]}
+              >
+                <PayrollLayout />
+              </PermissionRoute>
+            }
+          >
+            <Route index element={<PayrollOverviewPage />} />
+            <Route path="runs" element={<PayRunsPage />} />
+            <Route path="runs/:runId" element={<PayRunDetailPage />} />
+            <Route path="people" element={<PayrollPeoplePage />} />
+            <Route path="disbursements" element={<PayrollDisbursementsPage />} />
+            <Route path="reports" element={<PayrollReportsPage />} />
+            <Route path="config" element={<PayrollConfigurationPage />} />
           </Route>
 
           {/* ======================================================= */}

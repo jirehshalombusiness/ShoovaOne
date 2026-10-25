@@ -24,6 +24,7 @@ export interface Person {
   organization?: string | null;
   organization_id?: string | null;
   position?: string | null;
+  employee_number?: string | null;
 
   // Org chart fields (NEW)
   job_title?: string | null;

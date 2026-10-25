@@ -9,7 +9,13 @@ const SECTION_PATHS: Array<{ label?: string; paths: string[] }> = [
   { paths: ['/me', '/me/approvals', '/me/time-off'] },
   {
     label: 'Records',
-    paths: ['/me/compensation', '/me/documents', '/me/contract', '/me/devices'],
+    paths: [
+      '/me/compensation',
+      '/me/payslips',
+      '/me/documents',
+      '/me/contract',
+      '/me/devices',
+    ],
   },
   { label: 'Account', paths: ['/me/profile'] },
 ];

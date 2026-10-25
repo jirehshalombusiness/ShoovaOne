@@ -1,12 +1,14 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, field_validator
 from datetime import datetime
 from typing import Optional, List
+
+from app.core.email_utils import ValidEmail
 
 
 class PersonBase(BaseModel):
     first_name: str
     last_name: str
-    email: Optional[EmailStr] = None
+    email: Optional[ValidEmail] = None
     phone: Optional[str] = None
     date_of_birth: Optional[datetime] = None
     gender: Optional[str] = None

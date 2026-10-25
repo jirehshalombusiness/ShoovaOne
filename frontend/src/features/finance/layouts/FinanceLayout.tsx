@@ -8,12 +8,15 @@ import {
   FileText,
   Landmark,
   Receipt,
+  Wallet,
+  CalendarRange,
+  Settings2,
 } from 'lucide-react';
 
 type FinanceNavItem = {
   label: string;
   path: string;
-  permission: string;
+  permission: string | string[];
   icon: React.ElementType;
 };
 
@@ -109,6 +112,52 @@ const sections: FinanceNavSection[] = [
     ],
   },
   {
+    title: 'Payroll',
+    items: [
+      {
+        label: 'Payroll Overview',
+        path: '/payroll',
+        permission: [
+          'payroll.view_all',
+          'payroll.prepare',
+          'payroll.review_hr',
+          'payroll.review_finance',
+          'payroll.approve',
+          'payroll.disburse',
+          'payroll.reports',
+        ],
+        icon: Wallet,
+      },
+      {
+        label: 'Pay Runs',
+        path: '/payroll/runs',
+        permission: [
+          'payroll.view_all',
+          'payroll.prepare',
+          'payroll.review_finance',
+          'payroll.approve',
+        ],
+        icon: CalendarRange,
+      },
+      {
+        label: 'Payroll Disbursements',
+        path: '/payroll/disbursements',
+        permission: [
+          'payroll.disburse',
+          'payroll.review_finance',
+          'payroll.approve',
+        ],
+        icon: Banknote,
+      },
+      {
+        label: 'Payroll Setup',
+        path: '/payroll/config',
+        permission: ['payroll.config'],
+        icon: Settings2,
+      },
+    ],
+  },
+  {
     title: 'Reporting',
     items: [
       {
@@ -132,8 +181,10 @@ export function FinanceLayout() {
 
   const permissions = user?.permissions ?? [];
 
-  const hasPermission = (permission: string) =>
-    permissions.includes(permission);
+  const hasPermission = (permission: string | string[]) =>
+    Array.isArray(permission)
+      ? permission.some((item) => permissions.includes(item))
+      : permissions.includes(permission);
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">

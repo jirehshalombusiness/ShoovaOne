@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import case, select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from datetime import datetime, date, timedelta, timezone
@@ -12,7 +12,7 @@ from app.models.sql.core.role import Role
 
 
 from app.core.database import get_db
-from app.core.security import require_permission, Permissions
+from app.core.security import require_permission, require_any_permission, Permissions
 from app.services.core.permission_service import PermissionService
 from app.services.core.audit_service import AuditService
 
@@ -771,8 +771,8 @@ async def get_team_timesheets(
     """
     Get timesheets for a specific week.
 
-    Users with timesheets.approve can access
-    the team approval view.
+    Managers see only their direct reports. HR administrators and
+    executives with organisation-wide access see everyone.
     """
 
     if not week_start:
@@ -781,16 +781,231 @@ async def get_team_timesheets(
             today - timedelta(days=today.weekday())
         )
 
-    result = await db.execute(
+    can_view_all = await PermissionService.has_permission(
+        db,
+        current_user.id,
+        Permissions.TIMESHEETS_EDIT_ANY,
+    )
+    if not can_view_all:
+        can_view_all = await PermissionService.has_permission(
+            db,
+            current_user.id,
+            Permissions.HR_VIEW_SENSITIVE,
+        )
+    if not can_view_all:
+        can_view_all = await PermissionService.has_permission(
+            db,
+            current_user.id,
+            Permissions.USERS_MANAGE,
+        )
+
+    query = (
         select(Timesheet)
         .options(selectinload(Timesheet.entries))
-        .where(
-            Timesheet.week_start_date == week_start
-        )
+        .where(Timesheet.week_start_date == week_start)
         .order_by(Timesheet.person_id)
     )
 
+    if not can_view_all:
+        query = query.where(
+            Timesheet.person_id.in_(
+                select(Person.id).where(
+                    Person.reports_to_id == current_user.person_id
+                )
+            )
+        )
+
+    result = await db.execute(query)
     return result.scalars().all()
+
+
+# ============================================================
+# HR TIMESHEET OVERVIEW
+# ============================================================
+
+@router.get("/hr-overview")
+async def get_hr_timesheet_overview(
+    start_date: date,
+    end_date: date,
+    timesheet_status: Optional[str] = Query(default=None, alias="status"),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(
+        require_any_permission(
+            [
+                Permissions.TIMESHEETS_EDIT_ANY,
+                Permissions.HR_VIEW_SENSITIVE,
+            ]
+        )
+    ),
+):
+    """
+    Organisation-wide timesheet totals for HR and payroll preparation.
+
+    Returns approved, submitted and draft hours per employee, plus
+    overtime hours and weekly totals for the requested date range.
+    """
+
+    if end_date < start_date:
+        raise HTTPException(
+            status_code=400,
+            detail="end_date must be on or after start_date",
+        )
+
+    overlap = (
+        (Timesheet.week_end_date >= start_date)
+        & (Timesheet.week_start_date <= end_date)
+    )
+    if timesheet_status:
+        overlap = overlap & (Timesheet.status == timesheet_status)
+
+    person_query = (
+        select(
+            Person.id,
+            Person.first_name,
+            Person.last_name,
+            Person.employee_number,
+            Person.department,
+            func.count(func.distinct(Timesheet.id)),
+            func.coalesce(func.sum(Timesheet.total_hours), 0),
+            func.coalesce(func.sum(Timesheet.expected_hours), 0),
+            func.coalesce(
+                func.sum(
+                    case((Timesheet.status == "approved", Timesheet.total_hours), else_=0)
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case((Timesheet.status == "submitted", Timesheet.total_hours), else_=0)
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case((Timesheet.status == "draft", Timesheet.total_hours), else_=0)
+                ),
+                0,
+            ),
+        )
+        .select_from(Person)
+        .outerjoin(Timesheet, (Timesheet.person_id == Person.id) & overlap)
+        .where(
+            Person.deleted_at.is_(None),
+            Person.status == "active",
+        )
+        .group_by(
+            Person.id,
+            Person.first_name,
+            Person.last_name,
+            Person.employee_number,
+            Person.department,
+        )
+        .order_by(Person.first_name, Person.last_name)
+    )
+
+    person_result = await db.execute(person_query)
+
+    overtime_query = (
+        select(
+            Timesheet.person_id,
+            func.coalesce(func.sum(TimesheetEntry.overtime_minutes), 0),
+        )
+        .join(TimesheetEntry, TimesheetEntry.timesheet_id == Timesheet.id)
+        .where(
+            Timesheet.week_end_date >= start_date,
+            Timesheet.week_start_date <= end_date,
+            TimesheetEntry.date >= start_date,
+            TimesheetEntry.date <= end_date,
+        )
+        .group_by(Timesheet.person_id)
+    )
+    overtime_result = await db.execute(overtime_query)
+    overtime_by_person = {
+        str(person_id): float(minutes or 0) / 60
+        for person_id, minutes in overtime_result.all()
+    }
+
+    employees = []
+    total_hours = 0.0
+    approved_hours = 0.0
+    submitted_hours = 0.0
+
+    for (
+        person_id,
+        first_name,
+        last_name,
+        employee_number,
+        department,
+        sheet_count,
+        hours,
+        expected,
+        approved,
+        submitted,
+        draft,
+    ) in person_result.all():
+        person_key = str(person_id)
+        employee = {
+            "person_id": person_key,
+            "person_name": f"{first_name} {last_name}".strip(),
+            "employee_number": employee_number,
+            "department": department,
+            "timesheet_count": int(sheet_count or 0),
+            "total_hours": round(float(hours or 0), 2),
+            "expected_hours": round(float(expected or 0), 2),
+            "approved_hours": round(float(approved or 0), 2),
+            "submitted_hours": round(float(submitted or 0), 2),
+            "draft_hours": round(float(draft or 0), 2),
+            "overtime_hours": round(overtime_by_person.get(person_key, 0), 2),
+        }
+        employees.append(employee)
+        total_hours += employee["total_hours"]
+        approved_hours += employee["approved_hours"]
+        submitted_hours += employee["submitted_hours"]
+
+    week_result = await db.execute(
+        select(
+            Timesheet.week_start_date,
+            Timesheet.week_end_date,
+            func.count(func.distinct(Timesheet.person_id)),
+            func.coalesce(func.sum(Timesheet.total_hours), 0),
+            func.coalesce(
+                func.sum(
+                    case((Timesheet.status == "approved", Timesheet.total_hours), else_=0)
+                ),
+                0,
+            ),
+        )
+        .where(
+            Timesheet.week_end_date >= start_date,
+            Timesheet.week_start_date <= end_date,
+        )
+        .group_by(Timesheet.week_start_date, Timesheet.week_end_date)
+        .order_by(Timesheet.week_start_date)
+    )
+    by_week = [
+        {
+            "week_start": week_start.isoformat(),
+            "week_end": week_end.isoformat(),
+            "employee_count": int(count or 0),
+            "total_hours": round(float(hours or 0), 2),
+            "approved_hours": round(float(approved or 0), 2),
+        }
+        for week_start, week_end, count, hours, approved in week_result.all()
+    ]
+
+    return {
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "summary": {
+            "employee_count": len([e for e in employees if e["timesheet_count"] > 0]),
+            "total_hours": round(total_hours, 2),
+            "approved_hours": round(approved_hours, 2),
+            "submitted_hours": round(submitted_hours, 2),
+            "overtime_hours": round(sum(e["overtime_hours"] for e in employees), 2),
+        },
+        "employees": employees,
+        "by_week": by_week,
+    }
 
 
 # ============================================================

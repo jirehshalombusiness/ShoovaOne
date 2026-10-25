@@ -237,6 +237,20 @@ class Permissions:
     FINANCE_APPROVE = "finance.approve"
 
     # ============================================
+    # PAYROLL
+    # ============================================
+    PAYROLL_VIEW = "payroll.view"
+    PAYROLL_VIEW_ALL = "payroll.view_all"
+    PAYROLL_VIEW_OWN = "payroll.view_own"
+    PAYROLL_PREPARE = "payroll.prepare"
+    PAYROLL_REVIEW_HR = "payroll.review_hr"
+    PAYROLL_REVIEW_FINANCE = "payroll.review_finance"
+    PAYROLL_APPROVE = "payroll.approve"
+    PAYROLL_DISBURSE = "payroll.disburse"
+    PAYROLL_CONFIG = "payroll.config"
+    PAYROLL_REPORTS = "payroll.reports"
+
+    # ============================================
     # USERS & ROLES
     # ============================================
     USERS_MANAGE = "users.manage"

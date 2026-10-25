@@ -106,6 +106,9 @@ from app.models.sql.timekeeping.timesheet import (  # noqa: F401
     TimesheetApprovalHistory,
 )
 
+# --- Payroll ---
+import app.models.sql.payroll  # noqa: F401,E402
+
 # --- HR ---
 from app.models.sql.hr.employment_contract import EmploymentContract  # noqa: F401
 from app.models.sql.hr.leave import (  # noqa: F401

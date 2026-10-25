@@ -1,6 +1,8 @@
-from pydantic import BaseModel, EmailStr, field_validator, Field
+from pydantic import BaseModel, field_validator, Field
 from datetime import datetime
 from typing import Optional, List
+
+from app.core.email_utils import ValidEmail
 
 
 # =============================================
@@ -8,7 +10,7 @@ from typing import Optional, List
 # =============================================
 
 class UserBase(BaseModel):
-    email: EmailStr
+    email: ValidEmail
 
 
 class UserCreate(UserBase):
@@ -20,7 +22,7 @@ class UserCreate(UserBase):
 class UserResponse(BaseModel):
     id: str
     person_id: Optional[str] = None
-    email: EmailStr
+    email: ValidEmail
     first_name: str
     last_name: str
     profile_image_url: Optional[str] = None
@@ -57,7 +59,7 @@ class ChangePasswordRequest(BaseModel):
 
 
 class ForgotPasswordRequest(BaseModel):
-    email: EmailStr
+    email: ValidEmail
 
 
 class ResetPasswordRequest(BaseModel):
@@ -91,7 +93,7 @@ class DirectPermissionRequest(BaseModel):
 class ManagedUserResponse(BaseModel):
     id: str
     person_id: str
-    email: EmailStr
+    email: ValidEmail
     first_name: str
     last_name: str
     is_active: bool

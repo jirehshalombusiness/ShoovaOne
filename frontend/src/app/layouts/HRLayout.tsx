@@ -11,6 +11,7 @@ import {
   BarChart3,
   Settings,
   Plus,
+  Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { NavItem } from '@/app/nav.config';
@@ -23,6 +24,7 @@ const SECTION_PERMISSIONS: Record<string, string | string[] | undefined> = {
   '/hr/approvals': 'hr.view_leave',
   '/hr/employees': 'hr.view_sensitive',
   '/hr/time-off': 'hr.view_leave',
+  '/hr/timesheets': 'hr.view_sensitive',
   '/hr/celebrations': 'hr.view_sensitive',
   '/hr/documents': 'hr.view_sensitive',
   '/hr/compensation': 'hr.view_compensation',
@@ -47,6 +49,7 @@ const HR_SECTIONS: HRSection[] = [
     items: [
       { icon: Users, label: 'Employees', path: '/hr/employees' },
       { icon: CalendarDays, label: 'Time Off', path: '/hr/time-off' },
+      { icon: Clock, label: 'Timesheets', path: '/hr/timesheets' },
       { icon: Award, label: 'Celebrations', path: '/hr/celebrations' },
     ],
   },
