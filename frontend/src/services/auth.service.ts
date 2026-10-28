@@ -62,10 +62,15 @@ export const authService = {
     currentPassword: string,
     newPassword: string,
   ): Promise<void> {
-    await api.post('/auth/change-password', {
+    const response = await api.post('/auth/change-password', {
       current_password: currentPassword,
       new_password: newPassword,
     });
+
+    // Changing the password revokes the old token server-side.
+    if (response.data?.access_token) {
+      localStorage.setItem('access_token', response.data.access_token);
+    }
   },
 
   isAuthenticated(): boolean {

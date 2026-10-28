@@ -512,6 +512,12 @@ async def review_expense(
             detail="Only submitted expenses can be reviewed.",
         )
 
+    if record.requester_id == current_user.person_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot review your own expense.",
+        )
+
     old_status = record.status
 
     record.status = "under_review"
@@ -592,6 +598,24 @@ async def approve_expense(
         raise HTTPException(
             status_code=400,
             detail="Only expenses under review can be approved.",
+        )
+
+    if record.requester_id == current_user.person_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot approve your own expense.",
+        )
+
+    if (
+        record.reviewer_id
+        and record.reviewer_id == current_user.person_id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "The reviewer cannot also approve the same expense. "
+                "A different approver is required."
+            ),
         )
 
     old_status = record.status
@@ -680,6 +704,12 @@ async def reject_expense(
                 "Only submitted or reviewed "
                 "expenses can be rejected."
             ),
+        )
+
+    if record.requester_id == current_user.person_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot reject your own expense.",
         )
 
     if not body.rejection_reason.strip():
@@ -771,6 +801,12 @@ async def pay_expense(
         raise HTTPException(
             status_code=400,
             detail="Only approved expenses can be paid.",
+        )
+
+    if record.requester_id == current_user.person_id:
+        raise HTTPException(
+            status_code=403,
+            detail="The requester cannot pay their own expense.",
         )
 
     old_status = record.status

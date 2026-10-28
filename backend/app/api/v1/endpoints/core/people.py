@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from app.core.database import get_db
 from app.core.security import require_permission, Permissions
-from app.models.sql.core.user import Person
+from app.models.sql.core.user import Person, User
 from app.models.pydantic.core.person import (
     PersonResponse,
     PersonCreate,
@@ -14,8 +14,69 @@ from app.models.pydantic.core.person import (
     OrgChartResponse,
 )
 from app.services.core.audit_service import AuditService
+from app.services.core.permission_service import PermissionService
 
 router = APIRouter()
+
+
+# Fields that define someone's organisational position. Altering them
+# can move a person into a privileged reporting line, change whether
+# they count as staff, or grant system access.
+ORG_STRUCTURE_FIELDS = {
+    "type",
+    "status",
+    "reports_to_id",
+    "department",
+    "employee_number",
+}
+
+
+async def _require_employment_edit(
+    db: AsyncSession,
+    current_user: User,
+) -> None:
+    allowed = await PermissionService.has_permission(
+        db,
+        current_user.id,
+        Permissions.HR_EDIT_EMPLOYMENT,
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Changing organisational fields (type, status, manager, "
+                "department, employee number) requires hr.edit_employment."
+            ),
+        )
+
+
+async def _validate_reports_to(
+    db: AsyncSession,
+    *,
+    person_id: Optional[str],
+    reports_to_id: Optional[str],
+) -> None:
+    if not reports_to_id:
+        return
+
+    if person_id and reports_to_id == person_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A person cannot report to themselves.",
+        )
+
+    result = await db.execute(
+        select(Person.id).where(
+            Person.id == reports_to_id,
+            Person.deleted_at.is_(None),
+        )
+    )
+
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The selected manager does not exist.",
+        )
 
 
 # ============================================
@@ -61,41 +122,7 @@ async def get_people(
     result = await db.execute(query)
     people = result.scalars().all()
 
-    return [
-        PersonResponse(
-            id=str(p.id),
-            first_name=p.first_name,
-            last_name=p.last_name,
-            email=p.email,
-            phone=p.phone,
-            date_of_birth=p.date_of_birth,
-            gender=p.gender,
-            type=p.type,
-            status=getattr(p, "status", "active"),
-            job_title=getattr(p, "job_title", None),
-            location=getattr(p, "location", None),
-            employment_type=getattr(p, "employment_type", None),
-            reports_to_id=(
-                str(p.reports_to_id)
-                if p.reports_to_id
-                else None
-            ),
-            profile_image_url=p.profile_image_url,
-            address=p.address,
-            city=p.city,
-            state=p.state,
-            country=p.country,
-            postal_code=p.postal_code,
-            emergency_contact_name=p.emergency_contact_name,
-            emergency_contact_phone=p.emergency_contact_phone,
-            emergency_contact_relationship=p.emergency_contact_relationship,
-            bio=p.bio,
-            skills=p.skills,
-            created_at=p.created_at,
-            updated_at=p.updated_at,
-        )
-        for p in people
-    ]
+    return [PersonResponse.model_validate(p) for p in people]
 
 
 # ============================================
@@ -183,6 +210,32 @@ async def create_person(
     ),
 ):
     """Create a new person and record a PERSON_CREATED audit event."""
+
+    provided = person_data.model_dump(exclude_unset=True)
+
+    # Staff records are employment records. External contacts and
+    # volunteers can be created with people.create alone, but creating
+    # staff or setting any structural attribute needs hr.edit_employment.
+    structural: set[str] = set()
+
+    if person_data.type == "staff":
+        structural.add("type")
+
+    for field in ("status", "department", "employee_number"):
+        if provided.get(field) not in (None, ""):
+            structural.add(field)
+
+    if provided.get("reports_to_id"):
+        structural.add("reports_to_id")
+
+    if structural:
+        await _require_employment_edit(db, current_user)
+
+    await _validate_reports_to(
+        db,
+        person_id=None,
+        reports_to_id=person_data.reports_to_id,
+    )
 
     # --------------------------------------------
     # Check for duplicate email
@@ -345,6 +398,31 @@ async def update_person(
     changes = person_data.model_dump(
         exclude_unset=True
     )
+
+    # Organisational fields are a separate privilege from general
+    # profile editing (people.edit). Only an actual value change needs
+    # the stronger permission, so re-saving an untouched form is safe.
+    structural_changes = {
+        field
+        for field in ORG_STRUCTURE_FIELDS
+        if field in changes
+        and (str(changes[field]) if changes[field] is not None else None)
+        != (
+            str(getattr(person, field, None))
+            if getattr(person, field, None) is not None
+            else None
+        )
+    }
+
+    if structural_changes:
+        await _require_employment_edit(db, current_user)
+
+    if "reports_to_id" in structural_changes:
+        await _validate_reports_to(
+            db,
+            person_id=person.id,
+            reports_to_id=changes["reports_to_id"],
+        )
 
     old_values = {}
     new_values = {}

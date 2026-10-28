@@ -1,3 +1,4 @@
+import time
 from decimal import Decimal, InvalidOperation
 
 import httpx
@@ -5,6 +6,37 @@ import httpx
 
 FRANKFURTER_API = "https://api.frankfurter.dev/v2"
 REPORTING_CURRENCY = "USD"
+
+# Reference rates move slowly, so cache successful lookups for an hour
+# instead of calling the provider once per currency per dashboard load.
+RATE_CACHE_TTL_SECONDS = 3600
+
+_rate_cache: dict[tuple[str, str], tuple[float, Decimal]] = {}
+
+
+def _cached_rate(
+    from_currency: str,
+    to_currency: str,
+) -> Decimal | None:
+    key = (from_currency, to_currency)
+    entry = _rate_cache.get(key)
+
+    if entry is None:
+        return None
+
+    expires_at, rate = entry
+
+    if time.monotonic() >= expires_at:
+        _rate_cache.pop(key, None)
+        return None
+
+    return rate
+
+
+def clear_rate_cache() -> None:
+    """Drop cached exchange rates (used by tests and admin tooling)."""
+
+    _rate_cache.clear()
 
 
 class CurrencyConversionError(Exception):
@@ -33,6 +65,10 @@ async def get_exchange_rate(
     if from_currency == to_currency:
         return Decimal("1")
 
+    cached = _cached_rate(from_currency, to_currency)
+    if cached is not None:
+        return cached
+
     url = (
         f"{FRANKFURTER_API}/rate/"
         f"{from_currency}/{to_currency}"
@@ -56,7 +92,14 @@ async def get_exchange_rate(
                 f"{from_currency}/{to_currency}."
             )
 
-        return Decimal(str(rate))
+        parsed_rate = Decimal(str(rate))
+
+        _rate_cache[(from_currency, to_currency)] = (
+            time.monotonic() + RATE_CACHE_TTL_SECONDS,
+            parsed_rate,
+        )
+
+        return parsed_rate
 
     except httpx.HTTPError as exc:
         raise CurrencyConversionError(

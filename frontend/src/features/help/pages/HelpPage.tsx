@@ -92,7 +92,7 @@ const FAQS: Faq[] = [
   {
     question: 'How do I change my password?',
     answer:
-      'Open Settings → Security, enter your current password and choose a new one of at least 8 characters. You stay signed in after the change.',
+      'Open Settings → Security, enter your current password and choose a new one of at least 12 characters. You stay signed in after the change.',
     category: 'Account & access',
     keywords: ['password', 'security', 'login'],
   },

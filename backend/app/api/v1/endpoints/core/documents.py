@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
+from urllib.parse import urlparse
 import uuid
 from datetime import datetime, timezone
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import Permissions, get_current_active_user
 from app.models.sql.core.document import Document
@@ -13,6 +15,131 @@ from app.services.core.permission_service import PermissionService
 
 
 router = APIRouter()
+
+ALLOWED_ENTITY_TYPES = {
+    "person",
+    "project",
+    "programme",
+    "task",
+    "meeting",
+    "organisation",
+    "partner",
+}
+
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/zip",
+    "text/plain",
+    "text/csv",
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/gif",
+    "image/heic",
+    "image/heif",
+}
+
+MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024
+MAX_NAME_LENGTH = 255
+MAX_URL_LENGTH = 2048
+
+
+def _validate_entity_reference(entity_type: str, entity_id: str) -> None:
+    if entity_type not in ALLOWED_ENTITY_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported document entity type: {entity_type}",
+        )
+
+    try:
+        uuid.UUID(str(entity_id))
+    except (ValueError, AttributeError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid entity id",
+        )
+
+
+def _validate_file_metadata(
+    *,
+    name: str,
+    file_url: str,
+    file_size_bytes: Optional[int],
+    mime_type: Optional[str],
+) -> None:
+    clean_name = (name or "").strip()
+
+    if not clean_name or len(clean_name) > MAX_NAME_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Document name is required and must be "
+                f"{MAX_NAME_LENGTH} characters or fewer"
+            ),
+        )
+
+    if any(ord(char) < 32 for char in clean_name):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document name contains invalid characters",
+        )
+
+    if len(file_url or "") > MAX_URL_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document URL is too long",
+        )
+
+    parsed = urlparse(file_url or "")
+
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document URL must be an https URL",
+        )
+
+    if parsed.username or parsed.password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document URL must not contain credentials",
+        )
+
+    host = parsed.hostname.lower()
+    configured_hosts = {
+        configured for configured in [settings.supabase_host] if configured
+    }
+
+    is_supabase_host = (
+        host in configured_hosts
+        or host.endswith(".supabase.co")
+        or host.endswith(".supabase.in")
+    )
+
+    if not is_supabase_host:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document URL must point to organisation storage",
+        )
+
+    if file_size_bytes is not None and not (
+        0 < file_size_bytes <= MAX_FILE_SIZE_BYTES
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document size is invalid or exceeds the 25 MB limit",
+        )
+
+    if mime_type and mime_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported document type: {mime_type}",
+        )
 
 
 def _is_own_person_document(current_user, entity_type: str, entity_id: str) -> bool:
@@ -37,11 +164,24 @@ async def list_documents(
 ):
     """List documents for an entity (project, person, programme, etc.)."""
     if not _is_own_person_document(current_user, entity_type, entity_id):
-        if not await _has_permission(db, current_user, Permissions.PROJECTS_VIEW):
+        allowed = False
+        for permission in (
+            Permissions.PROJECTS_VIEW,
+            Permissions.PEOPLE_VIEW,
+            Permissions.DOCUMENTS_VIEW,
+            Permissions.HR_VIEW_SENSITIVE,
+        ):
+            if await _has_permission(db, current_user, permission):
+                allowed = True
+                break
+
+        if not allowed:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Permission denied: projects.view required",
+                detail="Permission denied: documents.view required",
             )
+
+    _validate_entity_reference(entity_type, entity_id)
 
     result = await db.execute(
         select(Document)
@@ -92,6 +232,14 @@ async def upload_document(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Permission denied: documents.upload required",
             )
+
+    _validate_entity_reference(entity_type, entity_id)
+    _validate_file_metadata(
+        name=name,
+        file_url=file_url,
+        file_size_bytes=file_size_bytes,
+        mime_type=mime_type,
+    )
 
     doc = Document(
         id=str(uuid.uuid4()),

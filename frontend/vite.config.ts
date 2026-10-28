@@ -25,4 +25,25 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          query: ['@tanstack/react-query'],
+          supabase: ['@supabase/supabase-js'],
+          icons: ['lucide-react'],
+          dates: ['date-fns'],
+          http: ['axios'],
+          ui: [
+            'react-hot-toast',
+            'clsx',
+            'tailwind-merge',
+            'class-variance-authority',
+          ],
+        },
+      },
+    },
+  },
 });

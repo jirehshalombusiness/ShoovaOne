@@ -16,7 +16,12 @@ export interface TodayAttendance {
   check_in: string | null;
   check_out: string | null;
   duration_minutes: number | null;
+  effective_minutes: number;
+  elapsed_minutes: number;
+  idle_minutes: number;
+  session_active: boolean;
   status: string;
+  current_status: string;
   planned_task_ids: string[];
   adhoc_tasks: any[];
   assigned_tasks: AssignedTask[];

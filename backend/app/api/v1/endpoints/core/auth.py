@@ -1,17 +1,23 @@
 from datetime import datetime, timedelta, timezone
+import secrets
+import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.email_utils import normalize_email
+from app.core.rate_limit import auth_limiter
 from app.core.security import (
     create_access_token,
     get_current_user,
     get_password_hash,
+    password_fingerprint,
+    validate_password_strength,
     verify_password,
 )
 from app.models.pydantic.core.user import (
@@ -29,18 +35,94 @@ from app.services.auth.password_reset_service import (
     get_valid_password_reset_token,
     mark_password_reset_token_used,
 )
+from app.services.core.audit_service import AuditService
 from app.services.core.permission_service import PermissionService
 
 
 router = APIRouter()
 
+LOGIN_IP_LIMIT = 50
+LOGIN_IP_WINDOW_SECONDS = 300
+LOGIN_FAILURE_LIMIT = 5
+LOGIN_FAILURE_WINDOW_SECONDS = 900
+
+FORGOT_IP_LIMIT = 5
+FORGOT_EMAIL_LIMIT = 3
+FORGOT_WINDOW_SECONDS = 900
+
+RESET_IP_LIMIT = 10
+RESET_WINDOW_SECONDS = 900
+
+# Verified against when the account does not exist so response timing does
+# not reveal which emails are registered.
+_DUMMY_PASSWORD_HASH = get_password_hash(secrets.token_urlsafe(32))
+
+
+def _client_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        first = forwarded_for.split(",")[0].strip()
+        if first:
+            return first
+    if request.client:
+        return request.client.host
+    return "unknown"
+
+
+def _too_many_attempts(retry_after: int, detail: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail=detail,
+        headers={"Retry-After": str(retry_after)},
+    )
+
 
 @router.post("/login", response_model=Token)
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
     """Login endpoint for users."""
+
+    email = normalize_email(form_data.username).lower()
+    ip_address = _client_ip(request)
+
+    retry_after = await auth_limiter.retry_after(
+        f"login-ip:{ip_address}",
+        limit=LOGIN_IP_LIMIT,
+        window_seconds=LOGIN_IP_WINDOW_SECONDS,
+    )
+    if retry_after:
+        raise _too_many_attempts(
+            retry_after,
+            "Too many sign-in attempts. Please try again later.",
+        )
+
+    retry_after = await auth_limiter.retry_after(
+        f"login-account:{email}",
+        limit=LOGIN_FAILURE_LIMIT,
+        window_seconds=LOGIN_FAILURE_WINDOW_SECONDS,
+    )
+    if retry_after:
+        await AuditService.log(
+            db=db,
+            action="AUTH_LOGIN_BLOCKED",
+            entity_type="auth",
+            entity_id=str(uuid.uuid4()),
+            metadata={"email": email},
+            request=request,
+        )
+        await db.commit()
+        raise _too_many_attempts(
+            retry_after,
+            "Too many failed sign-in attempts. Please try again later.",
+        )
+
+    await auth_limiter.record(
+        f"login-ip:{ip_address}",
+        window_seconds=LOGIN_IP_WINDOW_SECONDS,
+    )
 
     result = await db.execute(
         select(User)
@@ -48,12 +130,34 @@ async def login(
             selectinload(User.person),
             selectinload(User.roles).selectinload(Role.permissions),
         )
-        .where(User.email == normalize_email(form_data.username).lower())
+        .where(User.email == email)
     )
 
     user = result.scalar_one_or_none()
 
-    if not user:
+    password_hash = (
+        user.password_hash
+        if user is not None and user.password_hash
+        else _DUMMY_PASSWORD_HASH
+    )
+
+    password_ok = verify_password(form_data.password, password_hash)
+
+    if user is None or not password_ok:
+        await auth_limiter.record(
+            f"login-account:{email}",
+            window_seconds=LOGIN_FAILURE_WINDOW_SECONDS,
+        )
+        await AuditService.log(
+            db=db,
+            action="AUTH_LOGIN_FAILED",
+            entity_type="auth",
+            entity_id=str(user.id) if user is not None else str(uuid.uuid4()),
+            metadata={"email": email, "reason": "bad_credentials"},
+            request=request,
+        )
+        await db.commit()
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -61,24 +165,33 @@ async def login(
         )
 
     if not user.is_active:
+        await AuditService.log(
+            db=db,
+            actor=user,
+            action="AUTH_LOGIN_INACTIVE",
+            entity_type="auth",
+            entity_id=str(user.id),
+            metadata={"email": email},
+            request=request,
+        )
+        await db.commit()
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Inactive user",
         )
 
-    if not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    await auth_limiter.reset(f"login-account:{email}")
 
-    access_token_expires = timedelta(minutes=43200)
+    access_token_expires = timedelta(
+        minutes=settings.JWT_EXPIRATION_MINUTES
+    )
 
     access_token = create_access_token(
         data={
             "sub": str(user.id),
             "email": user.email,
+            "pwdv": password_fingerprint(user.password_hash),
         },
         expires_delta=access_token_expires,
     )
@@ -93,6 +206,17 @@ async def login(
     roles = [role.name for role in user.roles]
 
     user.last_login_at = datetime.now(timezone.utc)
+
+    await AuditService.log(
+        db=db,
+        actor=user,
+        action="AUTH_LOGIN_SUCCESS",
+        entity_type="auth",
+        entity_id=str(user.id),
+        metadata={"email": email},
+        request=request,
+    )
+
     await db.commit()
 
     return {
@@ -200,11 +324,10 @@ async def change_password(
         )
 
     # Validate new password
-    if len(password_data.new_password) < 8:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="New password must be at least 8 characters long",
-        )
+    validate_password_strength(
+        password_data.new_password,
+        email=current_user.email,
+    )
 
     if verify_password(
         password_data.new_password,
@@ -229,14 +352,29 @@ async def change_password(
         await db.rollback()
         raise
 
+    # The password fingerprint changed, so every token issued under the
+    # old password (including this session) is now invalid. Hand back a
+    # fresh token so the user is not signed out mid-flow.
+    access_token = create_access_token(
+        data={
+            "sub": str(current_user.id),
+            "email": current_user.email,
+            "pwdv": password_fingerprint(current_user.password_hash),
+        },
+        expires_delta=timedelta(minutes=settings.JWT_EXPIRATION_MINUTES),
+    )
+
     return {
-        "message": "Password changed successfully"
+        "message": "Password changed successfully",
+        "access_token": access_token,
+        "token_type": "bearer",
     }
 
 
 @router.post("/forgot-password")
 async def forgot_password(
-    request: ForgotPasswordRequest,
+    request: Request,
+    password_data: ForgotPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -246,7 +384,43 @@ async def forgot_password(
     the email exists, to prevent email enumeration.
     """
 
-    email = request.email.lower().strip()
+    ip_address = _client_ip(request)
+
+    retry_after = await auth_limiter.retry_after(
+        f"forgot-ip:{ip_address}",
+        limit=FORGOT_IP_LIMIT,
+        window_seconds=FORGOT_WINDOW_SECONDS,
+    )
+    if retry_after:
+        raise _too_many_attempts(
+            retry_after,
+            "Too many reset requests. Please try again later.",
+        )
+
+    await auth_limiter.record(
+        f"forgot-ip:{ip_address}",
+        window_seconds=FORGOT_WINDOW_SECONDS,
+    )
+
+    email = password_data.email.lower().strip()
+
+    retry_after = await auth_limiter.retry_after(
+        f"forgot-email:{email}",
+        limit=FORGOT_EMAIL_LIMIT,
+        window_seconds=FORGOT_WINDOW_SECONDS,
+    )
+    if retry_after:
+        # Silently skip sending to avoid mail-bombing the mailbox while
+        # keeping the response indistinguishable from a normal request.
+        return {
+            "message": "If an account exists for this email, "
+                       "a password reset link has been sent."
+        }
+
+    await auth_limiter.record(
+        f"forgot-email:{email}",
+        window_seconds=FORGOT_WINDOW_SECONDS,
+    )
 
     result = await db.execute(
         select(User)
@@ -293,28 +467,40 @@ async def forgot_password(
 
 @router.post("/reset-password")
 async def reset_password(
-    request: ResetPasswordRequest,
+    request: Request,
+    password_data: ResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """Reset a user's password using a valid password reset token."""
 
+    ip_address = _client_ip(request)
+
+    retry_after = await auth_limiter.retry_after(
+        f"reset-ip:{ip_address}",
+        limit=RESET_IP_LIMIT,
+        window_seconds=RESET_WINDOW_SECONDS,
+    )
+    if retry_after:
+        raise _too_many_attempts(
+            retry_after,
+            "Too many reset attempts. Please try again later.",
+        )
+
+    await auth_limiter.record(
+        f"reset-ip:{ip_address}",
+        window_seconds=RESET_WINDOW_SECONDS,
+    )
+
     # Validate the reset token
     reset_token = await get_valid_password_reset_token(
         db=db,
-        raw_token=request.token,
+        raw_token=password_data.token,
     )
 
     if reset_token is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired password reset link",
-        )
-
-    # Validate the new password
-    if len(request.new_password) < 8:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must be at least 8 characters long",
         )
 
     # Load the user
@@ -337,9 +523,15 @@ async def reset_password(
             detail="Invalid password reset link",
         )
 
+    # Validate the new password
+    validate_password_strength(
+        password_data.new_password,
+        email=user.email,
+    )
+
     # Set the new password
     user.password_hash = get_password_hash(
-        request.new_password
+        password_data.new_password
     )
 
     # A successful password reset satisfies any forced password change

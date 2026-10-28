@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, String, Integer, DateTime, ForeignKey, Date, Time, DECIMAL, Text
+from sqlalchemy import Boolean, Column, String, Integer, DateTime, ForeignKey, Date, Time, DECIMAL, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -7,6 +7,13 @@ from app.models.sql.base import BaseModel, GUID
 
 class Timesheet(BaseModel):
     __tablename__ = "timesheets"
+    __table_args__ = (
+        UniqueConstraint(
+            "person_id",
+            "week_start_date",
+            name="uq_timesheet_person_week",
+        ),
+    )
 
     person_id = Column(GUID, ForeignKey("people.id", ondelete="CASCADE"), nullable=False)
     week_start_date = Column(Date, nullable=False)

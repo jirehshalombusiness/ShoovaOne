@@ -19,11 +19,8 @@ export interface Person {
   status: 'active' | 'inactive' | 'archived';
 
   // Organisation info
-  role?: string | null;
   department?: string | null;
   organization?: string | null;
-  organization_id?: string | null;
-  position?: string | null;
   employee_number?: string | null;
 
   // Org chart fields (NEW)
@@ -49,11 +46,6 @@ export interface Person {
   profile_image_url?: string | null;
   bio?: string | null;
   skills?: string[] | string | null;
-
-  // Employment dates
-  start_date?: string | null;
-  end_date?: string | null;
-  notes?: string | null;
 
   // Timestamps
   created_at: string;

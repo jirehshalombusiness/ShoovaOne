@@ -25,8 +25,14 @@ ESCALATION_LEVELS = {
     2: "exec",
 }
 
-# Who can act as HR approvers when the assigned approver is absent.
-HR_APPROVER_ROLES = {"head_of_hr", "director", "executive_director", "ceo"}
+# Who can see and administer HR approvals. Directors are intentionally
+# excluded: they can be *assigned* a request, but they do not get
+# blanket authority over every employee's approvals.
+HR_APPROVER_ROLES = {"head_of_hr", "executive_director", "ceo"}
+
+# Roles allowed to decide a request that was not assigned to them.
+# Every override is recorded on the approval audit trail.
+APPROVAL_OVERRIDE_ROLES = HR_APPROVER_ROLES
 
 # Default SLA per entity type, in hours.
 DEFAULT_SLA_HOURS = {
@@ -143,10 +149,10 @@ async def _find_hr_approver(
 ) -> Optional[str]:
     """
     Pick an HR approver. Preference order:
-        head_of_hr -> director -> executive_director -> ceo
+        head_of_hr -> executive_director -> ceo
     Returns a person_id or None.
     """
-    preference = ["head_of_hr", "director", "executive_director", "ceo"]
+    preference = ["head_of_hr", "executive_director", "ceo"]
 
     for role_name in preference:
         query = (
@@ -173,8 +179,8 @@ async def _find_exec_approver(
     *,
     exclude_person_id: Optional[str] = None,
 ) -> Optional[str]:
-    """Pick an exec approver. Preference: director -> executive_director -> ceo."""
-    preference = ["director", "executive_director", "ceo"]
+    """Pick an exec approver. Preference: executive_director -> ceo."""
+    preference = ["executive_director", "ceo"]
 
     for role_name in preference:
         query = (
@@ -212,6 +218,7 @@ async def create_request(
     assigned_to_id: Optional[str] = None,
     due_hours: Optional[int] = None,
     metadata: Optional[dict] = None,
+    escalation_level: int = 0,
 ) -> ApprovalRequest:
     """
     Create an approval request.
@@ -220,14 +227,19 @@ async def create_request(
         manager -> HR -> exec
     based on the requester's reporting line.
 
-    Raises if no approver can be resolved, unless the requester
-    is themselves an HR approver and approving their own request.
+    Explicit assignments are validated rather than silently rerouted:
+    - the assignee must have an active user account
+    - the requester cannot assign themselves
+    - level 0 must be the requester's manager or an HR approver
+    - higher levels must be HR approvers
+
+    Raises if no approver can be resolved.
     """
 
     # ---------- resolve approver ----------
-    # A manager can only receive the request if they have an active
-    # user account; otherwise it goes straight to HR.
     if assigned_to_id is None:
+        # A manager can only receive the request if they have an active
+        # user account; otherwise it goes straight to HR.
         manager_id = await _resolve_manager_person_id(db, requested_by_id)
 
         if (
@@ -240,13 +252,44 @@ async def create_request(
             assigned_to_id = await _find_hr_approver(
                 db, exclude_person_id=requested_by_id
             )
-    elif (
-        assigned_to_id == requested_by_id
-        or not await _is_active_approver(db, assigned_to_id)
-    ):
-        assigned_to_id = await _find_hr_approver(
-            db, exclude_person_id=requested_by_id
+    else:
+        if assigned_to_id == requested_by_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You cannot assign an approval request to yourself",
+            )
+
+        if not await _is_active_approver(db, assigned_to_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "The selected approver does not have an active "
+                    "user account"
+                ),
+            )
+
+        is_hr_approver = await _person_has_any_role(
+            db, assigned_to_id, HR_APPROVER_ROLES
         )
+
+        if escalation_level == 0:
+            manager_id = await _resolve_manager_person_id(db, requested_by_id)
+            if assigned_to_id != manager_id and not is_hr_approver:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "An approver must be your direct manager or hold "
+                        "an HR approver role"
+                    ),
+                )
+        elif not is_hr_approver:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Approvals above the manager stage must be assigned to "
+                    "an HR approver"
+                ),
+            )
 
     if assigned_to_id is None:
         raise HTTPException(
@@ -271,7 +314,7 @@ async def create_request(
         assigned_to_id=assigned_to_id,
         status="pending",
         priority=priority,
-        escalation_level=0,
+        escalation_level=escalation_level,
         due_at=due_at,
         title=title,
         summary=summary,
@@ -289,7 +332,7 @@ async def create_request(
         new_values={
             "approval_id": request.id,
             "assigned_to_id": assigned_to_id,
-            "escalation_level": 0,
+            "escalation_level": escalation_level,
         },
         metadata=metadata,
     )
@@ -401,6 +444,20 @@ async def get_request(
 # AUTHORIZATION
 # ============================================================
 
+async def is_override(
+    db: AsyncSession,
+    *,
+    actor_person_id: str,
+    request: ApprovalRequest,
+) -> bool:
+    """True when the actor can decide only via an override role, not assignment."""
+    if request.assigned_to_id == actor_person_id:
+        return False
+    return await _person_has_any_role(
+        db, actor_person_id, APPROVAL_OVERRIDE_ROLES
+    )
+
+
 async def can_act_on(
     db: AsyncSession,
     *,
@@ -411,9 +468,11 @@ async def can_act_on(
     Return True if actor_person_id is allowed to approve/reject this request.
 
     Rules:
-    - The assigned approver can act.
-    - Any HR approver role can act (head_of_hr, director, executive_director, ceo).
-    - The requester cannot approve their own request.
+    - Only the assigned approver can act by default.
+    - HR override roles (head_of_hr, executive_director, ceo) may decide
+      a request assigned elsewhere; this is audited as an override.
+    - The requester can never decide their own request.
+    - Compensation has its own two-stage authority model.
     """
     if request.status != "pending":
         return False
@@ -433,7 +492,11 @@ async def can_act_on(
     if request.assigned_to_id == actor_person_id:
         return True
 
-    if await _person_has_any_role(db, actor_person_id, HR_APPROVER_ROLES):
+    if await is_override(
+        db,
+        actor_person_id=actor_person_id,
+        request=request,
+    ):
         return True
 
     return False
@@ -449,7 +512,15 @@ async def approve(
     request_id: str,
     actor: User,
     note: Optional[str] = None,
+    notify_requester: bool = True,
 ) -> ApprovalRequest:
+    """
+    Approve a request.
+
+    `notify_requester=False` is used by multi-stage flows where this
+    approval only completes an intermediate stage and the domain
+    service sends its own, more accurate notification.
+    """
     request = await get_request(db, request_id)
     if not request:
         raise HTTPException(status_code=404, detail="Approval request not found")
@@ -467,6 +538,12 @@ async def approve(
             detail="You are not authorized to approve this request",
         )
 
+    override = await is_override(
+        db,
+        actor_person_id=actor_person_id,
+        request=request,
+    )
+
     request.status = "approved"
     request.decided_at = datetime.now(timezone.utc)
     request.decided_by_id = actor_person_id
@@ -478,18 +555,27 @@ async def approve(
         action="APPROVAL_APPROVED",
         entity_type=request.entity_type,
         entity_id=request.entity_id,
-        description=f"Approved: {request.title}",
-        new_values={"note": note, "approval_id": request.id},
+        description=(
+            f"Approved{f' (override of {request.assigned_to_id})' if override else ''}:"
+            f" {request.title}"
+        ),
+        new_values={
+            "note": note,
+            "approval_id": request.id,
+            "override": override,
+            "assigned_to_id": request.assigned_to_id,
+        },
     )
 
     actor_name = await _person_display_name(db, actor_person_id)
-    await _notify_person(
-        db,
-        person_id=request.requested_by_id,
-        title="Request approved",
-        body=f"{actor_name} approved: {request.title}",
-        link=f"/me/approvals/{request.id}",
-    )
+    if notify_requester:
+        await _notify_person(
+            db,
+            person_id=request.requested_by_id,
+            title="Request approved",
+            body=f"{actor_name} approved: {request.title}",
+            link=f"/me/approvals/{request.id}",
+        )
 
     return request
 
@@ -524,6 +610,12 @@ async def reject(
             detail="You are not authorized to reject this request",
         )
 
+    override = await is_override(
+        db,
+        actor_person_id=actor_person_id,
+        request=request,
+    )
+
     request.status = "rejected"
     request.decided_at = datetime.now(timezone.utc)
     request.decided_by_id = actor_person_id
@@ -535,8 +627,16 @@ async def reject(
         action="APPROVAL_REJECTED",
         entity_type=request.entity_type,
         entity_id=request.entity_id,
-        description=f"Rejected: {request.title}",
-        new_values={"note": note, "approval_id": request.id},
+        description=(
+            f"Rejected{f' (override of {request.assigned_to_id})' if override else ''}:"
+            f" {request.title}"
+        ),
+        new_values={
+            "note": note,
+            "approval_id": request.id,
+            "override": override,
+            "assigned_to_id": request.assigned_to_id,
+        },
     )
 
     actor_name = await _person_display_name(db, actor_person_id)

@@ -368,10 +368,48 @@ async def create_leave_request(
 
     # ---- create approval request ----
     if not auto_approved:
-        # HR-direct types skip the manager and go to HR.
+        # Routing:
+        #   ordinary leave  -> manager (level 0) -> HR (level 1)
+        #   HR-direct types -> HR only (level 1)
+        # A manager who already holds an HR approver role is the final
+        # stage themselves, so we do not create a redundant second row.
         assigned_to_id: Optional[str] = None
+        escalation_level = 0
+
         if leave_type.code in HR_DIRECT_LEAVE_CODES:
-            assigned_to_id = await approval_service._find_hr_approver(db)
+            assigned_to_id = await approval_service._find_hr_approver(
+                db, exclude_person_id=person_id
+            )
+            escalation_level = 1
+
+            if not assigned_to_id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        "No HR approver is available for this leave type. "
+                        "Contact an administrator."
+                    ),
+                )
+        else:
+            manager_id = await approval_service._resolve_manager_person_id(
+                db, person_id
+            )
+
+            if (
+                manager_id
+                and manager_id != person_id
+                and await approval_service._is_active_approver(db, manager_id)
+            ):
+                assigned_to_id = manager_id
+                manager_is_hr = await approval_service._person_has_any_role(
+                    db, manager_id, approval_service.HR_APPROVER_ROLES
+                )
+                escalation_level = 1 if manager_is_hr else 0
+            else:
+                assigned_to_id = await approval_service._find_hr_approver(
+                    db, exclude_person_id=person_id
+                )
+                escalation_level = 1
 
         await approval_service.create_request(
             db=db,
@@ -379,6 +417,7 @@ async def create_leave_request(
             entity_id=leave_request.id,
             requested_by_id=person_id,
             assigned_to_id=assigned_to_id,
+            escalation_level=escalation_level,
             title=(
                 f"{leave_type.name}: "
                 f"{start_date.isoformat()} to {end_date.isoformat()}"
@@ -442,13 +481,24 @@ async def _load_linked_approval(
     db: AsyncSession,
     leave_request_id: str,
 ) -> Optional[ApprovalRequest]:
+    """
+    The leave request's *current* approval row.
+
+    Leave approval is sequential (manager -> HR), so earlier stages
+    remain in history with their own status; only the newest pending
+    row is actionable.
+    """
     result = await db.execute(
-        select(ApprovalRequest).where(
+        select(ApprovalRequest)
+        .where(
             ApprovalRequest.entity_type == "leave_request",
             ApprovalRequest.entity_id == leave_request_id,
+            ApprovalRequest.status == "pending",
         )
+        .order_by(ApprovalRequest.created_at.desc())
+        .limit(1)
     )
-    return result.scalar_one_or_none()
+    return result.scalars().first()
 
 
 async def approve_leave_request(
@@ -478,8 +528,8 @@ async def approve_leave_request(
     approval = await _load_linked_approval(db, leave_request_id)
     if approval is None:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Approval record missing for this leave request",
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No pending approval found for this leave request",
         )
 
     allowed = await approval_service.can_act_on(
@@ -495,7 +545,79 @@ async def approve_leave_request(
 
     total_days = Decimal(str(leave_request.total_days))
 
-    # ---- settle balance ----
+    # ---- manager stage: forward to HR, do not settle yet ----
+    # The manager stage is level 0 with a non-HR assignee. Legacy rows
+    # assigned straight to HR also sit at level 0, so the role check
+    # keeps them on the single-stage path.
+    assigned_is_hr = (
+        bool(approval.assigned_to_id)
+        and await approval_service._person_has_any_role(
+            db,
+            approval.assigned_to_id,
+            approval_service.HR_APPROVER_ROLES,
+        )
+    )
+
+    if approval.escalation_level == 0 and not assigned_is_hr:
+        hr_approver = await approval_service._find_hr_approver(
+            db, exclude_person_id=leave_request.person_id
+        )
+
+        if hr_approver and hr_approver not in {
+            approval.assigned_to_id,
+            actor.person_id,
+        }:
+            await approval_service.approve(
+                db,
+                request_id=approval.id,
+                actor=actor,
+                note=note,
+                notify_requester=False,
+            )
+
+            next_approval = await approval_service.create_request(
+                db=db,
+                entity_type="leave_request",
+                entity_id=leave_request.id,
+                requested_by_id=leave_request.person_id,
+                assigned_to_id=hr_approver,
+                escalation_level=1,
+                title=approval.title,
+                summary=approval.summary,
+                priority=approval.priority,
+                due_hours=72,
+            )
+
+            await AuditService.log(
+                db=db,
+                actor=actor,
+                action="LEAVE_APPROVAL_FORWARDED",
+                entity_type="leave_request",
+                entity_id=leave_request.id,
+                description=(
+                    "Manager approved; forwarded to HR for final approval"
+                ),
+                new_values={
+                    "approval_id": next_approval.id,
+                    "hr_approver_id": hr_approver,
+                    "note": note,
+                },
+            )
+
+            await approval_service._notify_person(
+                db,
+                person_id=leave_request.person_id,
+                title="Leave request moved to HR",
+                body=(
+                    "Your manager approved your leave request. "
+                    "It is now awaiting HR sign-off."
+                ),
+                link=f"/me/approvals/{next_approval.id}",
+            )
+
+            return leave_request
+
+    # ---- final stage: settle balance ----
     balance = await _load_balance(
         db,
         leave_request.person_id,
@@ -559,8 +681,8 @@ async def reject_leave_request(
     approval = await _load_linked_approval(db, leave_request_id)
     if approval is None:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Approval record missing for this leave request",
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No pending approval found for this leave request",
         )
 
     allowed = await approval_service.can_act_on(

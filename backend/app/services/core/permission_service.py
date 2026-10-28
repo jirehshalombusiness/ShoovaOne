@@ -8,6 +8,44 @@ from app.models.sql.core.user import User
 from app.models.sql.core.role import Role, Permission, user_roles
 
 
+# Request-scoped caches live on the AsyncSession's user-modifiable ``info``
+# dict, so they are discarded automatically when the request's session closes.
+_PERMISSION_CACHE_KEY = "_shoova_permission_cache"
+_ROLE_CACHE_KEY = "_shoova_role_cache"
+
+
+def _permission_cache(db: AsyncSession) -> dict[str, list[str]]:
+    cache = db.info.get(_PERMISSION_CACHE_KEY)
+    if cache is None:
+        cache = {}
+        db.info[_PERMISSION_CACHE_KEY] = cache
+    return cache
+
+
+def _role_cache(db: AsyncSession) -> dict[str, list[str]]:
+    cache = db.info.get(_ROLE_CACHE_KEY)
+    if cache is None:
+        cache = {}
+        db.info[_ROLE_CACHE_KEY] = cache
+    return cache
+
+
+def clear_permission_cache(
+    db: AsyncSession,
+    user_id: str | None = None,
+) -> None:
+    """Drop cached permissions/roles for one user, or for the whole session."""
+
+    if user_id is None:
+        db.info.pop(_PERMISSION_CACHE_KEY, None)
+        db.info.pop(_ROLE_CACHE_KEY, None)
+        return
+
+    key = str(user_id)
+    _permission_cache(db).pop(key, None)
+    _role_cache(db).pop(key, None)
+
+
 class PermissionService:
 
     @staticmethod
@@ -55,20 +93,9 @@ class PermissionService:
     ) -> bool:
         """Check whether a user is assigned a specific role."""
 
-        result = await db.execute(
-            select(Role.id)
-            .join(
-                user_roles,
-                Role.id == user_roles.c.role_id,
-            )
-            .where(
-                user_roles.c.user_id == user_id,
-                Role.name == role_name,
-            )
-            .limit(1)
-        )
+        roles = await PermissionService.get_user_roles(db, user_id)
 
-        return result.first() is not None
+        return role_name.lower() in {role.lower() for role in roles}
 
     @staticmethod
     async def get_user_permissions(
@@ -83,8 +110,33 @@ class PermissionService:
         2. Direct permissions granted to the user
 
         CEO has full system access.
+
+        Results are cached for the lifetime of the request's AsyncSession,
+        so the many ``require_permission`` dependencies in a single request
+        only trigger one permission lookup.
         """
 
+        key = str(user_id)
+        cache = _permission_cache(db)
+
+        cached = cache.get(key)
+        if cached is not None:
+            return list(cached)
+
+        permissions = await PermissionService._load_user_permissions(
+            db,
+            key,
+        )
+
+        cache[key] = permissions
+
+        return list(permissions)
+
+    @staticmethod
+    async def _load_user_permissions(
+        db: AsyncSession,
+        user_id: str,
+    ) -> list[str]:
         # Load user with roles + role permissions + direct permissions.
         result = await db.execute(
             select(User)
@@ -172,6 +224,13 @@ class PermissionService:
     ) -> list[str]:
         """Get all role names for a user."""
 
+        key = str(user_id)
+        cache = _role_cache(db)
+
+        cached = cache.get(key)
+        if cached is not None:
+            return list(cached)
+
         result = await db.execute(
             select(Role.name)
             .join(
@@ -179,8 +238,11 @@ class PermissionService:
                 Role.id == user_roles.c.role_id,
             )
             .where(
-                user_roles.c.user_id == user_id
+                user_roles.c.user_id == key
             )
         )
 
-        return [row[0] for row in result.all()]
+        roles = [row[0] for row in result.all()]
+        cache[key] = roles
+
+        return list(roles)

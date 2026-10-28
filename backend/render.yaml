@@ -12,6 +12,14 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: JWT_EXPIRATION_MINUTES
+        value: "720"
+      - key: BACKEND_CORS_ORIGINS
+        value: https://shoovaone.vercel.app
       - key: SECRET_KEY
         generateValue: true
       - key: JWT_SECRET_KEY

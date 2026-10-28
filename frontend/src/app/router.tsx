@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { Layout } from '@/app/layouts/Layout';
@@ -19,142 +20,438 @@ import { ResetPasswordPage } from '@/features/auth/pages/ResetPasswordPage';
 // CORE PAGES
 // ============================================================
 
-import { DashboardPage } from '@/features/dashboard/pages/DashboardPage';
-import { MyWorkPage } from '@/features/mywork/pages/MyWorkPage';
-import { ChatPage } from '@/features/chat/pages/ChatPage';
-import { NotificationsPage } from '@/features/notifications/pages/NotificationsPage';
-import { SettingsPage } from '@/features/settings/pages/SettingsPage';
-import { HelpPage } from '@/features/help/pages/HelpPage';
-
-import { PeoplePage } from '@/features/people/pages/PeoplePage';
-import { PersonDetailPage } from '@/features/people/pages/PersonDetailPage';
-import { OrgChartPage } from '@/features/people/pages/OrgChartPage';
-import { NewPersonPage } from '@/features/people/pages/NewPersonPage';
-
-import { AttendancePage } from '@/features/attendance/pages/AttendancePage';
-import { TimesheetsPage } from '@/features/timesheets/pages/TimesheetsPage';
-
-import { TasksPage } from '@/features/tasks/pages/TasksPage';
-import { TaskDetailPage } from '@/features/tasks/pages/TaskDetailPage';
-
-import { UsersPage } from '@/features/users/pages/UsersPage';
-
+const DashboardPage = lazy(() =>
+  import('@/features/dashboard/pages/DashboardPage').then((module) => ({
+    default: module.DashboardPage,
+  }))
+);
+const MyWorkPage = lazy(() =>
+  import('@/features/mywork/pages/MyWorkPage').then((module) => ({
+    default: module.MyWorkPage,
+  }))
+);
+const ChatPage = lazy(() =>
+  import('@/features/chat/pages/ChatPage').then((module) => ({
+    default: module.ChatPage,
+  }))
+);
+const NotificationsPage = lazy(() =>
+  import('@/features/notifications/pages/NotificationsPage').then((module) => ({
+    default: module.NotificationsPage,
+  }))
+);
+const SettingsPage = lazy(() =>
+  import('@/features/settings/pages/SettingsPage').then((module) => ({
+    default: module.SettingsPage,
+  }))
+);
+const HelpPage = lazy(() =>
+  import('@/features/help/pages/HelpPage').then((module) => ({
+    default: module.HelpPage,
+  }))
+);
+const PeoplePage = lazy(() =>
+  import('@/features/people/pages/PeoplePage').then((module) => ({
+    default: module.PeoplePage,
+  }))
+);
+const PersonDetailPage = lazy(() =>
+  import('@/features/people/pages/PersonDetailPage').then((module) => ({
+    default: module.PersonDetailPage,
+  }))
+);
+const OrgChartPage = lazy(() =>
+  import('@/features/people/pages/OrgChartPage').then((module) => ({
+    default: module.OrgChartPage,
+  }))
+);
+const NewPersonPage = lazy(() =>
+  import('@/features/people/pages/NewPersonPage').then((module) => ({
+    default: module.NewPersonPage,
+  }))
+);
+const AttendancePage = lazy(() =>
+  import('@/features/attendance/pages/AttendancePage').then((module) => ({
+    default: module.AttendancePage,
+  }))
+);
+const TimesheetsPage = lazy(() =>
+  import('@/features/timesheets/pages/TimesheetsPage').then((module) => ({
+    default: module.TimesheetsPage,
+  }))
+);
+const TasksPage = lazy(() =>
+  import('@/features/tasks/pages/TasksPage').then((module) => ({
+    default: module.TasksPage,
+  }))
+);
+const TaskDetailPage = lazy(() =>
+  import('@/features/tasks/pages/TaskDetailPage').then((module) => ({
+    default: module.TaskDetailPage,
+  }))
+);
+const UsersPage = lazy(() =>
+  import('@/features/users/pages/UsersPage').then((module) => ({
+    default: module.UsersPage,
+  }))
+);
 // ============================================================
 // PROJECTS
 // ============================================================
 
-import { ProjectsPage } from '@/features/projects/pages/ProjectsPage';
+const ProjectsPage = lazy(() =>
+  import('@/features/projects/pages/ProjectsPage').then((module) => ({
+    default: module.ProjectsPage,
+  }))
+);
 import { ProjectLayout } from '@/features/projects/layouts/ProjectLayout';
-import { ProjectOverview } from '@/features/projects/pages/ProjectOverview';
-import { ProjectTasks } from '@/features/projects/pages/ProjectTasks';
-import { ProjectMilestones } from '@/features/projects/pages/ProjectMilestones';
-import { ProjectTeam } from '@/features/projects/pages/ProjectTeam';
-import { ProjectTimesheets } from '@/features/projects/pages/ProjectTimesheets';
-import { ProjectDocuments } from '@/features/projects/pages/ProjectDocuments';
-import { ProjectActivity } from '@/features/projects/pages/ProjectActivity';
-import { ProjectSettings } from '@/features/projects/pages/ProjectSettings';
-import { NewProjectPage } from '@/features/projects/pages/NewProjectPage';
+const ProjectOverview = lazy(() =>
+  import('@/features/projects/pages/ProjectOverview').then((module) => ({
+    default: module.ProjectOverview,
+  }))
+);
+const ProjectTasks = lazy(() =>
+  import('@/features/projects/pages/ProjectTasks').then((module) => ({
+    default: module.ProjectTasks,
+  }))
+);
+const ProjectMilestones = lazy(() =>
+  import('@/features/projects/pages/ProjectMilestones').then((module) => ({
+    default: module.ProjectMilestones,
+  }))
+);
+const ProjectTeam = lazy(() =>
+  import('@/features/projects/pages/ProjectTeam').then((module) => ({
+    default: module.ProjectTeam,
+  }))
+);
+const ProjectTimesheets = lazy(() =>
+  import('@/features/projects/pages/ProjectTimesheets').then((module) => ({
+    default: module.ProjectTimesheets,
+  }))
+);
+const ProjectDocuments = lazy(() =>
+  import('@/features/projects/pages/ProjectDocuments').then((module) => ({
+    default: module.ProjectDocuments,
+  }))
+);
+const ProjectActivity = lazy(() =>
+  import('@/features/projects/pages/ProjectActivity').then((module) => ({
+    default: module.ProjectActivity,
+  }))
+);
+const ProjectSettings = lazy(() =>
+  import('@/features/projects/pages/ProjectSettings').then((module) => ({
+    default: module.ProjectSettings,
+  }))
+);
+const NewProjectPage = lazy(() =>
+  import('@/features/projects/pages/NewProjectPage').then((module) => ({
+    default: module.NewProjectPage,
+  }))
+);
 import { CrmLayout } from '@/features/crm/layouts/CrmLayout';
-import { CrmOverviewPage } from '@/features/crm/pages/CrmOverviewPage';
-import { CrmPipelinePage } from '@/features/crm/pages/CrmPipelinePage';
-import { CrmOrganisationsPage } from '@/features/crm/pages/CrmOrganisationsPage';
-import { CrmOrganisationDetailPage } from '@/features/crm/pages/CrmOrganisationDetailPage';
-import { CrmContactsPage } from '@/features/crm/pages/CrmContactsPage';
-import { CrmReportsPage } from '@/features/crm/pages/CrmReportsPage';
-import { NewOpportunityPage } from '@/features/crm/pages/NewOpportunityPage';
-import { OpportunityDetailPage } from '@/features/crm/pages/OpportunityDetailPage';
+const CrmOverviewPage = lazy(() =>
+  import('@/features/crm/pages/CrmOverviewPage').then((module) => ({
+    default: module.CrmOverviewPage,
+  }))
+);
+const CrmPipelinePage = lazy(() =>
+  import('@/features/crm/pages/CrmPipelinePage').then((module) => ({
+    default: module.CrmPipelinePage,
+  }))
+);
+const CrmOrganisationsPage = lazy(() =>
+  import('@/features/crm/pages/CrmOrganisationsPage').then((module) => ({
+    default: module.CrmOrganisationsPage,
+  }))
+);
+const CrmOrganisationDetailPage = lazy(() =>
+  import('@/features/crm/pages/CrmOrganisationDetailPage').then((module) => ({
+    default: module.CrmOrganisationDetailPage,
+  }))
+);
+const CrmContactsPage = lazy(() =>
+  import('@/features/crm/pages/CrmContactsPage').then((module) => ({
+    default: module.CrmContactsPage,
+  }))
+);
+const CrmReportsPage = lazy(() =>
+  import('@/features/crm/pages/CrmReportsPage').then((module) => ({
+    default: module.CrmReportsPage,
+  }))
+);
+const NewOpportunityPage = lazy(() =>
+  import('@/features/crm/pages/NewOpportunityPage').then((module) => ({
+    default: module.NewOpportunityPage,
+  }))
+);
+const OpportunityDetailPage = lazy(() =>
+  import('@/features/crm/pages/OpportunityDetailPage').then((module) => ({
+    default: module.OpportunityDetailPage,
+  }))
+);
 // ============================================================
 // /me PAGES — SELF SERVICE
 // ============================================================
 
-import { MeHomePage } from '@/features/me/pages/MeHomePage';
-import { MeTimeOffPage } from '@/features/me/pages/MeTimeOffPage';
-import { MeCompensationPage } from '@/features/me/pages/MeCompensationPage';
-import { MeDevicesPage } from '@/features/me/pages/MeDevicesPage';
-import { MeContractPage } from '@/features/me/pages/MeContractPage';
-import { MeDocumentsPage } from '@/features/me/pages/MeDocumentsPage';
-import { MeProfilePage } from '@/features/me/pages/MeProfilePage';
-
+const MeHomePage = lazy(() =>
+  import('@/features/me/pages/MeHomePage').then((module) => ({
+    default: module.MeHomePage,
+  }))
+);
+const MeTimeOffPage = lazy(() =>
+  import('@/features/me/pages/MeTimeOffPage').then((module) => ({
+    default: module.MeTimeOffPage,
+  }))
+);
+const MeCompensationPage = lazy(() =>
+  import('@/features/me/pages/MeCompensationPage').then((module) => ({
+    default: module.MeCompensationPage,
+  }))
+);
+const MeDevicesPage = lazy(() =>
+  import('@/features/me/pages/MeDevicesPage').then((module) => ({
+    default: module.MeDevicesPage,
+  }))
+);
+const MeContractPage = lazy(() =>
+  import('@/features/me/pages/MeContractPage').then((module) => ({
+    default: module.MeContractPage,
+  }))
+);
+const MeDocumentsPage = lazy(() =>
+  import('@/features/me/pages/MeDocumentsPage').then((module) => ({
+    default: module.MeDocumentsPage,
+  }))
+);
+const MeProfilePage = lazy(() =>
+  import('@/features/me/pages/MeProfilePage').then((module) => ({
+    default: module.MeProfilePage,
+  }))
+);
 // ============================================================
 // /hr PAGES — HR ADMIN
 // ============================================================
 
-import { HROverviewPage } from '@/features/hr/pages/HROverviewPage';
-import { HRApprovalsPage } from '@/features/hr/pages/HRApprovalsPage';
-import { HRApprovalDetailPage } from '@/features/hr/pages/HRApprovalDetailPage';
-import { HREmployeesPage } from '@/features/hr/pages/HREmployeesPage';
-import { HREmployeeDetailPage } from '@/features/hr/pages/HREmployeeDetailPage';
-import { HRTimeOffPage } from '@/features/hr/pages/HRTimeOffPage';
-import { HRCelebrationsPage } from '@/features/hr/pages/HRCelebrationsPage';
-import { HRDocumentsPage } from '@/features/hr/pages/HRDocumentsPage';
-import { HRCompensationPage } from '@/features/hr/pages/HRCompensationPage';
-import { HRReportsPage } from '@/features/hr/pages/HRReportsPage';
-import { HRSettingsPage } from '@/features/hr/pages/HRSettingsPage';
-import { HRTimesheetsOverviewPage } from '@/features/hr/pages/HRTimesheetsOverviewPage';
-
+const HROverviewPage = lazy(() =>
+  import('@/features/hr/pages/HROverviewPage').then((module) => ({
+    default: module.HROverviewPage,
+  }))
+);
+const HRApprovalsPage = lazy(() =>
+  import('@/features/hr/pages/HRApprovalsPage').then((module) => ({
+    default: module.HRApprovalsPage,
+  }))
+);
+const HRApprovalDetailPage = lazy(() =>
+  import('@/features/hr/pages/HRApprovalDetailPage').then((module) => ({
+    default: module.HRApprovalDetailPage,
+  }))
+);
+const HREmployeesPage = lazy(() =>
+  import('@/features/hr/pages/HREmployeesPage').then((module) => ({
+    default: module.HREmployeesPage,
+  }))
+);
+const HREmployeeDetailPage = lazy(() =>
+  import('@/features/hr/pages/HREmployeeDetailPage').then((module) => ({
+    default: module.HREmployeeDetailPage,
+  }))
+);
+const HRTimeOffPage = lazy(() =>
+  import('@/features/hr/pages/HRTimeOffPage').then((module) => ({
+    default: module.HRTimeOffPage,
+  }))
+);
+const HRCelebrationsPage = lazy(() =>
+  import('@/features/hr/pages/HRCelebrationsPage').then((module) => ({
+    default: module.HRCelebrationsPage,
+  }))
+);
+const HRDocumentsPage = lazy(() =>
+  import('@/features/hr/pages/HRDocumentsPage').then((module) => ({
+    default: module.HRDocumentsPage,
+  }))
+);
+const HRCompensationPage = lazy(() =>
+  import('@/features/hr/pages/HRCompensationPage').then((module) => ({
+    default: module.HRCompensationPage,
+  }))
+);
+const HRReportsPage = lazy(() =>
+  import('@/features/hr/pages/HRReportsPage').then((module) => ({
+    default: module.HRReportsPage,
+  }))
+);
+const HRSettingsPage = lazy(() =>
+  import('@/features/hr/pages/HRSettingsPage').then((module) => ({
+    default: module.HRSettingsPage,
+  }))
+);
+const HRTimesheetsOverviewPage = lazy(() =>
+  import('@/features/hr/pages/HRTimesheetsOverviewPage').then((module) => ({
+    default: module.HRTimesheetsOverviewPage,
+  }))
+);
 // ============================================================
 // PAYROLL
 // ============================================================
 
-import { PayrollLayout } from '@/features/payroll/PayrollLayout';
-import { PayrollOverviewPage } from '@/features/payroll/pages/PayrollOverviewPage';
-import { PayRunsPage } from '@/features/payroll/pages/PayRunsPage';
-import { PayRunDetailPage } from '@/features/payroll/pages/PayRunDetailPage';
-import { PayrollPeoplePage } from '@/features/payroll/pages/PayrollPeoplePage';
-import { PayrollDisbursementsPage } from '@/features/payroll/pages/PayrollDisbursementsPage';
-import { PayrollReportsPage } from '@/features/payroll/pages/PayrollReportsPage';
-import { PayrollConfigurationPage } from '@/features/payroll/pages/PayrollConfigurationPage';
-import { MePayslipsPage } from '@/features/payroll/pages/MePayslipsPage';
-
+const PayrollLayout = lazy(() =>
+  import('@/features/payroll/PayrollLayout').then((module) => ({
+    default: module.PayrollLayout,
+  }))
+);
+const PayrollOverviewPage = lazy(() =>
+  import('@/features/payroll/pages/PayrollOverviewPage').then((module) => ({
+    default: module.PayrollOverviewPage,
+  }))
+);
+const PayRunsPage = lazy(() =>
+  import('@/features/payroll/pages/PayRunsPage').then((module) => ({
+    default: module.PayRunsPage,
+  }))
+);
+const PayRunDetailPage = lazy(() =>
+  import('@/features/payroll/pages/PayRunDetailPage').then((module) => ({
+    default: module.PayRunDetailPage,
+  }))
+);
+const PayrollPeoplePage = lazy(() =>
+  import('@/features/payroll/pages/PayrollPeoplePage').then((module) => ({
+    default: module.PayrollPeoplePage,
+  }))
+);
+const PayrollDisbursementsPage = lazy(() =>
+  import('@/features/payroll/pages/PayrollDisbursementsPage').then((module) => ({
+    default: module.PayrollDisbursementsPage,
+  }))
+);
+const PayrollReportsPage = lazy(() =>
+  import('@/features/payroll/pages/PayrollReportsPage').then((module) => ({
+    default: module.PayrollReportsPage,
+  }))
+);
+const PayrollConfigurationPage = lazy(() =>
+  import('@/features/payroll/pages/PayrollConfigurationPage').then((module) => ({
+    default: module.PayrollConfigurationPage,
+  }))
+);
+const MePayslipsPage = lazy(() =>
+  import('@/features/payroll/pages/MePayslipsPage').then((module) => ({
+    default: module.MePayslipsPage,
+  }))
+);
 // ============================================================
 // FINANCE
 // ============================================================
 
-import { FinanceOverviewPage } from '@/features/finance/pages/FinanceOverviewPage';
+const FinanceOverviewPage = lazy(() =>
+  import('@/features/finance/pages/FinanceOverviewPage').then((module) => ({
+    default: module.FinanceOverviewPage,
+  }))
+);
 import { FinanceLayout } from '@/features/finance/layouts/FinanceLayout';
-import ExpensesPage from '@/features/finance/pages/ExpensesPage';
-import { ExpenseDetailPage } from '@/features/finance/pages/ExpenseDetailPage';
-import { NewExpensePage } from '@/features/finance/pages/NewExpensePage';
-import { FundRequestsPage } from '@/features/finance/pages/FundRequestsPage';
-import { NewFundRequestPage } from '@/features/finance/pages/NewFundRequestPage';
-import { FundRequestDetailPage } from '@/features/finance/pages/FundRequestDetailPage';
-import { ApprovalsPage } from '@/features/finance/pages/ApprovalsPage';
-import { DisbursementsPage } from '@/features/finance/pages/DisbursementsPage';
-import ReconciliationPage from '@/features/finance/pages/ReconciliationPage';
-import ReimbursementsPage from '@/features/finance/pages/ReimbursementsPage';
-import { NewReimbursementPage } from '@/features/finance/pages/NewReimbursementPage';
-import { ReimbursementDetailPage } from '@/features/finance/pages/ReimbursementDetailPage';
-import InvoicesPage from '@/features/finance/pages/InvoicesPage';
-import NewInvoicePage from '@/features/finance/pages/NewInvoicePage';
-import InvoiceDetailPage from '@/features/finance/pages/InvoiceDetailPage';
-import PaymentsPage from '@/features/finance/pages/PaymentsPage';
-import NewPaymentPage from '@/features/finance/pages/NewPaymentPage';
-import PaymentDetailPage from '@/features/finance/pages/PaymentDetailPage';
-import BudgetsPage from '@/features/finance/pages/BudgetsPage';
-import NewBudgetPage from '@/features/finance/pages/NewBudgetPage';
-import BudgetDetailPage from '@/features/finance/pages/BudgetDetailPage';
-import EditBudgetPage from '@/features/finance/pages/EditBudgetPage';
-
-import AllocationsPage from '../features/finance/pages/AllocationsPage';
-import NewAllocationPage from '../features/finance/pages/NewAllocationPage';
-import AllocationDetailPage from '../features/finance/pages/AllocationDetailPage';
-import EditAllocationPage from '../features/finance/pages/EditAllocationPage';
-import { FinancialReportsPage } from '../features/finance/pages/FinancialReportsPage';
+const ExpensesPage = lazy(() => import('@/features/finance/pages/ExpensesPage'));
+const ExpenseDetailPage = lazy(() =>
+  import('@/features/finance/pages/ExpenseDetailPage').then((module) => ({
+    default: module.ExpenseDetailPage,
+  }))
+);
+const NewExpensePage = lazy(() =>
+  import('@/features/finance/pages/NewExpensePage').then((module) => ({
+    default: module.NewExpensePage,
+  }))
+);
+const FundRequestsPage = lazy(() =>
+  import('@/features/finance/pages/FundRequestsPage').then((module) => ({
+    default: module.FundRequestsPage,
+  }))
+);
+const NewFundRequestPage = lazy(() =>
+  import('@/features/finance/pages/NewFundRequestPage').then((module) => ({
+    default: module.NewFundRequestPage,
+  }))
+);
+const FundRequestDetailPage = lazy(() =>
+  import('@/features/finance/pages/FundRequestDetailPage').then((module) => ({
+    default: module.FundRequestDetailPage,
+  }))
+);
+const ApprovalsPage = lazy(() =>
+  import('@/features/finance/pages/ApprovalsPage').then((module) => ({
+    default: module.ApprovalsPage,
+  }))
+);
+const DisbursementsPage = lazy(() =>
+  import('@/features/finance/pages/DisbursementsPage').then((module) => ({
+    default: module.DisbursementsPage,
+  }))
+);
+const ReconciliationPage = lazy(() => import('@/features/finance/pages/ReconciliationPage'));
+const ReimbursementsPage = lazy(() => import('@/features/finance/pages/ReimbursementsPage'));
+const NewReimbursementPage = lazy(() =>
+  import('@/features/finance/pages/NewReimbursementPage').then((module) => ({
+    default: module.NewReimbursementPage,
+  }))
+);
+const ReimbursementDetailPage = lazy(() =>
+  import('@/features/finance/pages/ReimbursementDetailPage').then((module) => ({
+    default: module.ReimbursementDetailPage,
+  }))
+);
+const InvoicesPage = lazy(() => import('@/features/finance/pages/InvoicesPage'));
+const NewInvoicePage = lazy(() => import('@/features/finance/pages/NewInvoicePage'));
+const InvoiceDetailPage = lazy(() => import('@/features/finance/pages/InvoiceDetailPage'));
+const PaymentsPage = lazy(() => import('@/features/finance/pages/PaymentsPage'));
+const NewPaymentPage = lazy(() => import('@/features/finance/pages/NewPaymentPage'));
+const PaymentDetailPage = lazy(() => import('@/features/finance/pages/PaymentDetailPage'));
+const BudgetsPage = lazy(() => import('@/features/finance/pages/BudgetsPage'));
+const NewBudgetPage = lazy(() => import('@/features/finance/pages/NewBudgetPage'));
+const BudgetDetailPage = lazy(() => import('@/features/finance/pages/BudgetDetailPage'));
+const EditBudgetPage = lazy(() => import('@/features/finance/pages/EditBudgetPage'));
+const AllocationsPage = lazy(() => import('../features/finance/pages/AllocationsPage'));
+const NewAllocationPage = lazy(() => import('../features/finance/pages/NewAllocationPage'));
+const AllocationDetailPage = lazy(() => import('../features/finance/pages/AllocationDetailPage'));
+const EditAllocationPage = lazy(() => import('../features/finance/pages/EditAllocationPage'));
+const FinancialReportsPage = lazy(() =>
+  import('../features/finance/pages/FinancialReportsPage').then((module) => ({
+    default: module.FinancialReportsPage,
+  }))
+);
 // ============================================================
 // AUDIT
 // ============================================================
-import { AuditLogsPage } from '@/features/audit/pages/AuditLogsPage';
-import { RolesPermissionsPage } from '@/features/roles/pages/RolesPermissionsPage';
+const AuditLogsPage = lazy(() =>
+  import('@/features/audit/pages/AuditLogsPage').then((module) => ({
+    default: module.AuditLogsPage,
+  }))
+);
+const RolesPermissionsPage = lazy(() =>
+  import('@/features/roles/pages/RolesPermissionsPage').then((module) => ({
+    default: module.RolesPermissionsPage,
+  }))
+);
 // ============================================================
 
 // MEETINGS
 import { MeetingsLayout } from '@/features/meetings/layouts/MeetingsLayout';
-import { MeetingsListPage } from '@/features/meetings/pages/MeetingsListPage';
-import { NewMeetingPage } from '@/features/meetings/pages/NewMeetingPage';
-import { MeetingDetailPage } from '@/features/meetings/pages/MeetingDetailPage';
-
-
-
+const MeetingsListPage = lazy(() =>
+  import('@/features/meetings/pages/MeetingsListPage').then((module) => ({
+    default: module.MeetingsListPage,
+  }))
+);
+const NewMeetingPage = lazy(() =>
+  import('@/features/meetings/pages/NewMeetingPage').then((module) => ({
+    default: module.NewMeetingPage,
+  }))
+);
+const MeetingDetailPage = lazy(() =>
+  import('@/features/meetings/pages/MeetingDetailPage').then((module) => ({
+    default: module.MeetingDetailPage,
+  }))
+);
 // HELPERS
 // ============================================================
 
@@ -334,6 +631,7 @@ export function AppRouter() {
 
   return (
     <BrowserRouter>
+      <Suspense fallback={<PageLoader />}>
       <Routes>
 
         {/* ========================================================= */}
@@ -1099,6 +1397,7 @@ export function AppRouter() {
         />
 
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

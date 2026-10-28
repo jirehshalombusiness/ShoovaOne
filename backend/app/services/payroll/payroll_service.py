@@ -1093,6 +1093,19 @@ class PayrollService:
                 ),
             )
 
+        if (
+            actor.person_id
+            and run.hr_approved_by_id
+            and str(actor.person_id) == str(run.hr_approved_by_id)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Segregation of duties: the person who signed off the "
+                    "run for HR cannot also review it at Finance."
+                ),
+            )
+
         if decision not in {"approved", "returned"}:
             raise HTTPException(status_code=400, detail="Invalid decision")
 

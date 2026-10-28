@@ -544,6 +544,12 @@ async def review_reimbursement(
             ),
         )
 
+    if record.requester_id == current_user.person_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot review your own reimbursement.",
+        )
+
     old_status = record.status
 
     record.status = "under_review"
@@ -629,6 +635,24 @@ async def approve_reimbursement(
             detail=(
                 "Only reimbursements under review "
                 "can be approved."
+            ),
+        )
+
+    if record.requester_id == current_user.person_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot approve your own reimbursement.",
+        )
+
+    if (
+        record.reviewer_id
+        and record.reviewer_id == current_user.person_id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "The reviewer cannot also approve the same "
+                "reimbursement. A different approver is required."
             ),
         )
 
@@ -721,6 +745,12 @@ async def reject_reimbursement(
                 "Only submitted or reviewed "
                 "reimbursements can be rejected."
             ),
+        )
+
+    if record.requester_id == current_user.person_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot reject your own reimbursement.",
         )
 
     if not body.rejection_reason.strip():
@@ -818,6 +848,12 @@ async def pay_reimbursement(
                 "Only approved reimbursements "
                 "can be paid."
             ),
+        )
+
+    if record.requester_id == current_user.person_id:
+        raise HTTPException(
+            status_code=403,
+            detail="The requester cannot pay their own reimbursement.",
         )
 
     old_status = record.status

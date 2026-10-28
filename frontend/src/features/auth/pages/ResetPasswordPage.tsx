@@ -26,8 +26,8 @@ export function ResetPasswordPage() {
       return;
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long.');
+    if (password.length < 12) {
+      setError('Password must be at least 12 characters long.');
       return;
     }
 
@@ -139,7 +139,7 @@ export function ResetPasswordPage() {
                   className="w-full pl-10 pr-12 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   placeholder="Enter new password"
                   required
-                  minLength={8}
+                  minLength={12}
                   autoComplete="new-password"
                 />
 
@@ -157,7 +157,7 @@ export function ResetPasswordPage() {
               </div>
 
               <p className="text-xs text-gray-400 mt-1.5">
-                Must be at least 8 characters.
+                Must be at least 12 characters.
               </p>
             </div>
 
@@ -177,7 +177,7 @@ export function ResetPasswordPage() {
                   className="w-full pl-10 pr-12 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   placeholder="Confirm new password"
                   required
-                  minLength={8}
+                  minLength={12}
                   autoComplete="new-password"
                 />
 

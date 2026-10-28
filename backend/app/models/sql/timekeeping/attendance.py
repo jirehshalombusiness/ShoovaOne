@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, JSON, Date, Text, Boolean
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, JSON, Date, Text, Boolean, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -8,6 +8,9 @@ from app.models.sql.base import BaseModel, GUID
 
 class Attendance(BaseModel):
     __tablename__ = "attendance"
+    __table_args__ = (
+        UniqueConstraint("person_id", "date", name="uq_attendance_person_date"),
+    )
 
     person_id = Column(GUID, ForeignKey("people.id", ondelete="CASCADE"), nullable=False)
     date = Column(Date, nullable=False)

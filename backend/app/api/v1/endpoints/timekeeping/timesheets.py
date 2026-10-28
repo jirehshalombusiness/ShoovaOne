@@ -37,6 +37,10 @@ from app.models.pydantic.timekeeping.timesheet import (
 router = APIRouter()
 
 
+MAX_ENTRY_HOURS = Decimal("24")
+MAX_WEEK_HOURS = Decimal("168")
+
+
 # ============================================================
 # HELPERS
 # ============================================================
@@ -98,6 +102,110 @@ def _entry_snapshot(entry: TimesheetEntry) -> dict:
             getattr(entry, "is_locked", False)
         ),
     }
+
+
+def _validate_entry_fields(
+    timesheet: Timesheet,
+    *,
+    entry_date: date,
+    duration: Decimal,
+    start_time=None,
+    end_time=None,
+    break_minutes: int = 0,
+) -> None:
+    """
+    Guard manual timesheet entries against impossible or abusive values.
+
+    Paid hours come from these rows, so the bounds are enforced here
+    rather than trusted from the client.
+    """
+    if entry_date is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Entry date is required",
+        )
+
+    if (
+        entry_date < timesheet.week_start_date
+        or entry_date > timesheet.week_end_date
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Entry date must fall inside the timesheet week",
+        )
+
+    if entry_date > date.today():
+        raise HTTPException(
+            status_code=400,
+            detail="Entries cannot be recorded for future dates",
+        )
+
+    if duration is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Entry duration is required",
+        )
+
+    duration = Decimal(str(duration))
+
+    if duration <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Entry duration must be greater than zero",
+        )
+
+    if duration > MAX_ENTRY_HOURS:
+        raise HTTPException(
+            status_code=400,
+            detail="A single entry cannot exceed 24 hours",
+        )
+
+    if break_minutes is None:
+        break_minutes = 0
+
+    if break_minutes < 0 or break_minutes > 24 * 60:
+        raise HTTPException(
+            status_code=400,
+            detail="Break minutes must be between 0 and 1440",
+        )
+
+    if start_time and end_time:
+        start_minutes = (
+            start_time.hour * 60
+            + start_time.minute
+            + start_time.second / 60
+        )
+        end_minutes = (
+            end_time.hour * 60
+            + end_time.minute
+            + end_time.second / 60
+        )
+
+        span = end_minutes - start_minutes
+
+        if span <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "End time must be after start time. "
+                    "Overnight entries are not supported."
+                ),
+            )
+
+        if break_minutes >= span:
+            raise HTTPException(
+                status_code=400,
+                detail="Break time must be shorter than the time range",
+            )
+
+        if float(duration) * 60 > span - break_minutes + 0.5:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Duration cannot exceed the recorded time range "
+                    "minus breaks"
+                ),
+            )
 
 
 async def _recalculate_timesheet_total(
@@ -200,6 +308,12 @@ async def get_my_timesheet(
             today - timedelta(days=today.weekday())
         )
 
+    if week_start.weekday() != 0:
+        raise HTTPException(
+            status_code=400,
+            detail="The week start date must be a Monday",
+        )
+
     week_end = week_start + timedelta(days=6)
 
     result = await db.execute(
@@ -286,15 +400,20 @@ async def create_entry(
             detail="Not your timesheet",
         )
 
-    if (
-        not can_override
-        and timesheet.status
-        not in ["draft", "rejected"]
-    ):
+    if timesheet.status not in ["draft", "rejected"]:
         raise HTTPException(
             status_code=400,
             detail="Timesheet is not editable",
         )
+
+    _validate_entry_fields(
+        timesheet,
+        entry_date=entry_data.date,
+        duration=entry_data.duration,
+        start_time=entry_data.start_time,
+        end_time=entry_data.end_time,
+        break_minutes=entry_data.break_minutes or 0,
+    )
 
     entry = TimesheetEntry(
         id=str(uuid.uuid4()),
@@ -424,21 +543,28 @@ async def update_entry(
             detail="Not your timesheet",
         )
 
-    if (
-        not can_override
-        and timesheet.status
-        not in ["draft", "rejected"]
-    ):
+    if timesheet.status not in ["draft", "rejected"]:
         raise HTTPException(
             status_code=400,
             detail="Timesheet is not editable",
         )
 
-    old_values = _entry_snapshot(entry)
-
     update_data = entry_data.model_dump(
         exclude_unset=True
     )
+
+    _validate_entry_fields(
+        timesheet,
+        entry_date=update_data.get("date", entry.date),
+        duration=update_data.get("duration", entry.duration),
+        start_time=update_data.get("start_time", entry.start_time),
+        end_time=update_data.get("end_time", entry.end_time),
+        break_minutes=update_data.get(
+            "break_minutes", entry.break_minutes or 0
+        ),
+    )
+
+    old_values = _entry_snapshot(entry)
 
     for key, value in update_data.items():
 
@@ -557,11 +683,7 @@ async def delete_entry(
             detail="Not your timesheet",
         )
 
-    if (
-        not can_override
-        and timesheet.status
-        not in ["draft", "rejected"]
-    ):
+    if timesheet.status not in ["draft", "rejected"]:
         raise HTTPException(
             status_code=400,
             detail="Timesheet is not editable",
@@ -660,6 +782,34 @@ async def submit_timesheet(
         db,
         timesheet,
     )
+
+    if total_hours <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot submit a timesheet with no recorded hours",
+        )
+
+    if total_hours > MAX_WEEK_HOURS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Timesheet total exceeds the maximum of "
+                f"{MAX_WEEK_HOURS} hours for a week"
+            ),
+        )
+
+    future_entries_result = await db.execute(
+        select(func.count(TimesheetEntry.id)).where(
+            TimesheetEntry.timesheet_id == timesheet.id,
+            TimesheetEntry.date > date.today(),
+        )
+    )
+
+    if (future_entries_result.scalar() or 0) > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Remove future-dated entries before submitting",
+        )
 
     timesheet.status = "submitted"
     timesheet.submitted_at = _utc_now()

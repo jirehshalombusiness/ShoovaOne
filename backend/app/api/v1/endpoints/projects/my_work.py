@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from typing import Optional
 from datetime import date, datetime, timedelta, timezone
 
@@ -180,60 +180,81 @@ async def get_my_projects(
     """Get projects where I'm a member."""
     from app.models.sql.projects.project import ProjectMember
 
-    # Find all project IDs where I'm a member
-    member_result = await db.execute(
-        select(ProjectMember.project_id).where(
-            ProjectMember.person_id == current_user.person_id
+    # Projects I belong to, with my role, in one query.
+    result = await db.execute(
+        select(Project, ProjectMember.role)
+        .join(
+            ProjectMember,
+            and_(
+                ProjectMember.project_id == Project.id,
+                ProjectMember.person_id == current_user.person_id,
+            ),
         )
+        .options(selectinload(Project.manager))
+        .order_by(Project.created_at.desc())
+        .distinct()
     )
-    project_ids = [r[0] for r in member_result.all()]
+    project_rows = result.all()
 
-    if not project_ids:
+    if not project_rows:
         return []
 
-    # Get projects with those IDs, plus counts
-    result = await db.execute(
-        select(Project)
-        .options(selectinload(Project.manager))
-        .where(Project.id.in_(project_ids))
-        .order_by(Project.created_at.desc())
+    project_ids = [project.id for project, _role in project_rows]
+
+    # Task statistics for every project in one grouped query.
+    stats_result = await db.execute(
+        select(
+            Task.project_id,
+            func.count(Task.id).label("total_tasks"),
+            func.coalesce(
+                func.sum(
+                    case((Task.status == "done", 1), else_=0)
+                ),
+                0,
+            ).label("completed_tasks"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                Task.assignee_id
+                                == current_user.person_id,
+                                Task.status.notin_(
+                                    ["done", "cancelled"]
+                                ),
+                            ),
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("my_open_tasks"),
+        )
+        .where(Task.project_id.in_(project_ids))
+        .group_by(Task.project_id)
     )
-    projects = result.scalars().all()
+
+    task_stats = {
+        str(row.project_id): {
+            "total": row.total_tasks or 0,
+            "completed": row.completed_tasks or 0,
+            "my_open": row.my_open_tasks or 0,
+        }
+        for row in stats_result.all()
+    }
 
     # Build response with my role + counts
     responses = []
-    for p in projects:
-        # Get my role in this project
-        role_result = await db.execute(
-            select(ProjectMember.role).where(
-                ProjectMember.project_id == p.id,
-                ProjectMember.person_id == current_user.person_id,
-            )
+    for p, my_role in project_rows:
+        stats = task_stats.get(
+            str(p.id),
+            {"total": 0, "completed": 0, "my_open": 0},
         )
-        my_role = role_result.scalar_one_or_none() or "member"
 
-        # Task counts (assigned to me)
-        from app.models.sql.projects.project import Task
-        my_tasks_result = await db.execute(
-            select(func.count(Task.id)).where(
-                Task.project_id == p.id,
-                Task.assignee_id == current_user.person_id,
-                Task.status.notin_(["done", "cancelled"]),
-            )
-        )
-        my_open_tasks = my_tasks_result.scalar() or 0
-
-        total_tasks_result = await db.execute(
-            select(func.count(Task.id)).where(Task.project_id == p.id)
-        )
-        total_tasks = total_tasks_result.scalar() or 0
-
-        completed_result = await db.execute(
-            select(func.count(Task.id)).where(
-                Task.project_id == p.id, Task.status == "done"
-            )
-        )
-        completed_tasks = completed_result.scalar() or 0
+        my_open_tasks = stats["my_open"]
+        total_tasks = stats["total"]
+        completed_tasks = stats["completed"]
 
         responses.append({
             "id": str(p.id),
@@ -249,7 +270,7 @@ async def get_my_projects(
             "manager_first_name": p.manager.first_name if p.manager else None,
             "manager_last_name": p.manager.last_name if p.manager else None,
             "manager_image_url": p.manager.profile_image_url if p.manager else None,
-            "my_role": my_role,
+            "my_role": my_role or "member",
             "my_open_tasks": my_open_tasks,
             "total_tasks": total_tasks,
             "completed_tasks": completed_tasks,

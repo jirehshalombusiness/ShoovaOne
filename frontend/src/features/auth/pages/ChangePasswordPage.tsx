@@ -20,8 +20,8 @@ export function ChangePasswordPage() {
 
         setError('');
 
-        if (newPassword.length < 8) {
-            setError('New password must be at least 8 characters long.');
+        if (newPassword.length < 12) {
+            setError('New password must be at least 12 characters long.');
             return;
         }
 
@@ -38,10 +38,15 @@ export function ChangePasswordPage() {
         try {
             setLoading(true);
 
-            await api.post('/auth/change-password', {
+            const response = await api.post('/auth/change-password', {
                 current_password: currentPassword,
                 new_password: newPassword,
             });
+
+            // The old token is revoked with the password change.
+            if (response.data?.access_token) {
+                localStorage.setItem('access_token', response.data.access_token);
+            }
 
             // Update the live AuthContext and cached user.
             updateUser({ must_change_password: false });
@@ -110,12 +115,12 @@ export function ChangePasswordPage() {
                                 onChange={(e) => setNewPassword(e.target.value)}
                                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                                 placeholder="Enter your new password"
-                                minLength={8}
+                                minLength={12}
                                 required
                             />
 
                             <p className="text-xs text-gray-500 mt-1">
-                                Must be at least 8 characters.
+                                Must be at least 12 characters.
                             </p>
                         </div>
 
@@ -130,7 +135,7 @@ export function ChangePasswordPage() {
                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                                 placeholder="Re-enter your new password"
-                                minLength={8}
+                                minLength={12}
                                 required
                             />
                         </div>

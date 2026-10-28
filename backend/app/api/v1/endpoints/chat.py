@@ -18,7 +18,11 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, get_db
-from app.core.security import create_access_token, get_current_active_user
+from app.core.security import (
+    create_access_token,
+    get_current_active_user,
+    password_fingerprint,
+)
 from app.models.pydantic.chat import (
     AddMembersRequest,
     AnnouncementCreate,
@@ -1016,7 +1020,11 @@ async def create_ws_ticket(
     """Short-lived ticket so the long-lived JWT never appears in WS URLs."""
 
     ticket = create_access_token(
-        data={"sub": str(current_user.id), "scope": "chat_ws"},
+        data={
+            "sub": str(current_user.id),
+            "scope": "chat_ws",
+            "pwdv": password_fingerprint(current_user.password_hash),
+        },
         expires_delta=timedelta(minutes=2),
     )
     return {"ticket": ticket, "expires_in": 120}
@@ -1049,7 +1057,11 @@ async def chat_socket(
         )
         user = result.scalar_one_or_none()
 
-    if not user:
+    if (
+        not user
+        or payload.get("pwdv")
+        != password_fingerprint(user.password_hash)
+    ):
         await websocket.close(code=4401)
         return
 

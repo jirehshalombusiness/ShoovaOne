@@ -235,8 +235,8 @@ function SecuritySection() {
     event.preventDefault();
     setError('');
 
-    if (newPassword.length < 8) {
-      setError('New password must be at least 8 characters long.');
+    if (newPassword.length < 12) {
+      setError('New password must be at least 12 characters long.');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -271,7 +271,7 @@ function SecuritySection() {
         <div>
           <h2 className="text-sm font-semibold text-gray-900">Password</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Use at least 8 characters. You will stay signed in.
+            Use at least 12 characters. You will stay signed in.
           </p>
         </div>
         <button

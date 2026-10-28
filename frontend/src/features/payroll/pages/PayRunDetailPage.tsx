@@ -161,6 +161,7 @@ export function PayRunDetailPage() {
   }
 
   const canPrepare = access.has(['payroll.prepare', 'payroll.review_hr']);
+  const canSubmitToFinance = access.has('payroll.review_hr');
   const canReviewFinance = access.has('payroll.review_finance');
   const canApprove = access.has('payroll.approve');
 
@@ -196,7 +197,7 @@ export function PayRunDetailPage() {
     );
   }
 
-  if (run.status === 'calculated' && canPrepare) {
+  if (run.status === 'calculated' && canSubmitToFinance) {
     actions.push(
       <button
         key="submit"

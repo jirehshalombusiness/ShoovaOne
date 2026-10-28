@@ -143,8 +143,16 @@ async def submit_pay_run(
     run_id: str,
     payload: PayRunSubmit,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(prepare_access),
+    current_user=Depends(
+        require_permission(Permissions.PAYROLL_REVIEW_HR)
+    ),
 ):
+    """
+    HR sign-off: submit a calculated run to Finance.
+
+    Requires payroll.review_hr (not payroll.prepare) so that preparing
+    a run and signing it off for Finance are separate authorities.
+    """
     run = await PayrollService.submit_to_finance(
         db,
         run_id=run_id,

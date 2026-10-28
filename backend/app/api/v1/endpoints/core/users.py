@@ -11,6 +11,7 @@ from app.core.security import (
     require_permission,
     Permissions,
     get_password_hash,
+    validate_password_strength,
 )
 from app.models.sql.core.user import User, Person
 from app.models.sql.core.role import (
@@ -24,7 +25,10 @@ from app.models.pydantic.core.user import (
     ManagedUserResponse,
     DirectPermissionRequest,
 )
-from app.services.core.permission_service import PermissionService
+from app.services.core.permission_service import (
+    PermissionService,
+    clear_permission_cache,
+)
 from app.services.core.audit_service import AuditService
 from app.services.hr import leave_service
 
@@ -386,6 +390,11 @@ async def create_user(
     # 6. Create User
     # --------------------------------------------------------
 
+    validate_password_strength(
+        user_data.password,
+        email=person.email,
+    )
+
     user = User(
         person_id=person.id,
         email=person.email,
@@ -643,6 +652,11 @@ async def update_user(
 
     if user_data.password:
 
+        validate_password_strength(
+            user_data.password,
+            email=user.email,
+        )
+
         user.password_hash = get_password_hash(
             user_data.password
         )
@@ -792,6 +806,8 @@ async def update_user(
     except Exception:
         await db.rollback()
         raise
+
+    clear_permission_cache(db, str(user.id))
 
     # Reload with roles
     result = await db.execute(
@@ -1119,6 +1135,8 @@ async def grant_direct_permission(
         await db.rollback()
         raise
 
+    clear_permission_cache(db, str(user.id))
+
     return {
         "message": "Permission granted successfully.",
         "user_id": str(user.id),
@@ -1284,6 +1302,8 @@ async def revoke_direct_permission(
     except Exception:
         await db.rollback()
         raise
+
+    clear_permission_cache(db, str(user.id))
 
     return None
 

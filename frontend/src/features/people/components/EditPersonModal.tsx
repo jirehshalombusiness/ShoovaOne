@@ -50,10 +50,8 @@ export function EditPersonModal({
         gender: person.gender || '',
         type: person.type || 'staff',
         status: person.status || 'active',
-        role: person.role || '',
         department: person.department || '',
         organization: person.organization || '',
-        position: person.position || '',
         job_title: person.job_title || '',
         location: person.location || '',
         employment_type: person.employment_type || '',
@@ -66,9 +64,6 @@ export function EditPersonModal({
         skills: Array.isArray(person.skills)
             ? person.skills.join(', ')
             : person.skills || '',
-        start_date: person.start_date || '',
-        end_date: person.end_date || '',
-        notes: person.notes || '',
     });
 
     useEffect(() => {
@@ -86,10 +81,8 @@ export function EditPersonModal({
             gender: person.gender || '',
             type: person.type || 'staff',
             status: person.status || 'active',
-            role: person.role || '',
             department: person.department || '',
             organization: person.organization || '',
-            position: person.position || '',
             job_title: person.job_title || '',
             location: person.location || '',
             employment_type: person.employment_type || '',
@@ -102,9 +95,6 @@ export function EditPersonModal({
             skills: Array.isArray(person.skills)
                 ? person.skills.join(', ')
                 : person.skills || '',
-            start_date: person.start_date || '',
-            end_date: person.end_date || '',
-            notes: person.notes || '',
         });
 
         setProfileImageUrl(person.profile_image_url || null);
@@ -164,10 +154,8 @@ export function EditPersonModal({
                     ? `${form.date_of_birth}T00:00:00`
                     : null,
                 gender: form.gender || null,
-                role: form.role || null,
                 department: form.department || null,
                 organization: form.organization || null,
-                position: form.position || null,
                 job_title: form.job_title || null,
                 location: form.location || null,
                 employment_type: form.employment_type || null,
@@ -178,9 +166,6 @@ export function EditPersonModal({
                 postal_code: form.postal_code || null,
                 bio: form.bio || null,
                 skills: form.skills || null,
-                start_date: form.start_date || null,
-                end_date: form.end_date || null,
-                notes: form.notes || null,
                 profile_image_url: nextProfileImageUrl,
             });
         },
@@ -417,15 +402,6 @@ export function EditPersonModal({
                             </select>
 
                             <input
-                                placeholder="Role"
-                                value={form.role}
-                                onChange={(e) =>
-                                    updateField('role', e.target.value)
-                                }
-                                className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                            />
-
-                            <input
                                 placeholder="Department"
                                 value={form.department}
                                 onChange={(e) =>
@@ -439,15 +415,6 @@ export function EditPersonModal({
                                 value={form.organization}
                                 onChange={(e) =>
                                     updateField('organization', e.target.value)
-                                }
-                                className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                            />
-
-                            <input
-                                placeholder="Position"
-                                value={form.position}
-                                onChange={(e) =>
-                                    updateField('position', e.target.value)
                                 }
                                 className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
                             />
@@ -535,33 +502,6 @@ export function EditPersonModal({
                         </div>
                     </section>
 
-                    {/* Employment */}
-                    <section>
-                        <h3 className="mb-3 text-sm font-semibold text-gray-900">
-                            Employment
-                        </h3>
-
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <input
-                                type="date"
-                                value={form.start_date}
-                                onChange={(e) =>
-                                    updateField('start_date', e.target.value)
-                                }
-                                className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                            />
-
-                            <input
-                                type="date"
-                                value={form.end_date}
-                                onChange={(e) =>
-                                    updateField('end_date', e.target.value)
-                                }
-                                className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                            />
-                        </div>
-                    </section>
-
                     {/* Profile */}
                     <section>
                         <h3 className="mb-3 text-sm font-semibold text-gray-900">
@@ -643,16 +583,6 @@ export function EditPersonModal({
                             value={form.skills}
                             onChange={(e) =>
                                 updateField('skills', e.target.value)
-                            }
-                            className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-                        />
-
-                        <textarea
-                            placeholder="Notes"
-                            rows={3}
-                            value={form.notes}
-                            onChange={(e) =>
-                                updateField('notes', e.target.value)
                             }
                             className="mt-3 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                         />

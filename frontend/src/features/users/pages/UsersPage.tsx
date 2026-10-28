@@ -926,7 +926,7 @@ export function UsersPage() {
                 onClick={() => reset.mutate()}
                 disabled={
                   !resetPassword ||
-                  resetPassword.length < 8 ||
+                  resetPassword.length < 12 ||
                   reset.isPending
                 }
                 className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"

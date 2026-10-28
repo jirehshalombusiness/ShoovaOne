@@ -7,9 +7,13 @@ from app.core.email_utils import ValidEmail
 
 class PersonBase(BaseModel):
     first_name: str
+    middle_name: Optional[str] = None
     last_name: str
+    preferred_name: Optional[str] = None
     email: Optional[ValidEmail] = None
     phone: Optional[str] = None
+    alternate_phone: Optional[str] = None
+    organization: Optional[str] = None
     date_of_birth: Optional[datetime] = None
     gender: Optional[str] = None
     type: str = "staff"

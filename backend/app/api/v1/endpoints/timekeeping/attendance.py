@@ -1,36 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 from typing import List, Optional
-from datetime import date, datetime, timezone, timedelta
-from decimal import Decimal
+from datetime import date, datetime, timezone
 import uuid
 
 from app.core.database import get_db
 from app.core.security import require_permission, Permissions
 from app.models.sql.timekeeping.attendance import Attendance
+from app.models.sql.timekeeping.work_session import WorkSession
 from app.models.sql.projects.project import Task, Project
-from app.models.sql.timekeeping.timesheet import Timesheet, TimesheetEntry
 from app.models.pydantic.timekeeping.attendance import AttendanceResponse
 from app.services.core.permission_service import PermissionService
 from app.services.core.audit_service import AuditService
+from app.services.timekeeping import attendance_service as timekeeping
 
 router = APIRouter()
-
-
-# ============================================
-# HELPERS
-# ============================================
-
-def _to_aware(dt: Optional[datetime]) -> Optional[datetime]:
-    """Ensure datetime is timezone-aware."""
-    if dt is None:
-        return None
-
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-
-    return dt
 
 
 # ============================================
@@ -51,13 +36,47 @@ async def get_today_attendance(
     today = date.today()
 
     result = await db.execute(
-        select(Attendance).where(
+        select(Attendance)
+        .where(
             Attendance.person_id == current_user.person_id,
             Attendance.date == today,
         )
+        .order_by(Attendance.created_at)
+        .limit(1)
     )
 
-    attendance = result.scalar_one_or_none()
+    attendance = result.scalars().first()
+
+    effective_minutes = 0
+    elapsed_minutes = 0
+    session_active = False
+
+    if attendance:
+        now = timekeeping.utcnow()
+        sessions = await timekeeping.load_day_sessions(
+            db,
+            attendance.id,
+        )
+        effective_minutes = timekeeping.day_effective_minutes(
+            sessions,
+            now,
+        )
+        elapsed_minutes = timekeeping.day_elapsed_minutes(
+            attendance,
+            now,
+        )
+        session_active = any(
+            s.status == "active" for s in sessions
+        )
+
+    idle_minutes = max(0, elapsed_minutes - effective_minutes)
+    live_duration = (
+        attendance.duration_minutes
+        if attendance and attendance.check_out
+        else effective_minutes
+        if attendance
+        else None
+    )
 
     tasks_result = await db.execute(
         select(Task)
@@ -128,15 +147,20 @@ async def get_today_attendance(
             if attendance and attendance.check_out
             else None
         ),
-        "duration_minutes": (
-            attendance.duration_minutes
-            if attendance
-            else None
-        ),
+        "duration_minutes": live_duration,
+        "effective_minutes": effective_minutes,
+        "elapsed_minutes": elapsed_minutes,
+        "idle_minutes": idle_minutes,
+        "session_active": session_active,
         "status": (
             attendance.status
             if attendance
             else "not_checked_in"
+        ),
+        "current_status": (
+            attendance.current_status
+            if attendance
+            else "not_started"
         ),
         "planned_task_ids": (
             attendance.planned_task_ids
@@ -183,13 +207,15 @@ async def check_in(
     today = date.today()
 
     existing_result = await db.execute(
-        select(Attendance).where(
+        select(Attendance)
+        .where(
             Attendance.person_id == current_user.person_id,
             Attendance.date == today,
         )
+        .limit(1)
     )
 
-    existing = existing_result.scalar_one_or_none()
+    existing = existing_result.scalars().first()
 
     if existing:
         raise HTTPException(
@@ -252,6 +278,7 @@ async def check_in(
 
     # Create attendance record.
     now = datetime.now(timezone.utc)
+    work_type = payload.get("work_type") or "office"
 
     attendance = Attendance(
         id=str(uuid.uuid4()),
@@ -259,6 +286,9 @@ async def check_in(
         date=today,
         check_in=now,
         status="present",
+        current_status="active",
+        last_heartbeat_at=now,
+        work_type=work_type,
         notes=notes,
         planned_task_ids=planned_task_ids,
         adhoc_tasks=created_adhoc,
@@ -266,9 +296,23 @@ async def check_in(
 
     db.add(attendance)
 
-    # Flush first so the audit record references
+    # Flush first so the session and audit record can reference
     # the newly-created attendance ID.
     await db.flush()
+
+    # Checking in starts the first work session. Effective time is
+    # accrued from heartbeats, never from the clock.
+    db.add(
+        WorkSession(
+            id=str(uuid.uuid4()),
+            attendance_id=attendance.id,
+            person_id=current_user.person_id,
+            started_at=now,
+            last_activity_at=now,
+            duration_minutes=0,
+            status="active",
+        )
+    )
 
     await AuditService.log(
         db,
@@ -342,291 +386,26 @@ async def check_out(
     }
     """
 
-    today = date.today()
-
-    result = await db.execute(
-        select(Attendance).where(
-            Attendance.person_id == current_user.person_id,
-            Attendance.date == today,
-        )
-    )
-
-    attendance = result.scalar_one_or_none()
-
-    if not attendance:
-        raise HTTPException(
-            status_code=404,
-            detail="No check-in found for today",
-        )
-
-    if attendance.check_out:
-        raise HTTPException(
-            status_code=400,
-            detail="Already checked out today",
-        )
-
-    now = datetime.now(timezone.utc)
-
-    old_values = {
-        "check_in": (
-            attendance.check_in.isoformat()
-            if attendance.check_in
-            else None
-        ),
-        "check_out": None,
-        "duration_minutes": attendance.duration_minutes,
-        "status": attendance.status,
-    }
-
-    attendance.check_out = now
-    attendance.confirmed_at = now
-    check_in = _to_aware(attendance.check_in)
-
-    total_minutes = int(
-        (now - check_in).total_seconds() / 60
-    )
-
-    attendance.duration_minutes = total_minutes
-
-    # Compute standard vs overtime.
-    STANDARD_MINUTES = 480  # 8 hours
-    overtime = max(0, total_minutes - STANDARD_MINUTES)
-    standard = min(total_minutes, STANDARD_MINUTES)
-
-    attendance.standard_minutes = standard
-    attendance.overtime_minutes = overtime
-
-    checkout_notes = payload.get("notes")
-
-    if checkout_notes:
-        attendance.checkout_notes = checkout_notes
-
-    task_breakdown = payload.get("task_breakdown") or []
-
-    # Validate breakdown hours.
-    if task_breakdown:
-        breakdown_minutes = sum(
-            int(float(item.get("hours", 0)) * 60)
-            for item in task_breakdown
-        )
-
-        if abs(breakdown_minutes - total_minutes) > 5:
-            diff = total_minutes - breakdown_minutes
-
-            last = task_breakdown[-1]
-            last_hours = float(
-                last.get("hours", 0)
-            )
-
-            last["hours"] = max(
-                0.1,
-                last_hours + diff / 60,
-            )
-
-    # Find or create this week's timesheet.
-    week_start = (
-        today - timedelta(days=today.weekday())
-    )
-
-    week_end = week_start + timedelta(days=6)
-
-    ts_result = await db.execute(
-        select(Timesheet).where(
-            Timesheet.person_id == current_user.person_id,
-            Timesheet.week_start_date == week_start,
-        )
-    )
-
-    timesheet = ts_result.scalar_one_or_none()
-
-    timesheet_created = False
-
-    if not timesheet:
-        timesheet = Timesheet(
-            id=str(uuid.uuid4()),
-            person_id=current_user.person_id,
-            week_start_date=week_start,
-            week_end_date=week_end,
-            status="draft",
-            expected_hours=40,
-            total_hours=0,
-        )
-
-        db.add(timesheet)
-        await db.flush()
-        timesheet_created = True
-
-    completed_task_ids = []
-    created_timesheet_entries = []
-
-    if task_breakdown:
-        for item in task_breakdown:
-            task_id = item.get("task_id")
-            hours = float(item.get("hours", 0))
-
-            if hours <= 0:
-                continue
-
-            project_id = None
-            description = item.get("description")
-
-            if task_id:
-                task_result = await db.execute(
-                    select(Task).where(Task.id == task_id)
-                )
-                task = task_result.scalar_one_or_none()
-                if task:
-                    project_id = task.project_id
-                    description = description or task.title
-                    if item.get("completed"):
-                        task.status = "done"
-                        task.completed_at = now
-                        completed_task_ids.append(str(task.id))
-
-            ts_entry = TimesheetEntry(
-                id=str(uuid.uuid4()),
-                timesheet_id=timesheet.id,
-                date=today,
-                project_id=project_id,
-                task_id=task_id,
-                duration=Decimal(str(hours)),
-                description=description or "General work",
-                is_billable="yes",
-                source="attendance",
-                attendance_id=attendance.id,
-                is_locked=True,
-                is_overtime=False,
-                overtime_minutes=0,
-            )
-            db.add(ts_entry)
-            await db.flush()
-            created_timesheet_entries.append({
-                "id": str(ts_entry.id),
-                "task_id": str(task_id) if task_id else None,
-                "hours": hours,
-                "description": description or "General work",
-            })
-
-    # Overtime entry, if any.
-    if overtime > 0:
-        ts_entry = TimesheetEntry(
-            id=str(uuid.uuid4()),
-            timesheet_id=timesheet.id,
-            date=today,
-            project_id=None,
-            task_id=None,
-            duration=Decimal(str(round(overtime / 60, 2))),
-            description="Overtime",
-            is_billable="yes",
-            source="attendance",
-            attendance_id=attendance.id,
-            is_locked=True,
-            is_overtime=True,
-            overtime_minutes=overtime,
-        )
-        db.add(ts_entry)
-        await db.flush()
-        created_timesheet_entries.append({
-            "id": str(ts_entry.id),
-            "task_id": None,
-            "hours": round(overtime / 60, 2),
-            "description": "Overtime",
-        })
-
-    elif not task_breakdown:
-        hours = total_minutes / 60
-        if hours > 0:
-            ts_entry = TimesheetEntry(
-                id=str(uuid.uuid4()),
-                timesheet_id=timesheet.id,
-                date=today,
-                project_id=None,
-                task_id=None,
-                duration=Decimal(str(round(hours, 2))),
-                description="General work",
-                is_billable="yes",
-                source="attendance",
-                attendance_id=attendance.id,
-                is_locked=True,
-                is_overtime=False,
-                overtime_minutes=0,
-            )
-            db.add(ts_entry)
-            await db.flush()
-            created_timesheet_entries.append({
-                "id": str(ts_entry.id),
-                "task_id": None,
-                "hours": round(hours, 2),
-                "description": "General work",
-            })
-
-    attendance.completed_task_ids = (
-        completed_task_ids
-    )
-
-    # Recalculate total hours.
-    await db.flush()
-
-    total_result = await db.execute(
-        select(
-            func.sum(TimesheetEntry.duration)
-        ).where(
-            TimesheetEntry.timesheet_id
-            == timesheet.id
-        )
-    )
-
-    total_hours = (
-        total_result.scalar() or 0
-    )
-
-    timesheet.total_hours = Decimal(
-        str(total_hours)
-    )
-
-    new_values = {
-        "check_in": (
-            attendance.check_in.isoformat()
-            if attendance.check_in
-            else None
-        ),
-        "check_out": now.isoformat(),
-        "duration_minutes": total_minutes,
-        "status": attendance.status,
-        "checkout_notes": checkout_notes,
-        "completed_task_ids": completed_task_ids,
-        "timesheet_id": str(timesheet.id),
-        "timesheet_created": timesheet_created,
-        "timesheet_entries": created_timesheet_entries,
-        "total_hours": float(total_hours),
-    }
-
-    await AuditService.log(
+    result = await timekeeping.checkout_day(
         db,
+        person_id=current_user.person_id,
         actor=current_user,
-        action="ATTENDANCE_CHECKED_OUT",
-        entity_type="attendance",
-        entity_id=attendance.id,
-        description=(
-            f"Checked out for {today.isoformat()} "
-            f"after {total_minutes} minutes"
-        ),
-        old_values=old_values,
-        new_values=new_values,
+        task_breakdown=payload.get("task_breakdown") or [],
+        notes=payload.get("notes"),
     )
 
-    # Commit attendance, timesheet entries,
-    # tasks and audit together.
-    await db.commit()
+    attendance = result["attendance"]
 
     return {
         "id": str(attendance.id),
         "check_in": attendance.check_in.isoformat(),
         "check_out": attendance.check_out.isoformat(),
-        "duration_minutes": attendance.duration_minutes,
-        "total_hours": float(total_hours),
-        "completed_task_ids": completed_task_ids,
-        "timesheet_id": str(timesheet.id),
+        "duration_minutes": result["total_minutes"],
+        "total_hours": result["total_hours"],
+        "completed_task_ids": result["completed_task_ids"],
+        "timesheet_id": str(result["timesheet"].id),
+        "elapsed_minutes": result["elapsed_minutes"],
+        "idle_minutes": result["idle_minutes"],
     }
 
 

@@ -11,10 +11,15 @@ export interface SessionStatus {
     id: string;
     started_at: string;
     last_activity_at: string;
+    effective_minutes: number;
   } | null;
   total_minutes: number;
+  effective_minutes: number;
+  elapsed_minutes: number;
+  idle_minutes: number;
   standard_minutes: number;
   overtime_minutes: number;
+  last_heartbeat_at: string | null;
 }
 
 export const sessionService = {

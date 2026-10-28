@@ -23,6 +23,7 @@ from app.models.pydantic.finance.finance import (
     
 )
 from app.services.core.audit_service import AuditService
+from app.services.core.permission_service import PermissionService
 from app.services.finance.finance_access_service import FinanceAccessService
 
 
@@ -326,6 +327,12 @@ async def review_fund_request(
             detail="Only submitted fund requests can be reviewed.",
         )
 
+    if record.requester_id == current_user.person_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot review your own fund request.",
+        )
+
     old_status = record.status
 
     record.status = "under_review"
@@ -398,6 +405,24 @@ async def approve_fund_request(
         raise HTTPException(
             status_code=400,
             detail="Only requests under review can be approved.",
+        )
+
+    if record.requester_id == current_user.person_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot approve your own fund request.",
+        )
+
+    if (
+        record.reviewer_id
+        and record.reviewer_id == current_user.person_id
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "The reviewer cannot also approve the same fund request. "
+                "A different approver is required."
+            ),
         )
 
     if body.approved_amount is None:
@@ -500,6 +525,18 @@ async def update_fund_request(
             detail="Only draft fund requests can be edited.",
         )
 
+    if record.requester_id != current_user.person_id:
+        can_manage = await PermissionService.has_permission(
+            db,
+            current_user.id,
+            "finance.manage",
+        )
+        if not can_manage:
+            raise HTTPException(
+                status_code=403,
+                detail="You can only edit your own draft fund requests.",
+            )
+
     updates = payload.model_dump(exclude_unset=True)
 
     for field, value in updates.items():
@@ -559,6 +596,12 @@ async def reject_fund_request(
         raise HTTPException(
             status_code=400,
             detail="Only submitted or reviewed requests can be rejected.",
+        )
+
+    if record.requester_id == current_user.person_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot reject your own fund request.",
         )
 
     if not body.rejection_reason.strip():
@@ -642,6 +685,12 @@ async def disburse_fund_request(
         raise HTTPException(
             status_code=400,
             detail="Only approved requests can be disbursed.",
+        )
+
+    if record.requester_id == current_user.person_id:
+        raise HTTPException(
+            status_code=403,
+            detail="The requester cannot disburse their own fund request.",
         )
 
     if body.amount_disbursed <= 0:

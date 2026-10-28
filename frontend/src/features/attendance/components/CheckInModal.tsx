@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { attendanceService } from '@/services/attendance.service';
-import { sessionService } from '@/services/session.service';
 import {
   Building2,
   MapPin,
@@ -62,15 +61,12 @@ export function CheckInModal({
   });
 
   const checkInMutation = useMutation({
-    mutationFn: async () => {
-      await attendanceService.checkIn({
+    mutationFn: () =>
+      attendanceService.checkIn({
         planned_task_ids: selected,
         adhoc_tasks: adhocTasks,
         work_type: workType,
-      });
-      // Start the first work session
-      await sessionService.start();
-    },
+      }),
     onSuccess: () => {
       toast.success('Checked in — your day has started');
       onCheckedIn();

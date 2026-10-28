@@ -31,9 +31,6 @@ export interface PeopleFilters {
   search?: string;
   type?: string;
   status?: string;
-  organization?: string;
-  department?: string;
-  role?: string;
   skip?: number;
   limit?: number;
 }

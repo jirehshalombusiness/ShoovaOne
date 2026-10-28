@@ -1,5 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
+import hashlib
+import uuid
+
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -17,6 +20,90 @@ from app.services.core.permission_service import PermissionService
 # Password context for bcrypt
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+PASSWORD_MIN_LENGTH = 12
+PASSWORD_MAX_LENGTH = 72  # bcrypt ignores anything beyond this
+
+COMMON_PASSWORDS = {
+    "password1234",
+    "password123!",
+    "123456789012",
+    "qwertyuiop12",
+    "letmein123456",
+    "welcome12345",
+    "shoova123456",
+}
+
+
+def password_fingerprint(password_hash: Optional[str]) -> str:
+    """Stable, non-reversible marker of the password in force.
+
+    Tokens embed this value. Changing or resetting a password changes the
+    hash, so every token issued under the old password stops validating.
+    """
+
+    if not password_hash:
+        return ""
+
+    return hashlib.sha256(password_hash.encode("utf-8")).hexdigest()[:32]
+
+
+def validate_password_strength(
+    password: str,
+    *,
+    email: Optional[str] = None,
+) -> None:
+    """Enforce the organisation password policy.
+
+    Raises HTTPException(400) so callers can surface a clean message.
+    """
+
+    if len(password) < PASSWORD_MIN_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Password must be at least "
+                f"{PASSWORD_MIN_LENGTH} characters long"
+            ),
+        )
+
+    if len(password) > PASSWORD_MAX_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Password must be at most "
+                f"{PASSWORD_MAX_LENGTH} characters long"
+            ),
+        )
+
+    if password != password.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password cannot start or end with whitespace",
+        )
+
+    lowered = password.lower()
+
+    if lowered in COMMON_PASSWORDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password is too common. Choose something unique.",
+        )
+
+    if email:
+        local_part = email.split("@", 1)[0].strip().lower()
+        if len(local_part) >= 3 and local_part in lowered:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must not contain your email address",
+            )
+
+    if len(set(password)) < 4:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password is too simple. Use a longer, varied passphrase.",
+        )
+
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -36,12 +123,20 @@ def get_password_hash(password: str) -> str:
 def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.JWT_EXPIRATION_MINUTES)
+    now = datetime.now(timezone.utc)
 
-    to_encode.update({"exp": expire, "iat": datetime.utcnow()})
+    if expires_delta:
+        expire = now + expires_delta
+    else:
+        expire = now + timedelta(minutes=settings.JWT_EXPIRATION_MINUTES)
+
+    to_encode.update(
+        {
+            "exp": expire,
+            "iat": now,
+            "jti": uuid.uuid4().hex,
+        }
+    )
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
 
@@ -76,7 +171,12 @@ async def get_current_user(
     )
     user = result.scalar_one_or_none()
     
-    if user is None:
+    if user is None or not user.is_active:
+        raise credentials_exception
+
+    # Tokens are bound to the password that was in force when they were
+    # issued. A password change or reset revokes every older session.
+    if payload.get("pwdv") != password_fingerprint(user.password_hash):
         raise credentials_exception
 
     return user
@@ -273,6 +373,7 @@ class Permissions:
     # ATTENDANCE
     # ============================================
     ATTENDANCE_VIEW = "attendance.view"
+    ATTENDANCE_VIEW_ANY = "attendance.view_any"
     ATTENDANCE_CHECKIN = "attendance.checkin"
     ATTENDANCE_EDIT = "attendance.edit"
     

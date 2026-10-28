@@ -72,13 +72,20 @@ class Person(BaseModel):
     __tablename__ = "people"
 
     first_name = Column(String(100), nullable=False)
+    middle_name = Column(String(100), nullable=True)
     last_name = Column(String(100), nullable=False)
+    preferred_name = Column(String(100), nullable=True)
     email = Column(String(255), unique=True, index=True)
     phone = Column(String(50))
+    alternate_phone = Column(String(50), nullable=True)
     date_of_birth = Column(DateTime)
     gender = Column(String(20))
     type = Column(String(50), nullable=False, default="staff")
     status = Column(String(50), default="active")
+
+    # Free-text affiliation for external contacts; staff are linked to
+    # organisations/departments through the org structure tables.
+    organization = Column(String(200), nullable=True)
 
     # Org chart fields
     job_title = Column(String(200), nullable=True)

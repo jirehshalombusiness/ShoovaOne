@@ -18,6 +18,10 @@ from app.models.pydantic.core.role import (
     RolePermissionsUpdate,
 )
 from app.services.core.audit_service import AuditService
+from app.services.core.permission_service import (
+    PermissionService,
+    clear_permission_cache,
+)
 
 
 router = APIRouter()
@@ -29,6 +33,25 @@ PROTECTED_SYSTEM_ROLES = {
     "executive_director",
     "head_of_hr",
 }
+
+# Permissions that may only be granted by the CEO. They control user,
+# role, and financial authority, so a delegate must not be able to
+# acquire them through role editing.
+CEO_ONLY_ROLE_PERMISSIONS = {
+    "users.manage",
+    "roles.manage",
+    "system.manage",
+    "finance.approve",
+    "finance.disburse",
+    "finance.manage",
+    "payroll.approve",
+    "payroll.disburse",
+    "payroll.config",
+}
+
+
+def _is_ceo(user: User) -> bool:
+    return any(role.name.lower() == "ceo" for role in user.roles)
 
 
 def serialize_permission(permission: Permission) -> PermissionResponse:
@@ -380,14 +403,73 @@ async def update_role_permissions(
         for permission in role.permissions
     ]
 
-    role.permissions = permissions
-
-    await db.flush()
-
     new_permissions = [
         f"{permission.resource}.{permission.action}"
         for permission in permissions
     ]
+
+    # ---- privilege-escalation guards ----
+    actor_role_names = {r.name.lower() for r in current_user.roles}
+    actor_is_ceo = _is_ceo(current_user)
+    target_name = role.name.lower()
+
+    if not actor_is_ceo:
+        if target_name == "ceo":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the CEO can change the CEO role's permissions.",
+            )
+
+        if target_name in actor_role_names:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "You cannot change permissions on a role assigned "
+                    "to your own account."
+                ),
+            )
+
+        if role.is_system or target_name in PROTECTED_SYSTEM_ROLES:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the CEO can change permissions on system roles.",
+            )
+
+        added_permissions = set(new_permissions) - set(old_permissions)
+
+        if added_permissions:
+            actor_permissions = set(
+                await PermissionService.get_user_permissions(
+                    db, current_user.id
+                )
+            )
+            ungrantable = sorted(added_permissions - actor_permissions)
+
+            if ungrantable:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=(
+                        "You cannot grant permissions you do not hold: "
+                        + ", ".join(ungrantable)
+                    ),
+                )
+
+            protected_added = sorted(
+                added_permissions & CEO_ONLY_ROLE_PERMISSIONS
+            )
+
+            if protected_added:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=(
+                        "Only the CEO can grant: "
+                        + ", ".join(protected_added)
+                    ),
+                )
+
+    role.permissions = permissions
+
+    await db.flush()
 
     await AuditService.log(
         db,
@@ -405,6 +487,10 @@ async def update_role_permissions(
     )
 
     await db.commit()
+
+    # Cached effective permissions for members of this role are now stale.
+    for assigned_user in role.users:
+        clear_permission_cache(db, str(assigned_user.id))
 
     result = await db.execute(
         select(Role)

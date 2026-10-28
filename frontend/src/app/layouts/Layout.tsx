@@ -99,10 +99,12 @@ export function Layout() {
     },
   });
 
-  // Heartbeat every 5 minutes while active
+  // Heartbeat every 5 minutes while active. Hidden tabs do not heartbeat —
+  // the server sweep closes them at last-activity + grace.
   useEffect(() => {
     if (sessionStatus?.status !== 'active') return;
     const interval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
       sessionService.heartbeat();
     }, 5 * 60 * 1000);
     return () => clearInterval(interval);
