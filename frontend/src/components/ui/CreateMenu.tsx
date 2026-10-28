@@ -6,6 +6,7 @@ import {
   UserPlus,
   FolderPlus,
   CalendarPlus,
+  CalendarDays,
   Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -63,6 +64,13 @@ export function CreateMenu() {
       label: 'Schedule Meeting',
       description: 'Invite people to a meeting',
       onClick: () => navigate('/meetings/new'),
+    },
+    {
+      icon: CalendarDays,
+      label: 'Create Event',
+      description: 'Plan an organisational event',
+      permission: 'events.create',
+      onClick: () => navigate('/events/new'),
     },
     {
       icon: Clock,

@@ -452,6 +452,28 @@ const MeetingDetailPage = lazy(() =>
     default: module.MeetingDetailPage,
   }))
 );
+// EVENTS
+import { EventsLayout } from '@/features/events/layouts/EventsLayout';
+const EventsListPage = lazy(() =>
+  import('@/features/events/pages/EventsListPage').then((module) => ({
+    default: module.EventsListPage,
+  }))
+);
+const NewEventPage = lazy(() =>
+  import('@/features/events/pages/NewEventPage').then((module) => ({
+    default: module.NewEventPage,
+  }))
+);
+const EditEventPage = lazy(() =>
+  import('@/features/events/pages/EditEventPage').then((module) => ({
+    default: module.EditEventPage,
+  }))
+);
+const EventDetailPage = lazy(() =>
+  import('@/features/events/pages/EventDetailPage').then((module) => ({
+    default: module.EventDetailPage,
+  }))
+);
 // HELPERS
 // ============================================================
 
@@ -1114,10 +1136,39 @@ export function AppRouter() {
             path="events"
             element={
               <PermissionRoute permission="events.view">
-                <Placeholder title="Events" />
+                <EventsLayout />
               </PermissionRoute>
             }
-          />
+          >
+            <Route index element={<EventsListPage />} />
+            <Route path="today" element={<EventsListPage />} />
+            <Route path="past" element={<EventsListPage />} />
+            <Route
+              path="drafts"
+              element={
+                <PermissionRoute permission="events.edit">
+                  <EventsListPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="new"
+              element={
+                <PermissionRoute permission="events.create">
+                  <NewEventPage />
+                </PermissionRoute>
+              }
+            />
+            <Route path=":id" element={<EventDetailPage />} />
+            <Route
+              path=":id/edit"
+              element={
+                <PermissionRoute permission="events.edit">
+                  <EditEventPage />
+                </PermissionRoute>
+              }
+            />
+          </Route>
 
           {/* ======================================================= */}
           {/* FINANCE                                                 */}

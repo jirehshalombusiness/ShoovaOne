@@ -63,6 +63,9 @@ from app.models.sql.meetings.meeting import (  # noqa: F401
     MeetingAgendaItem,
 )
 
+#events
+from app.models.sql.events.event import Event, EventAttendee  # noqa: F401
+
 ##crm
 from app.models.sql.crm.opportunity import (  # noqa: F401
     Opportunity,

@@ -119,6 +119,17 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         icon: CalendarPlus,
         path: '/meetings/new',
       },
+      ...(access.has('events.create')
+        ? [
+            {
+              key: 'action-event',
+              label: 'Create an event',
+              hint: 'Events',
+              icon: CalendarPlus,
+              path: '/events/new',
+            },
+          ]
+        : []),
       ...(access.has('timesheets.view')
         ? [
             {
