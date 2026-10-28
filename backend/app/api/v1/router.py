@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     hr,
     meetings,
     payroll,
+    programmes,
     projects,
     timekeeping,
 )
@@ -25,3 +26,4 @@ api_router.include_router(finance.router)
 api_router.include_router(payroll.router, prefix="/payroll", tags=["payroll"])
 api_router.include_router(meetings.router)
 api_router.include_router(events.router)
+api_router.include_router(programmes.router)

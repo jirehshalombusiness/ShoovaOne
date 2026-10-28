@@ -81,6 +81,14 @@ from app.models.sql.meetings.meeting import (
 
 from app.models.sql.events.event import Event, EventAttendee
 
+from app.models.sql.programmes.academics import (
+    CohortEnrolment,
+    CohortInstructor,
+    EnrolmentResult,
+    ProgrammeCohort,
+    ProgrammeCourse,
+)
+
 from app.models.sql.chat import Conversation, ConversationMember, ChatMessage
 
 __all__ = [
@@ -160,6 +168,11 @@ __all__ = [
     "MeetingAgendaItem",
     "Event",
     "EventAttendee",
+    "ProgrammeCourse",
+    "ProgrammeCohort",
+    "CohortInstructor",
+    "CohortEnrolment",
+    "EnrolmentResult",
     "Conversation",
     "ConversationMember",
     "ChatMessage",

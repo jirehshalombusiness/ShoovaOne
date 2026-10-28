@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Date, ForeignKey
+from sqlalchemy import Column, String, Text, Date, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 
 from app.models.sql.base import BaseModel, GUID
@@ -79,15 +79,30 @@ class Programme(BaseModel):
     start_date = Column(Date, nullable=True)
     end_date = Column(Date, nullable=True)
 
+    # Academic fields used by the programme module.
+    level = Column(String(30), nullable=True)
+    duration_weeks = Column(Integer, nullable=True)
+    learning_outcomes = Column(Text, nullable=True)
+    lead_id = Column(
+        GUID,
+        ForeignKey("people.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     organisation = relationship(
         "Organisation",
         back_populates="programmes",
+        lazy="selectin",
     )
 
     department = relationship(
         "Department",
         back_populates="programmes",
+        lazy="selectin",
     )
+
+    lead = relationship("Person", lazy="selectin")
 
     projects = relationship(
         "Project",

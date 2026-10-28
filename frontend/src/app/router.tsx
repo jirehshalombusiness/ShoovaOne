@@ -474,6 +474,32 @@ const EventDetailPage = lazy(() =>
     default: module.EventDetailPage,
   }))
 );
+// PROGRAMMES
+const ProgrammesListPage = lazy(() =>
+  import('@/features/programmes/pages/ProgrammesListPage').then((module) => ({
+    default: module.ProgrammesListPage,
+  }))
+);
+const NewProgrammePage = lazy(() =>
+  import('@/features/programmes/pages/NewProgrammePage').then((module) => ({
+    default: module.NewProgrammePage,
+  }))
+);
+const EditProgrammePage = lazy(() =>
+  import('@/features/programmes/pages/EditProgrammePage').then((module) => ({
+    default: module.EditProgrammePage,
+  }))
+);
+const ProgrammeDetailPage = lazy(() =>
+  import('@/features/programmes/pages/ProgrammeDetailPage').then((module) => ({
+    default: module.ProgrammeDetailPage,
+  }))
+);
+const CohortDetailPage = lazy(() =>
+  import('@/features/programmes/pages/CohortDetailPage').then((module) => ({
+    default: module.CohortDetailPage,
+  }))
+);
 // HELPERS
 // ============================================================
 
@@ -1127,7 +1153,43 @@ export function AppRouter() {
             path="programmes"
             element={
               <PermissionRoute permission="programmes.view">
-                <Placeholder title="Programmes" />
+                <ProgrammesListPage />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="programmes/new"
+            element={
+              <PermissionRoute permission="programmes.create">
+                <NewProgrammePage />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="programmes/cohorts/:cohortId"
+            element={
+              <PermissionRoute permission="programmes.view">
+                <CohortDetailPage />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="programmes/:id"
+            element={
+              <PermissionRoute permission="programmes.view">
+                <ProgrammeDetailPage />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="programmes/:id/edit"
+            element={
+              <PermissionRoute permission="programmes.edit">
+                <EditProgrammePage />
               </PermissionRoute>
             }
           />
