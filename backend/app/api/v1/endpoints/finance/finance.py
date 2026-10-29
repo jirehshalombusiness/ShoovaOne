@@ -132,6 +132,7 @@ async def disburse_fund_request(
     )
 
     await db.commit()
+    await db.refresh(record)
 
     return await fund_request_service.to_response(db, record)
 
@@ -160,5 +161,6 @@ async def verify_fund_request_receipt(
     )
 
     await db.commit()
+    await db.refresh(record)
 
     return await fund_request_service.to_response(db, record)

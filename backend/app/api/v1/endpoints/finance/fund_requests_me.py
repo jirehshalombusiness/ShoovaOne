@@ -105,6 +105,7 @@ async def update_my_fund_request(
     )
 
     await db.commit()
+    await db.refresh(record)
 
     return await fund_request_service.to_response(db, record)
 
@@ -126,6 +127,7 @@ async def submit_my_fund_request(
     )
 
     await db.commit()
+    await db.refresh(record)
 
     return await fund_request_service.to_response(db, record)
 
@@ -147,6 +149,7 @@ async def cancel_my_fund_request(
     )
 
     await db.commit()
+    await db.refresh(record)
 
     return await fund_request_service.to_response(db, record)
 
@@ -169,5 +172,6 @@ async def resubmit_my_receipt(
     )
 
     await db.commit()
+    await db.refresh(record)
 
     return await fund_request_service.to_response(db, record)
