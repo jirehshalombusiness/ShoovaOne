@@ -4,6 +4,8 @@ A practical guide to running money in Shoova ONE: budgets, fund requests, spendi
 
 Last verified: 28 October 2026, against the current codebase and production data.
 
+> Looking for the seeded demo dataset and login details? See [launch-demo-walkthrough.md](launch-demo-walkthrough.md).
+
 ---
 
 ## 1. The big picture
