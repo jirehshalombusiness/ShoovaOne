@@ -1,113 +1,42 @@
-from datetime import datetime, timezone
-from decimal import Decimal
-from uuid import UUID, uuid4
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import require_permission
-from app.models.sql.finance.fund_request import FundRequest
-from app.models.sql.projects.project import Project
-from app.models.sql.core.user import User
 from app.models.pydantic.finance.finance import (
-    FundRequestCreate,
-    FundRequestResponse,
-    FundRequestUpdate,
-    FundRequestReview,
-    FundRequestApproval,
-    FundRequestRejection,
     FundRequestDisbursement,
-    FundRequestReconciliation,
-    
+    FundRequestDetailResponse,
+    FundRequestReceiptVerification,
+    FundRequestResponse,
 )
-from app.services.core.audit_service import AuditService
-from app.services.core.permission_service import PermissionService
+from app.models.sql.core.user import User
+from app.models.sql.finance.fund_request import FundRequest
+from app.services.finance import fund_request_service
 from app.services.finance.finance_access_service import FinanceAccessService
 
 
 router = APIRouter(prefix="/fund-requests", tags=["finance"])
 
 
-def generate_request_number() -> str:
-    return f"FR-{datetime.now(timezone.utc):%Y%m%d}-{uuid4().hex[:6].upper()}"
+async def _load_for_finance(
+    db: AsyncSession,
+    request_id: str,
+    current_user: User,
+) -> FundRequest:
+    record = await fund_request_service.get_request(db, request_id)
 
-
-def to_response(record: FundRequest) -> FundRequestResponse:
-    return FundRequestResponse(
-        id=str(record.id),
-        request_number=record.request_number,
-        title=record.title,
-        description=record.description,
-        justification=record.justification,
-        requester_id=str(record.requester_id),
-        project_id=str(record.project_id) if record.project_id else None,
-        programme_id=str(record.programme_id) if record.programme_id else None,
-        department_id=str(record.department_id) if record.department_id else None,
-        amount_requested=record.amount_requested,
-        currency=record.currency,
-        approved_amount=record.approved_amount,
-        amount_disbursed=record.amount_disbursed,
-        status=record.status,
-        required_by_date=record.required_by_date,
-        submitted_at=record.submitted_at,
-        reviewed_at=record.reviewed_at,
-        approved_at=record.approved_at,
-        disbursed_at=record.disbursed_at,
-        reconciled_at=record.reconciled_at,
-        reviewer_id=str(record.reviewer_id) if record.reviewer_id else None,
-        approver_id=str(record.approver_id) if record.approver_id else None,
-        disburser_id=str(record.disburser_id) if record.disburser_id else None,
-        reconciler_id=str(record.reconciler_id) if record.reconciler_id else None,
-        rejection_reason=record.rejection_reason,
-        review_notes=record.review_notes,
-        approval_notes=record.approval_notes,
-        disbursement_notes=record.disbursement_notes,
-        reconciliation_notes=record.reconciliation_notes,
-        created_at=record.created_at,
-        updated_at=record.updated_at,
-    )
-
-
-@router.post(
-    "",
-    response_model=FundRequestResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_fund_request(
-    payload: FundRequestCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("finance.create")
-    ),
-):
-    if not current_user.person_id:
+    if not await fund_request_service.can_view(
+        db, record, current_user
+    ):
         raise HTTPException(
-            status_code=400,
-            detail="User is not linked to a person record.",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this fund request.",
         )
 
-    record = FundRequest(
-        request_number=generate_request_number(),
-        title=payload.title,
-        description=payload.description,
-        justification=payload.justification,
-        requester_id=current_user.person_id,
-        project_id=UUID(payload.project_id) if payload.project_id else None,
-        programme_id=UUID(payload.programme_id) if payload.programme_id else None,
-        department_id=UUID(payload.department_id) if payload.department_id else None,
-        amount_requested=payload.amount_requested,
-        currency=payload.currency.upper(),
-        status="draft",
-        required_by_date=payload.required_by_date,
-    )
-
-    db.add(record)
-    await db.commit()
-    await db.refresh(record)
-
-    return to_response(record)
+    return record
 
 
 @router.get(
@@ -115,15 +44,17 @@ async def create_fund_request(
     response_model=list[FundRequestResponse],
 )
 async def list_fund_requests(
-    status_filter: str | None = Query(None, alias="status"),
+    status_filter: Optional[str] = Query(None, alias="status"),
+    stage: Optional[str] = Query(None),
+    request_type: Optional[str] = Query(None),
+    requester_id: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("finance.view")
-    ),
+    current_user: User = Depends(require_permission("finance.view")),
 ):
-    query = select(FundRequest).order_by(
-        FundRequest.created_at.desc()
-    )
+    query = select(FundRequest).order_by(FundRequest.created_at.desc())
 
     query = await FinanceAccessService.apply_view_scope(
         db,
@@ -131,520 +62,51 @@ async def list_fund_requests(
         current_user,
     )
 
-    if status_filter:
+    model = FundRequest
+
+    if status_filter and status_filter != "all":
+        query = query.where(model.status == status_filter)
+
+    if stage:
+        query = query.where(model.current_stage == stage)
+
+    if request_type:
+        query = query.where(model.request_type == request_type)
+
+    if requester_id:
+        query = query.where(model.requester_id == requester_id)
+
+    if search:
+        term = f"%{search.strip()}%"
         query = query.where(
-            FundRequest.status == status_filter
+            or_(
+                model.title.ilike(term),
+                model.request_number.ilike(term),
+            )
         )
+
+    query = query.offset(offset).limit(limit)
 
     result = await db.execute(query)
     records = result.scalars().all()
 
-    return [to_response(record) for record in records]
-
-    
+    return [
+        await fund_request_service.to_response(db, record)
+        for record in records
+    ]
 
 
 @router.get(
     "/{request_id}",
-    response_model=FundRequestResponse,
+    response_model=FundRequestDetailResponse,
 )
 async def get_fund_request(
     request_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("finance.view")
-    ),
+    current_user: User = Depends(require_permission("finance.view")),
 ):
-    try:
-        request_uuid = UUID(request_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid fund request ID.",
-        )
-
-    result = await db.execute(
-        select(FundRequest).where(
-            FundRequest.id == request_uuid
-        )
-    )
-
-    record = result.scalar_one_or_none()
-
-    if not record:
-        raise HTTPException(
-            status_code=404,
-            detail="Fund request not found.",
-        )
-
-    if not await FinanceAccessService.can_view_all(db, current_user):
-        is_owner = record.requester_id == current_user.person_id
-
-        is_project_manager = False
-
-        if record.project_id:
-            project_result = await db.execute(
-                select(Project).where(
-                    Project.id == record.project_id,
-                    Project.manager_id == current_user.person_id,
-                )
-            )
-            is_project_manager = (
-                project_result.scalar_one_or_none() is not None
-            )
-
-        if not is_owner and not is_project_manager:
-            raise HTTPException(
-                status_code=403,
-                detail="You do not have access to this fund request.",
-            )
-
-    return to_response(record)
-
-
-@router.post(
-    "/{request_id}/submit",
-    response_model=FundRequestResponse,
-)
-async def submit_fund_request(
-    request_id: str,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("finance.create")
-    ),
-):
-    try:
-        request_uuid = UUID(request_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid fund request ID.",
-        )
-
-    result = await db.execute(
-        select(FundRequest).where(
-            FundRequest.id == request_uuid
-        )
-    )
-
-    record = result.scalar_one_or_none()
-
-    if not record:
-        raise HTTPException(
-            status_code=404,
-            detail="Fund request not found.",
-        )
-
-    if record.requester_id != current_user.person_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You can only submit your own fund requests.",
-        )
-
-    if record.status != "draft":
-        raise HTTPException(
-            status_code=400,
-            detail="Only draft fund requests can be submitted.",
-        )
-
-    if record.amount_requested <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Fund request amount must be greater than zero.",
-        )
-
-    old_values = {
-        "status": record.status,
-    }
-
-    record.status = "submitted"
-    record.submitted_at = datetime.now(timezone.utc)
-
-    await AuditService.log(
-        db,
-        actor=current_user,
-        action="FUND_REQUEST_SUBMITTED",
-        entity_type="FundRequest",
-        entity_id=record.id,
-        description=f"Fund request {record.request_number} submitted for review.",
-        old_values=old_values,
-        new_values={
-            "status": record.status,
-            "submitted_at": record.submitted_at.isoformat(),
-        },
-        metadata={
-            "request_number": record.request_number,
-            "amount_requested": str(record.amount_requested),
-            "currency": record.currency,
-        },
-        request=request,
-    )
-
-    await db.commit()
-    await db.refresh(record)
-
-    return to_response(record)
-
-
-@router.post(
-    "/{request_id}/review",
-    response_model=FundRequestResponse,
-)
-async def review_fund_request(
-    request_id: str,
-    request: Request,
-    body: FundRequestReview,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("finance.review")
-    ),
-):
-    try:
-        request_uuid = UUID(request_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid fund request ID.",
-        )
-
-    result = await db.execute(
-        select(FundRequest).where(
-            FundRequest.id == request_uuid
-        )
-    )
-    record = result.scalar_one_or_none()
-
-    if not record:
-        raise HTTPException(
-            status_code=404,
-            detail="Fund request not found.",
-        )
-
-    if record.status != "submitted":
-        raise HTTPException(
-            status_code=400,
-            detail="Only submitted fund requests can be reviewed.",
-        )
-
-    if record.requester_id == current_user.person_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You cannot review your own fund request.",
-        )
-
-    old_status = record.status
-
-    record.status = "under_review"
-    record.reviewer_id = current_user.person_id
-    record.reviewed_at = datetime.now(timezone.utc)
-    record.review_notes = body.review_notes
-
-    await AuditService.log(
-        db,
-        actor=current_user,
-        action="FUND_REQUEST_REVIEWED",
-        entity_type="FundRequest",
-        entity_id=record.id,
-        description=f"Fund request {record.request_number} moved into review.",
-        old_values={"status": old_status},
-        new_values={
-            "status": record.status,
-            "reviewer_id": str(current_user.person_id),
-            "review_notes": body.review_notes,
-        },
-        metadata={
-            "request_number": record.request_number,
-            "amount_requested": str(record.amount_requested),
-            "currency": record.currency,
-        },
-        request=request,
-    )
-
-    await db.commit()
-    await db.refresh(record)
-
-    return to_response(record)
-
-
-@router.post(
-    "/{request_id}/approve",
-    response_model=FundRequestResponse,
-)
-async def approve_fund_request(
-    request_id: str,
-    request: Request,
-    body: FundRequestApproval,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("finance.approve")
-    ),
-):
-    try:
-        request_uuid = UUID(request_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid fund request ID.",
-        )
-
-    result = await db.execute(
-        select(FundRequest).where(
-            FundRequest.id == request_uuid
-        )
-    )
-    record = result.scalar_one_or_none()
-
-    if not record:
-        raise HTTPException(
-            status_code=404,
-            detail="Fund request not found.",
-        )
-
-    if record.status != "under_review":
-        raise HTTPException(
-            status_code=400,
-            detail="Only requests under review can be approved.",
-        )
-
-    if record.requester_id == current_user.person_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You cannot approve your own fund request.",
-        )
-
-    if (
-        record.reviewer_id
-        and record.reviewer_id == current_user.person_id
-    ):
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                "The reviewer cannot also approve the same fund request. "
-                "A different approver is required."
-            ),
-        )
-
-    if body.approved_amount is None:
-        final_amount = record.amount_requested
-    else:
-        if body.approved_amount <= 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Approved amount must be greater than zero.",
-            )
-
-        if body.approved_amount > record.amount_requested:
-            raise HTTPException(
-                status_code=400,
-                detail="Approved amount cannot exceed requested amount.",
-            )
-
-        final_amount = body.approved_amount
-
-    old_status = record.status
-    old_approved_amount = record.approved_amount
-
-    record.status = "approved"
-    record.approved_amount = final_amount
-    record.approver_id = current_user.person_id
-    record.approved_at = datetime.now(timezone.utc)
-    record.approval_notes = body.approval_notes
-
-    await AuditService.log(
-        db,
-        actor=current_user,
-        action="FUND_REQUEST_APPROVED",
-        entity_type="FundRequest",
-        entity_id=record.id,
-        description=f"Fund request {record.request_number} approved.",
-        old_values={
-            "status": old_status,
-            "approved_amount": (
-                str(old_approved_amount)
-                if old_approved_amount is not None
-                else None
-            ),
-        },
-        new_values={
-            "status": record.status,
-            "approved_amount": str(final_amount),
-            "approver_id": str(current_user.person_id),
-            "approval_notes": body.approval_notes,
-        },
-        metadata={
-            "request_number": record.request_number,
-            "currency": record.currency,
-        },
-        request=request,
-    )
-
-    await db.commit()
-    await db.refresh(record)
-
-    return to_response(record)
-
-
-@router.patch(
-    "/{request_id}",
-    response_model=FundRequestResponse,
-)
-async def update_fund_request(
-    request_id: str,
-    payload: FundRequestUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("finance.edit")
-    ),
-):
-    try:
-        request_uuid = UUID(request_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid fund request ID.",
-        )
-
-    result = await db.execute(
-        select(FundRequest).where(
-            FundRequest.id == request_uuid
-        )
-    )
-
-    record = result.scalar_one_or_none()
-
-    if not record:
-        raise HTTPException(
-            status_code=404,
-            detail="Fund request not found.",
-        )
-
-    if record.status != "draft":
-        raise HTTPException(
-            status_code=400,
-            detail="Only draft fund requests can be edited.",
-        )
-
-    if record.requester_id != current_user.person_id:
-        can_manage = await PermissionService.has_permission(
-            db,
-            current_user.id,
-            "finance.manage",
-        )
-        if not can_manage:
-            raise HTTPException(
-                status_code=403,
-                detail="You can only edit your own draft fund requests.",
-            )
-
-    updates = payload.model_dump(exclude_unset=True)
-
-    for field, value in updates.items():
-        if field in {
-            "project_id",
-            "programme_id",
-            "department_id",
-        } and value:
-            value = UUID(value)
-
-        if field == "currency" and value:
-            value = value.upper()
-
-        setattr(record, field, value)
-
-    await db.commit()
-    await db.refresh(record)
-
-    return to_response(record)
-
-
-@router.post(
-    "/{request_id}/reject",
-    response_model=FundRequestResponse,
-)
-async def reject_fund_request(
-    request_id: str,
-    request: Request,
-    body: FundRequestRejection,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("finance.reject")
-    ),
-):
-    try:
-        request_uuid = UUID(request_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid fund request ID.",
-        )
-
-    result = await db.execute(
-        select(FundRequest).where(
-            FundRequest.id == request_uuid
-        )
-    )
-    record = result.scalar_one_or_none()
-
-    if not record:
-        raise HTTPException(
-            status_code=404,
-            detail="Fund request not found.",
-        )
-
-    if record.status not in {"submitted", "under_review"}:
-        raise HTTPException(
-            status_code=400,
-            detail="Only submitted or reviewed requests can be rejected.",
-        )
-
-    if record.requester_id == current_user.person_id:
-        raise HTTPException(
-            status_code=403,
-            detail="You cannot reject your own fund request.",
-        )
-
-    if not body.rejection_reason.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="A rejection reason is required.",
-        )
-
-    old_status = record.status
-
-    if old_status == "under_review":
-        record.reviewer_id = current_user.person_id
-
-    record.status = "rejected"
-    record.rejection_reason = body.rejection_reason
-    record.reviewed_at = datetime.now(timezone.utc)
-
-    await AuditService.log(
-        db,
-        actor=current_user,
-        action="FUND_REQUEST_REJECTED",
-        entity_type="FundRequest",
-        entity_id=record.id,
-        description=f"Fund request {record.request_number} rejected.",
-        old_values={
-            "status": old_status,
-        },
-        new_values={
-            "status": record.status,
-            "rejection_reason": body.rejection_reason,
-        },
-        metadata={
-            "request_number": record.request_number,
-            "amount_requested": str(record.amount_requested),
-            "currency": record.currency,
-        },
-        request=request,
-    )
-
-    await db.commit()
-    await db.refresh(record)
-
-    return to_response(record)
+    record = await _load_for_finance(db, request_id, current_user)
+    return await fund_request_service.to_detail(db, record)
 
 
 @router.post(
@@ -653,171 +115,50 @@ async def reject_fund_request(
 )
 async def disburse_fund_request(
     request_id: str,
-    request: Request,
     body: FundRequestDisbursement,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("finance.disburse")
-    ),
+    current_user: User = Depends(require_permission("finance.disburse")),
 ):
-    try:
-        request_uuid = UUID(request_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid fund request ID.",
-        )
+    record = await _load_for_finance(db, request_id, current_user)
 
-    result = await db.execute(
-        select(FundRequest).where(
-            FundRequest.id == request_uuid
-        )
-    )
-    record = result.scalar_one_or_none()
-
-    if not record:
-        raise HTTPException(
-            status_code=404,
-            detail="Fund request not found.",
-        )
-
-    if record.status != "approved":
-        raise HTTPException(
-            status_code=400,
-            detail="Only approved requests can be disbursed.",
-        )
-
-    if record.requester_id == current_user.person_id:
-        raise HTTPException(
-            status_code=403,
-            detail="The requester cannot disburse their own fund request.",
-        )
-
-    if body.amount_disbursed <= 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Disbursement amount must be greater than zero.",
-        )
-
-    approved_amount = record.approved_amount or record.amount_requested
-    remaining_amount = approved_amount - record.amount_disbursed
-
-    if body.amount_disbursed > remaining_amount:
-        raise HTTPException(
-            status_code=400,
-            detail="Disbursement cannot exceed the remaining approved amount.",
-        )
-
-    old_values = {
-        "status": record.status,
-        "amount_disbursed": str(record.amount_disbursed),
-    }
-
-    record.amount_disbursed += body.amount_disbursed
-    record.disburser_id = current_user.person_id
-    record.disbursement_notes = body.disbursement_notes
-
-    if record.amount_disbursed >= approved_amount:
-        record.status = "disbursed"
-        record.disbursed_at = datetime.now(timezone.utc)
-
-    await AuditService.log(
+    await fund_request_service.disburse(
         db,
+        record,
         actor=current_user,
-        action="FUND_REQUEST_DISBURSED",
-        entity_type="FundRequest",
-        entity_id=record.id,
-        description=f"Fund request {record.request_number} disbursement recorded.",
-        old_values=old_values,
-        new_values={
-            "status": record.status,
-            "amount_disbursed": str(record.amount_disbursed),
-            "disbursement_notes": body.disbursement_notes,
-        },
-        metadata={
-            "request_number": record.request_number,
-            "approved_amount": str(approved_amount),
-            "currency": record.currency,
-        },
+        amount=body.amount_disbursed,
+        notes=body.disbursement_notes,
         request=request,
     )
 
     await db.commit()
-    await db.refresh(record)
 
-    return to_response(record)
+    return await fund_request_service.to_response(db, record)
 
 
 @router.post(
-    "/{request_id}/reconcile",
+    "/{request_id}/verify-receipt",
     response_model=FundRequestResponse,
 )
-async def reconcile_fund_request(
+async def verify_fund_request_receipt(
     request_id: str,
+    body: FundRequestReceiptVerification,
     request: Request,
-    body: FundRequestReconciliation,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("finance.reconcile")
-    ),
+    current_user: User = Depends(require_permission("finance.verify")),
 ):
-    try:
-        request_uuid = UUID(request_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid fund request ID.",
-        )
+    record = await _load_for_finance(db, request_id, current_user)
 
-    result = await db.execute(
-        select(FundRequest).where(
-            FundRequest.id == request_uuid
-        )
-    )
-    record = result.scalar_one_or_none()
-
-    if not record:
-        raise HTTPException(
-            status_code=404,
-            detail="Fund request not found.",
-        )
-
-    if record.status != "disbursed":
-        raise HTTPException(
-            status_code=400,
-            detail="Only fully disbursed requests can be reconciled.",
-        )
-
-    old_status = record.status
-
-    record.status = "reconciled"
-    record.reconciler_id = current_user.person_id
-    record.reconciled_at = datetime.now(timezone.utc)
-    record.reconciliation_notes = body.reconciliation_notes
-
-    await AuditService.log(
+    await fund_request_service.verify_receipt(
         db,
+        record,
         actor=current_user,
-        action="FUND_REQUEST_RECONCILED",
-        entity_type="FundRequest",
-        entity_id=record.id,
-        description=f"Fund request {record.request_number} reconciled.",
-        old_values={
-            "status": old_status,
-        },
-        new_values={
-            "status": record.status,
-            "reconciliation_notes": body.reconciliation_notes,
-        },
-        metadata={
-            "request_number": record.request_number,
-            "amount_disbursed": str(record.amount_disbursed),
-            "currency": record.currency,
-        },
+        verified=body.verified,
+        note=body.note,
+        receipt_reference=body.receipt_reference,
         request=request,
     )
 
     await db.commit()
-    await db.refresh(record)
 
-    return to_response(record)
+    return await fund_request_service.to_response(db, record)

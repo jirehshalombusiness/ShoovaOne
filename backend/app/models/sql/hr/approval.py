@@ -56,6 +56,11 @@ class ApprovalRequest(BaseModel):
     status = Column(String(30), nullable=False, default="pending", index=True)
     priority = Column(String(20), nullable=False, default="normal")
 
+    # Business stage label when a flow does not follow the generic
+    # manager -> HR -> exec ladder (e.g. fund_request:
+    # manager -> finance -> ceo).
+    stage = Column(String(20), nullable=True)
+
     # ---- escalation ----
     # 0 = direct manager
     # 1 = HR

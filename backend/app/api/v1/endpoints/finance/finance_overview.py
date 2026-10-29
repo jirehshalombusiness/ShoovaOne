@@ -243,7 +243,7 @@ async def get_finance_overview(
         func.count(FundRequest.id)
     ).where(
         FundRequest.status.in_(
-            ["submitted", "under_review"]
+            ["submitted", "manager_approved", "finance_approved"]
         )
     )
 
@@ -273,7 +273,7 @@ async def get_finance_overview(
         func.count(FundRequest.id)
     ).where(
         FundRequest.status.in_(
-            ["approved", "disbursed", "reconciled"]
+            ["approved", "disbursed", "verified", "verification_failed"]
         )
     )
 
@@ -302,7 +302,7 @@ async def get_finance_overview(
         func.count(FundRequest.id)
     ).where(
         FundRequest.status.in_(
-            ["disbursed", "reconciled"]
+            ["disbursed", "verified", "verification_failed"]
         )
     )
 
@@ -325,10 +325,12 @@ async def get_finance_overview(
     # Fund requests requiring reconciliation
     # ---------------------------------------------------------
 
+    # Requests whose hardcopy receipts are still with Finance for
+    # verification (including ones returned to the requester).
     fund_reconciliation_query = select(
         func.count(FundRequest.id)
     ).where(
-        FundRequest.status == "disbursed"
+        FundRequest.status.in_(["disbursed", "verification_failed"])
     )
 
     if fund_request_conditions:

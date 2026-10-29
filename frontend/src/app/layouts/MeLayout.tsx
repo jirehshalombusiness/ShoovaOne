@@ -6,7 +6,14 @@ import { ME_TABS, type NavItem } from '@/app/nav.config';
 import { meService } from '@/services/me.service';
 
 const SECTION_PATHS: Array<{ label?: string; paths: string[] }> = [
-  { paths: ['/me', '/me/approvals', '/me/time-off'] },
+  {
+    paths: [
+      '/me',
+      '/me/approvals',
+      '/me/time-off',
+      '/me/finance',
+    ],
+  },
   {
     label: 'Records',
     paths: [

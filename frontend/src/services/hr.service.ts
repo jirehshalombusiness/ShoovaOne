@@ -765,9 +765,14 @@ export const hrService = {
     return data;
   },
 
-  async approveRequest(id: string, note?: string): Promise<ApprovalDetail> {
+  async approveRequest(
+    id: string,
+    note?: string,
+    approvedAmount?: number,
+  ): Promise<ApprovalDetail> {
     const { data } = await api.post<ApprovalDetail>(`/hr/approvals/${id}/approve`, {
       note,
+      approved_amount: approvedAmount,
     });
     return data;
   },

@@ -7,6 +7,7 @@ from app.api.v1.endpoints.finance import (
     finance,
     finance_overview,
     financial_reports,
+    fund_requests_me,
     invoices,
     payments,
     reimbursements,
@@ -15,6 +16,11 @@ from app.api.v1.endpoints.finance import (
 router = APIRouter()
 
 router.include_router(finance.router, prefix="/finance", tags=["finance"])
+router.include_router(
+    fund_requests_me.router,
+    prefix="/finance/me",
+    tags=["finance"],
+)
 router.include_router(expenses.router, prefix="/finance", tags=["finance"])
 router.include_router(reimbursements.router, prefix="/finance", tags=["finance"])
 router.include_router(invoices.router, prefix="/finance", tags=["finance"])

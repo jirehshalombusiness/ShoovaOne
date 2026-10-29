@@ -369,11 +369,6 @@ const FundRequestsPage = lazy(() =>
     default: module.FundRequestsPage,
   }))
 );
-const NewFundRequestPage = lazy(() =>
-  import('@/features/finance/pages/NewFundRequestPage').then((module) => ({
-    default: module.NewFundRequestPage,
-  }))
-);
 const FundRequestDetailPage = lazy(() =>
   import('@/features/finance/pages/FundRequestDetailPage').then((module) => ({
     default: module.FundRequestDetailPage,
@@ -389,7 +384,31 @@ const DisbursementsPage = lazy(() =>
     default: module.DisbursementsPage,
   }))
 );
-const ReconciliationPage = lazy(() => import('@/features/finance/pages/ReconciliationPage'));
+const ReceiptVerificationPage = lazy(() =>
+  import('@/features/finance/pages/ReceiptVerificationPage').then((module) => ({
+    default: module.ReceiptVerificationPage,
+  }))
+);
+const MeFinancePage = lazy(() =>
+  import('@/features/finance/pages/MeFinancePage').then((module) => ({
+    default: module.MeFinancePage,
+  }))
+);
+const MeNewFundRequestPage = lazy(() =>
+  import('@/features/finance/pages/MeNewFundRequestPage').then((module) => ({
+    default: module.MeNewFundRequestPage,
+  }))
+);
+const MeEditFundRequestPage = lazy(() =>
+  import('@/features/finance/pages/MeEditFundRequestPage').then((module) => ({
+    default: module.MeEditFundRequestPage,
+  }))
+);
+const MeFundRequestDetailPage = lazy(() =>
+  import('@/features/finance/pages/MeFundRequestDetailPage').then((module) => ({
+    default: module.MeFundRequestDetailPage,
+  }))
+);
 const ReimbursementsPage = lazy(() => import('@/features/finance/pages/ReimbursementsPage'));
 const NewReimbursementPage = lazy(() =>
   import('@/features/finance/pages/NewReimbursementPage').then((module) => ({
@@ -809,6 +828,26 @@ export function AppRouter() {
             <Route
               path="time-off"
               element={<MeTimeOffPage />}
+            />
+
+            <Route
+              path="finance"
+              element={<MeFinancePage />}
+            />
+
+            <Route
+              path="finance/new"
+              element={<MeNewFundRequestPage />}
+            />
+
+            <Route
+              path="finance/:requestId"
+              element={<MeFundRequestDetailPage />}
+            />
+
+            <Route
+              path="finance/:requestId/edit"
+              element={<MeEditFundRequestPage />}
             />
 
             <Route
@@ -1266,11 +1305,6 @@ export function AppRouter() {
             />
 
             <Route
-              path="fund-requests/new"
-              element={<NewFundRequestPage />}
-            />
-
-            <Route
               path="approvals"
               element={<ApprovalsPage />}
             />
@@ -1278,6 +1312,11 @@ export function AppRouter() {
             <Route
               path="disbursements"
               element={<DisbursementsPage />}
+            />
+
+            <Route
+              path="verification"
+              element={<ReceiptVerificationPage />}
             />
 
             {/* ----------------------------------------------------- */}
@@ -1377,7 +1416,7 @@ export function AppRouter() {
 
             <Route
               path="reconciliation"
-              element={<ReconciliationPage />}
+              element={<Navigate to="/finance/verification" replace />}
             />
 
             {/* ----------------------------------------------------- */}

@@ -6,7 +6,11 @@ import {
 } from 'lucide-react';
 
 import type { FundRequest } from '../finance.types';
-import { FundRequestStatusBadge } from './FundRequestStatusBadge';
+import {
+  FundRequestStageBadge,
+  FundRequestStatusBadge,
+  REQUEST_TYPE_LABELS,
+} from './FundRequestStatusBadge';
 
 interface FundRequestTableProps {
   requests: FundRequest[];
@@ -23,7 +27,7 @@ function formatCurrency(
     currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(Number(amount || 0));
 }
 
 function formatDate(date?: string | null) {
@@ -38,16 +42,15 @@ function formatDate(date?: string | null) {
   }).format(new Date(date));
 }
 
-function getRequesterDisplay(request: FundRequest) {
-  return request.requester_id
-    ? request.requester_id
-    : 'Unassigned';
+function requesterLabel(request: FundRequest) {
+  return request.requester_name?.trim() || 'Unknown requester';
 }
 
-function getProjectDisplay(request: FundRequest) {
-  return request.project_id
-    ? request.project_id
-    : 'No project assigned';
+function typeLabel(request: FundRequest) {
+  return (
+    REQUEST_TYPE_LABELS[request.request_type] ??
+    request.request_type
+  );
 }
 
 export function FundRequestTable({
@@ -118,7 +121,7 @@ export function FundRequestTable({
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       {/* Desktop table */}
       <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[900px]">
+        <table className="w-full min-w-[980px]">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
               <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -130,7 +133,7 @@ export function FundRequestTable({
               </th>
 
               <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Project
+                Type
               </th>
 
               <th className="px-5 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -138,7 +141,7 @@ export function FundRequestTable({
               </th>
 
               <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Required By
+                Submitted
               </th>
 
               <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -167,7 +170,7 @@ export function FundRequestTable({
                       {request.request_number}
                     </p>
 
-                    <p className="mt-1 max-w-[220px] truncate text-sm font-semibold text-slate-900 group-hover:text-slate-700">
+                    <p className="mt-1 max-w-[240px] truncate text-sm font-semibold text-slate-900 group-hover:text-slate-700">
                       {request.title}
                     </p>
                   </button>
@@ -175,20 +178,23 @@ export function FundRequestTable({
 
                 <td className="px-5 py-4">
                   <p
-                    className="max-w-[180px] truncate text-xs font-medium text-slate-600"
+                    className="max-w-[170px] truncate text-xs font-medium text-slate-600"
                     title={request.requester_id}
                   >
-                    {getRequesterDisplay(request)}
+                    {requesterLabel(request)}
                   </p>
                 </td>
 
                 <td className="px-5 py-4">
-                  <p
-                    className="max-w-[180px] truncate text-xs text-slate-600"
-                    title={request.project_id ?? undefined}
-                  >
-                    {getProjectDisplay(request)}
+                  <p className="whitespace-nowrap text-xs text-slate-600">
+                    {typeLabel(request)}
                   </p>
+
+                  {request.expense_date && (
+                    <p className="mt-0.5 whitespace-nowrap text-[11px] text-slate-400">
+                      Spent {formatDate(request.expense_date)}
+                    </p>
+                  )}
                 </td>
 
                 <td className="px-5 py-4 text-right">
@@ -212,14 +218,26 @@ export function FundRequestTable({
 
                 <td className="px-5 py-4">
                   <p className="whitespace-nowrap text-sm text-slate-600">
-                    {formatDate(request.required_by_date)}
+                    {formatDate(request.submitted_at)}
                   </p>
+
+                  {request.required_by_date && (
+                    <p className="mt-0.5 whitespace-nowrap text-[11px] text-slate-400">
+                      Needed by {formatDate(request.required_by_date)}
+                    </p>
+                  )}
                 </td>
 
                 <td className="px-5 py-4">
-                  <FundRequestStatusBadge
-                    status={request.status}
-                  />
+                  <div className="flex flex-col items-start gap-1.5">
+                    <FundRequestStatusBadge
+                      status={request.status}
+                    />
+
+                    <FundRequestStageBadge
+                      stage={request.current_stage}
+                    />
+                  </div>
                 </td>
 
                 <td className="px-3 py-4">
@@ -258,9 +276,7 @@ export function FundRequestTable({
                 </p>
               </div>
 
-              <FundRequestStatusBadge
-                status={request.status}
-              />
+              <FundRequestStatusBadge status={request.status} />
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-4">
@@ -269,11 +285,8 @@ export function FundRequestTable({
                   Requester
                 </p>
 
-                <p
-                  className="mt-1 truncate text-xs text-slate-700"
-                  title={request.requester_id}
-                >
-                  {getRequesterDisplay(request)}
+                <p className="mt-1 truncate text-xs text-slate-700">
+                  {requesterLabel(request)}
                 </p>
               </div>
 
@@ -292,25 +305,24 @@ export function FundRequestTable({
 
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                  Project
+                  Type
                 </p>
 
-                <p
-                  className="mt-1 truncate text-xs text-slate-700"
-                  title={request.project_id ?? undefined}
-                >
-                  {getProjectDisplay(request)}
+                <p className="mt-1 text-xs text-slate-700">
+                  {typeLabel(request)}
                 </p>
               </div>
 
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                  Required By
+                  Stage
                 </p>
 
-                <p className="mt-1 text-sm text-slate-700">
-                  {formatDate(request.required_by_date)}
-                </p>
+                <div className="mt-1">
+                  <FundRequestStageBadge
+                    stage={request.current_stage}
+                  />
+                </div>
               </div>
             </div>
 

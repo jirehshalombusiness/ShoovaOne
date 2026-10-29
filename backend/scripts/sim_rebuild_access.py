@@ -149,6 +149,7 @@ async def main():
                 "004_create_finance_permissions.sql",
                 "007_create_organisation_permissions.sql",
                 "008_create_payroll_permissions.sql",
+                "013_fund_request_workflow.sql",
             ):
                 sql = (MIGRATIONS_DIR / filename).read_text(encoding="utf-8")
                 await conn.execute(sql)

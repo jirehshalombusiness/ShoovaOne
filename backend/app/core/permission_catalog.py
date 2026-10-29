@@ -55,6 +55,7 @@ PERMISSION_CATALOG: tuple[tuple[str, str, str], ...] = (
     ("finance", "approve", "Approve finance records"),
     ("finance", "reject", "Reject finance records"),
     ("finance", "disburse", "Record and authorize disbursements"),
+    ("finance", "verify", "Verify signed hardcopy receipts after disbursement"),
     ("finance", "reconcile", "Reconcile financial transactions"),
     ("finance", "reports", "View and generate financial reports"),
     ("finance", "audit_view", "View the financial audit trail"),

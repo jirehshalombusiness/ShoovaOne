@@ -243,6 +243,7 @@ export const ME_TABS: NavItem[] = [
   { icon: LayoutDashboard, label: 'Home', path: '/me', exact: true },
   { icon: Inbox, label: 'Approvals', path: '/me/approvals' },
   { icon: CalendarDays, label: 'Time Off', path: '/me/time-off' },
+  { icon: Wallet, label: 'My Finance', path: '/me/finance' },
   { icon: DollarSign, label: 'Compensation', path: '/me/compensation' },
   { icon: Receipt, label: 'Payslips', path: '/me/payslips' },
   { icon: FileText, label: 'Documents', path: '/me/documents' },

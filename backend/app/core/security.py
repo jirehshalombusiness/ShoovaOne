@@ -335,6 +335,8 @@ class Permissions:
     # ============================================
     FINANCE_VIEW = "finance.view"
     FINANCE_APPROVE = "finance.approve"
+    FINANCE_DISBURSE = "finance.disburse"
+    FINANCE_VERIFY = "finance.verify"
 
     # ============================================
     # PAYROLL

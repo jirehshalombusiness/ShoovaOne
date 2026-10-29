@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import List, Optional
 from enum import Enum
 
@@ -115,6 +116,11 @@ class ApprovalStats(BaseModel):
 
 class ApprovalDecisionRequest(BaseModel):
     note: Optional[str] = Field(None, max_length=2000)
+    approved_amount: Optional[Decimal] = Field(
+        default=None,
+        gt=0,
+        description="Fund requests only: amount approved at the finance stage.",
+    )
 
 
 class ApprovalRejectRequest(BaseModel):
@@ -152,6 +158,14 @@ def _stage_label(request: ApprovalRequest) -> str:
     if request.entity_type == "compensation_request":
         # Level 1 is kept for rows escalated before the stage fix.
         return "ceo" if request.escalation_level >= 1 else "hr"
+
+    if request.entity_type == "fund_request":
+        if request.stage:
+            return request.stage
+        return {0: "manager", 1: "finance", 2: "ceo"}.get(
+            request.escalation_level, "manager"
+        )
+
     return {0: "manager", 1: "hr", 2: "exec"}.get(
         request.escalation_level, "manager"
     )
@@ -234,6 +248,74 @@ async def _enrich_detail(
                 "current": current,
                 "reports_to_name": proposed_manager,
                 "current_reports_to_name": current_manager,
+            },
+        )
+
+    if request.entity_type == "fund_request":
+        from app.models.sql.core.document import Document
+        from app.models.sql.finance.fund_request import FundRequest
+
+        fund = (
+            await db.execute(
+                select(FundRequest).where(
+                    FundRequest.id == request.entity_id
+                )
+            )
+        ).scalar_one_or_none()
+
+        if not fund:
+            return None
+
+        documents = (
+            await db.execute(
+                select(Document)
+                .where(
+                    Document.related_entity_type == "fund_request",
+                    Document.related_entity_id == fund.id,
+                    Document.deleted_at.is_(None),
+                )
+                .order_by(Document.created_at.desc())
+            )
+        ).scalars().all()
+
+        return ApprovalDetailLink(
+            kind="fund_request",
+            payload={
+                "request_number": fund.request_number,
+                "request_type": fund.request_type,
+                "title": fund.title,
+                "description": fund.description,
+                "justification": fund.justification,
+                "amount_requested": str(fund.amount_requested),
+                "approved_amount": (
+                    str(fund.approved_amount)
+                    if fund.approved_amount is not None
+                    else None
+                ),
+                "amount_disbursed": str(fund.amount_disbursed),
+                "currency": fund.currency,
+                "expense_date": (
+                    fund.expense_date.isoformat()
+                    if fund.expense_date
+                    else None
+                ),
+                "required_by_date": (
+                    fund.required_by_date.isoformat()
+                    if fund.required_by_date
+                    else None
+                ),
+                "status": fund.status,
+                "current_stage": fund.current_stage,
+                "documents": [
+                    {
+                        "id": str(document.id),
+                        "name": document.name,
+                        "file_url": document.file_url,
+                        "mime_type": document.mime_type,
+                        "category": document.type,
+                    }
+                    for document in documents
+                ],
             },
         )
 
@@ -606,6 +688,20 @@ async def approve_request(
                 note=payload.note,
             )
 
+    elif request.entity_type == "fund_request":
+        # Manager -> Finance -> CEO chain; the domain service enforces
+        # stage authority and routes the next stage.
+        from app.services.finance import fund_request_service
+
+        await fund_request_service.decide(
+            db,
+            approval=request,
+            actor=current_user,
+            approve=True,
+            note=payload.note,
+            approved_amount=payload.approved_amount,
+        )
+
     elif request.entity_type == "employee_change":
         # Apply the approved structural change, then close the request.
         from app.services.hr import employee_change_service
@@ -735,6 +831,17 @@ async def reject_request(
             note=payload.note,
         )
 
+    elif request.entity_type == "fund_request":
+        from app.services.finance import fund_request_service
+
+        await fund_request_service.decide(
+            db,
+            approval=request,
+            actor=current_user,
+            approve=False,
+            note=payload.note,
+        )
+
     else:
         await approval_service.reject(
             db,
@@ -763,12 +870,12 @@ async def escalate_request(
     if not request:
         raise HTTPException(status_code=404, detail="Approval request not found")
 
-    if request.entity_type == "compensation_request":
+    if request.entity_type in {"compensation_request", "fund_request"}:
         raise HTTPException(
             status_code=400,
             detail=(
-                "Compensation requests follow the fixed HR to CEO workflow "
-                "and cannot be manually escalated"
+                "This request follows a fixed stage workflow and cannot "
+                "be manually escalated"
             ),
         )
 

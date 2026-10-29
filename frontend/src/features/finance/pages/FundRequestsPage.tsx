@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
+  ClipboardCheck,
   FilePlus2,
   RefreshCcw,
   Search,
   ShieldCheck,
-  AlertTriangle,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -19,21 +20,30 @@ import { FundRequestFilters } from '../components/FundRequestFilters';
 import { FundRequestTable } from '../components/FundRequestTable';
 
 function formatCurrency(amount: number, currency = 'GHS') {
-  return new Intl.NumberFormat('en-GH', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+  try {
+    return new Intl.NumberFormat('en-GH', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount.toLocaleString()}`;
+  }
 }
+
+const OPEN_STATUSES = new Set([
+  'submitted',
+  'manager_approved',
+  'finance_approved',
+]);
 
 export function FundRequestsPage() {
   const [requests, setRequests] = useState<FundRequest[]>([]);
   const [overview, setOverview] = useState<FinanceOverview | null>(null);
 
   const [filters, setFilters] = useState<FundRequestListParams>({
-    page: 1,
-    page_size: 25,
+    limit: 50,
   });
 
   const [loading, setLoading] = useState(true);
@@ -47,7 +57,7 @@ export function FundRequestsPage() {
       setError(null);
 
       const [requestsData, overviewData] = await Promise.all([
-        financeService.getFundRequests(filters),
+        financeService.listFundRequests(filters),
         financeService.getOverview(),
       ]);
 
@@ -65,47 +75,43 @@ export function FundRequestsPage() {
   }, [filters]);
 
   useEffect(() => {
-    loadRequests();
+    void loadRequests();
   }, [loadRequests]);
 
   const summary = useMemo(() => {
     const total = requests.length;
 
-    const pending = requests.filter(
-      (request) =>
-        request.status === 'submitted' ||
-        request.status === 'under_review'
+    const inReview = requests.filter((request) =>
+      OPEN_STATUSES.has(request.status)
     ).length;
 
-    const approved = requests.filter(
+    const awaitingPayment = requests.filter(
+      (request) => request.status === 'approved'
+    ).length;
+
+    const awaitingReceipts = requests.filter(
       (request) =>
-        request.status === 'approved' ||
         request.status === 'disbursed' ||
-        request.status === 'reconciled'
+        request.status === 'verification_failed'
     ).length;
 
     return {
       total,
-      pending,
-      approved,
+      inReview,
+      awaitingPayment,
+      awaitingReceipts,
     };
   }, [requests]);
 
   const reportingCurrency =
     overview?.reporting_totals.currency ?? 'USD';
 
-  const reportingRequested =
-    overview?.reporting_totals.requested ?? 0;
-
-  const reportingApproved =
-    overview?.reporting_totals.approved ?? 0;
-
   const handleFiltersChange = (
     nextFilters: FundRequestListParams
   ) => {
     setFilters({
       ...nextFilters,
-      page: 1,
+      offset: 0,
     });
   };
 
@@ -128,15 +134,15 @@ export function FundRequestsPage() {
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-            Manage funding requests through submission, review,
-            approval, disbursement, and reconciliation.
+            Every claim moves through manager review, finance review,
+            CEO approval, payment, and hardcopy receipt verification.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={loadRequests}
+            onClick={() => void loadRequests()}
             disabled={loading}
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
@@ -150,11 +156,11 @@ export function FundRequestsPage() {
           </button>
 
           <Link
-            to="/finance/fund-requests/new"
+            to="/me/finance/new"
             className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
           >
             <FilePlus2 className="h-4 w-4" />
-            New Fund Request
+            New claim
           </Link>
         </div>
       </section>
@@ -163,7 +169,7 @@ export function FundRequestsPage() {
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Requests
+            In register
           </p>
 
           <p className="mt-2 text-2xl font-semibold text-slate-900">
@@ -171,46 +177,46 @@ export function FundRequestsPage() {
           </p>
 
           <p className="mt-1 text-xs text-slate-500">
-            Currently in this register
+            Requests matching the current filters
           </p>
         </div>
 
         <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
-            Pending Action
+            In review
           </p>
 
           <p className="mt-2 text-2xl font-semibold text-amber-800">
-            {summary.pending}
+            {summary.inReview}
           </p>
 
           <p className="mt-1 text-xs text-slate-500">
-            Submitted or under review
+            Waiting on a manager, finance or CEO decision
           </p>
         </div>
 
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600">
-            Approved
+            Ready for payment
           </p>
 
           <p className="mt-2 text-2xl font-semibold text-emerald-800">
-            {summary.approved}
+            {summary.awaitingPayment}
           </p>
 
           <p className="mt-1 text-xs text-slate-500">
-            Approved, disbursed, or reconciled
+            Fully approved, awaiting disbursement
           </p>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Requested Value
+            Requested value
           </p>
 
           <p className="mt-2 text-xl font-semibold text-slate-900">
             {formatCurrency(
-              reportingRequested,
+              overview?.reporting_totals.requested ?? 0,
               reportingCurrency
             )}
           </p>
@@ -218,7 +224,7 @@ export function FundRequestsPage() {
           <p className="mt-1 text-xs text-slate-500">
             Approved:{' '}
             {formatCurrency(
-              reportingApproved,
+              overview?.reporting_totals.approved ?? 0,
               reportingCurrency
             )}
           </p>
@@ -228,6 +234,33 @@ export function FundRequestsPage() {
           </p>
         </div>
       </section>
+
+      {summary.awaitingReceipts > 0 && (
+        <Link
+          to="/finance/verification"
+          className="flex items-center justify-between gap-4 rounded-xl border border-purple-200 bg-purple-50 px-5 py-4 transition hover:bg-purple-100/70"
+        >
+          <div className="flex items-start gap-3">
+            <ClipboardCheck className="mt-0.5 h-5 w-5 shrink-0 text-purple-700" />
+
+            <div>
+              <p className="text-sm font-semibold text-purple-900">
+                {summary.awaitingReceipts} paid claim
+                {summary.awaitingReceipts === 1 ? '' : 's'} awaiting
+                hardcopy receipts
+              </p>
+
+              <p className="mt-0.5 text-xs text-purple-700">
+                Verify the signed receipts Finance has collected.
+              </p>
+            </div>
+          </div>
+
+          <span className="shrink-0 text-xs font-semibold text-purple-800">
+            Open verification
+          </span>
+        </Link>
+      )}
 
       {/* Error */}
       {error && (
@@ -248,7 +281,7 @@ export function FundRequestsPage() {
 
               <button
                 type="button"
-                onClick={loadRequests}
+                onClick={() => void loadRequests()}
                 className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-red-800 hover:text-red-900"
               >
                 <RefreshCcw className="h-4 w-4" />
@@ -274,7 +307,7 @@ export function FundRequestsPage() {
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              All funding requests available within your Finance access scope.
+              All claims within your Finance access scope.
             </p>
           </div>
 

@@ -24,6 +24,7 @@ ALLOWED_ENTITY_TYPES = {
     "meeting",
     "organisation",
     "partner",
+    "fund_request",
 }
 
 ALLOWED_MIME_TYPES = {
@@ -155,6 +156,27 @@ async def _has_permission(db: AsyncSession, user, permission: str) -> bool:
     return await PermissionService.has_permission(db, user.id, permission)
 
 
+async def _can_access_fund_request_documents(
+    db: AsyncSession,
+    user,
+    request_id: str,
+) -> bool:
+    """Requester and Finance users can see a claim's supporting files."""
+    from app.models.sql.finance.fund_request import FundRequest
+    from app.services.finance.fund_request_service import can_view
+
+    fund_request = (
+        await db.execute(
+            select(FundRequest).where(FundRequest.id == request_id)
+        )
+    ).scalar_one_or_none()
+
+    if not fund_request:
+        return False
+
+    return await can_view(db, fund_request, user)
+
+
 @router.get("/{entity_type}/{entity_id}", response_model=List[DocumentResponse])
 async def list_documents(
     entity_type: str,
@@ -163,7 +185,17 @@ async def list_documents(
     current_user = Depends(get_current_active_user),
 ):
     """List documents for an entity (project, person, programme, etc.)."""
-    if not _is_own_person_document(current_user, entity_type, entity_id):
+    _validate_entity_reference(entity_type, entity_id)
+
+    if entity_type == "fund_request":
+        if not await _can_access_fund_request_documents(
+            db, current_user, entity_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have access to this fund request.",
+            )
+    elif not _is_own_person_document(current_user, entity_type, entity_id):
         allowed = False
         for permission in (
             Permissions.PROJECTS_VIEW,
@@ -180,8 +212,6 @@ async def list_documents(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Permission denied: documents.view required",
             )
-
-    _validate_entity_reference(entity_type, entity_id)
 
     result = await db.execute(
         select(Document)
@@ -226,14 +256,23 @@ async def upload_document(
     current_user = Depends(get_current_active_user),
 ):
     """Register an uploaded file (upload happens on frontend via Supabase SDK)."""
-    if not _is_own_person_document(current_user, entity_type, entity_id):
+    _validate_entity_reference(entity_type, entity_id)
+
+    if entity_type == "fund_request":
+        if not await _can_access_fund_request_documents(
+            db, current_user, entity_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have access to this fund request.",
+            )
+    elif not _is_own_person_document(current_user, entity_type, entity_id):
         if not await _has_permission(db, current_user, Permissions.DOCUMENTS_UPLOAD):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Permission denied: documents.upload required",
             )
 
-    _validate_entity_reference(entity_type, entity_id)
     _validate_file_metadata(
         name=name,
         file_url=file_url,

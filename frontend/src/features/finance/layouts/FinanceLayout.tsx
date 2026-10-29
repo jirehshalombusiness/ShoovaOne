@@ -63,6 +63,12 @@ const FINANCE_SECTIONS: FinanceNavSection[] = [
         permission: 'finance.disburse',
         icon: Banknote,
       },
+      {
+        label: 'Receipt Verification',
+        path: '/finance/verification',
+        permission: 'finance.verify',
+        icon: ClipboardCheck,
+      },
     ],
   },
   {
@@ -172,12 +178,6 @@ const FINANCE_SECTIONS: FinanceNavSection[] = [
         permission: 'finance.reports',
         icon: BarChart3,
       },
-      {
-        label: 'Reconciliation',
-        path: '/finance/reconciliation',
-        permission: 'finance.reconcile',
-        icon: ClipboardCheck,
-      },
     ],
   },
 ];
@@ -193,7 +193,7 @@ export function FinanceLayout() {
   })).filter((section) => section.items.length > 0);
 
   const allItems = sections.flatMap((section) => section.items);
-  const canCreate = access.has('finance.create');
+  const canCreate = access.has('finance.view');
 
   const { data: overview } = useQuery({
     queryKey: ['finance', 'sidebar-overview'],
@@ -211,9 +211,8 @@ export function FinanceLayout() {
   };
 
   const pending = overview?.pending_fund_requests ?? 0;
-  const reconcileCount =
-    (overview?.expenses_requiring_reconciliation ?? 0) +
-    (overview?.fund_requests_requiring_reconciliation ?? 0);
+  const receiptsToVerify =
+    overview?.fund_requests_requiring_reconciliation ?? 0;
 
   return (
     <div className="flex gap-6 -m-4 lg:-m-6 min-h-[calc(100vh-56px)] lg:h-[calc(100vh-56px)] lg:min-h-0 lg:overflow-hidden">
@@ -229,11 +228,11 @@ export function FinanceLayout() {
 
           {canCreate && (
             <button
-              onClick={() => navigate('/finance/fund-requests/new')}
+              onClick={() => navigate('/me/finance/new')}
               className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-md text-[12px] font-medium hover:bg-primary-dark transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
-              New Fund Request
+              New claim
             </button>
           )}
         </div>
@@ -289,18 +288,20 @@ export function FinanceLayout() {
               <span
                 className={cn(
                   'w-1.5 h-1.5 rounded-full',
-                  reconcileCount > 0 ? 'bg-amber-500' : 'bg-emerald-500',
+                  receiptsToVerify > 0 ? 'bg-amber-500' : 'bg-emerald-500',
                 )}
               />
               <span
                 className={cn(
                   'text-[11px] font-medium',
-                  reconcileCount > 0 ? 'text-amber-700' : 'text-gray-500',
+                  receiptsToVerify > 0 ? 'text-amber-700' : 'text-gray-500',
                 )}
               >
-                {reconcileCount > 0
-                  ? `${reconcileCount} to reconcile`
-                  : 'All reconciled'}
+                {receiptsToVerify > 0
+                  ? `${receiptsToVerify} receipt${
+                      receiptsToVerify === 1 ? '' : 's'
+                    } to verify`
+                  : 'All receipts verified'}
               </span>
             </div>
           </div>

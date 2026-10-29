@@ -43,6 +43,7 @@ DEFAULT_SLA_HOURS = {
     "compensation_change": 168,
     "contract_renewal": 168,
     "termination": 72,
+    "fund_request": 48,
 }
 
 
@@ -219,6 +220,8 @@ async def create_request(
     due_hours: Optional[int] = None,
     metadata: Optional[dict] = None,
     escalation_level: int = 0,
+    stage: Optional[str] = None,
+    enforce_assignment_policy: bool = True,
 ) -> ApprovalRequest:
     """
     Create an approval request.
@@ -232,6 +235,11 @@ async def create_request(
     - the requester cannot assign themselves
     - level 0 must be the requester's manager or an HR approver
     - higher levels must be HR approvers
+
+    Domains whose ladder is not manager -> HR -> exec (for example a
+    fund request's manager -> finance -> CEO chain) pass
+    `enforce_assignment_policy=False`; they validate stage authority
+    themselves before routing here.
 
     Raises if no approver can be resolved.
     """
@@ -268,28 +276,29 @@ async def create_request(
                 ),
             )
 
-        is_hr_approver = await _person_has_any_role(
-            db, assigned_to_id, HR_APPROVER_ROLES
-        )
+        if enforce_assignment_policy:
+            is_hr_approver = await _person_has_any_role(
+                db, assigned_to_id, HR_APPROVER_ROLES
+            )
 
-        if escalation_level == 0:
-            manager_id = await _resolve_manager_person_id(db, requested_by_id)
-            if assigned_to_id != manager_id and not is_hr_approver:
+            if escalation_level == 0:
+                manager_id = await _resolve_manager_person_id(db, requested_by_id)
+                if assigned_to_id != manager_id and not is_hr_approver:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            "An approver must be your direct manager or hold "
+                            "an HR approver role"
+                        ),
+                    )
+            elif not is_hr_approver:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=(
-                        "An approver must be your direct manager or hold "
-                        "an HR approver role"
+                        "Approvals above the manager stage must be assigned to "
+                        "an HR approver"
                     ),
                 )
-        elif not is_hr_approver:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Approvals above the manager stage must be assigned to "
-                    "an HR approver"
-                ),
-            )
 
     if assigned_to_id is None:
         raise HTTPException(
@@ -315,6 +324,7 @@ async def create_request(
         status="pending",
         priority=priority,
         escalation_level=escalation_level,
+        stage=stage,
         due_at=due_at,
         title=title,
         summary=summary,
@@ -792,9 +802,11 @@ async def auto_escalate_overdue(
             ApprovalRequest.due_at.is_not(None),
             ApprovalRequest.due_at <= now,
             ApprovalRequest.escalation_level < 2,
-            # Compensation has its own two-stage flow with explicit
-            # HR -> CEO transitions; the generic ladder must not move it.
-            ApprovalRequest.entity_type != "compensation_request",
+            # Compensation and fund requests have their own fixed stage
+            # flows; the generic ladder must not move them.
+            ApprovalRequest.entity_type.notin_(
+                ["compensation_request", "fund_request"]
+            ),
         )
     )
 

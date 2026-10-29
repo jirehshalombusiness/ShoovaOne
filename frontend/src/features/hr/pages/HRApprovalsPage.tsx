@@ -73,6 +73,11 @@ const ENTITY_META: Record<
     icon: FileSignature,
     tone: 'bg-indigo-50 text-indigo-600',
   },
+  fund_request: {
+    label: 'Fund claim',
+    icon: DollarSign,
+    tone: 'bg-amber-50 text-amber-600',
+  },
 };
 
 const STAGE_META: Record<string, { label: string; tone: string }> = {
@@ -83,6 +88,10 @@ const STAGE_META: Record<string, { label: string; tone: string }> = {
   hr: {
     label: 'HR review',
     tone: 'bg-blue-50 text-blue-700',
+  },
+  finance: {
+    label: 'Finance review',
+    tone: 'bg-amber-50 text-amber-700',
   },
   ceo: {
     label: 'CEO approval',
@@ -313,6 +322,7 @@ export function HRApprovalsPage({
               <option value="timesheet">Timesheets</option>
               <option value="document_verification">Documents</option>
               <option value="employee_change">Employee changes</option>
+              <option value="fund_request">Fund claims</option>
             </select>
           </div>
         </div>
@@ -462,6 +472,9 @@ function ApprovalRow({
   const stage = stageMeta(approval.stage);
   const sla = slaInfo(approval);
   const canAct = approval.status === 'pending' && approval.can_act;
+  const requiresFinanceDecision =
+    approval.entity_type === 'fund_request' &&
+    approval.stage === 'finance';
 
   return (
     <div className="flex items-start gap-4 p-4 hover:bg-gray-50/70 transition-colors">
@@ -555,16 +568,27 @@ function ApprovalRow({
         {canAct ? (
           <>
             <button
-              onClick={onApprove}
+              onClick={
+                requiresFinanceDecision
+                  ? () =>
+                      navigate(
+                        `/finance/fund-requests/${approval.entity_id}`
+                      )
+                  : onApprove
+              }
               disabled={isApproving}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white rounded-md text-xs font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
             >
               {isApproving ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : requiresFinanceDecision ? (
+                <ChevronRight className="w-3.5 h-3.5" />
               ) : (
                 <CheckCircle2 className="w-3.5 h-3.5" />
               )}
-              Approve
+              {requiresFinanceDecision
+                ? 'Review & approve'
+                : 'Approve'}
             </button>
             <button
               onClick={onReject}

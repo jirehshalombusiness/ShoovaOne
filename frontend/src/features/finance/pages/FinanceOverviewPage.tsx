@@ -567,19 +567,19 @@ export function FinanceOverviewPage() {
           />
 
           <AttentionItem
-            title="Fund Requests Requiring Reconciliation"
-            description="Disbursed funding requiring reconciliation."
+            title="Paid Claims Awaiting Receipts"
+            description="Paid claims still waiting on hardcopy receipt verification."
             count={overview.fund_requests_requiring_reconciliation}
-            href="/finance/reconciliation"
+            href="/finance/verification"
             icon={ClipboardCheck}
-            tone="neutral"
+            tone="warning"
           />
 
           <AttentionItem
-            title="Expenses Requiring Reconciliation"
-            description="Paid expenses awaiting financial reconciliation."
+            title="Expenses Awaiting Reconciliation"
+            description="Paid expense records awaiting financial reconciliation."
             count={overview.expenses_requiring_reconciliation}
-            href="/finance/reconciliation"
+            href="/finance/expenses"
             icon={ShieldCheck}
             tone="neutral"
           />
@@ -804,16 +804,16 @@ export function FinanceOverviewPage() {
 
             <p className="mt-2 text-sm leading-6 text-slate-300">
               Finance activity should move through documented approval,
-              disbursement, and reconciliation controls. Use the
+              disbursement, and receipt verification controls. Use the
               operational modules below to manage the financial lifecycle.
             </p>
           </div>
 
           <Link
-            to="/finance/reconciliation"
+            to="/finance/verification"
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
           >
-            Open Reconciliation
+            Open Receipt Verification
             <ArrowDownRight className="h-4 w-4" />
           </Link>
         </div>

@@ -3,13 +3,19 @@ import { api } from '../../services/api';
 import type {
   FinanceOverview,
   FundRequest,
+  FundRequestDetail,
   FundRequestListParams,
+  FundRequestReceiptVerificationPayload,
+  FundRequestStatus,
+  FundRequestType,
 } from './finance.types';
 
-export interface CreateFundRequestPayload {
+export interface FundRequestPayload {
+  request_type: FundRequestType;
   title: string;
   description?: string;
   justification?: string;
+  expense_date?: string;
   project_id?: string;
   programme_id?: string;
   department_id?: string;
@@ -18,27 +24,9 @@ export interface CreateFundRequestPayload {
   required_by_date?: string;
 }
 
-export interface FundRequestReviewPayload {
-  review_notes?: string;
-}
+export type CreateFundRequestPayload = FundRequestPayload;
 
-export interface FundRequestApprovalPayload {
-  approved_amount?: number;
-  approval_notes?: string;
-}
-
-export interface FundRequestRejectionPayload {
-  rejection_reason: string;
-}
-
-export interface FundRequestDisbursementPayload {
-  amount_disbursed: number;
-  disbursement_notes?: string;
-}
-
-export interface FundRequestReconciliationPayload {
-  reconciliation_notes?: string;
-}
+export type UpdateFundRequestPayload = Partial<FundRequestPayload>;
 
 export const financeService = {
   async getOverview(): Promise<FinanceOverview> {
@@ -49,14 +37,16 @@ export const financeService = {
     return response.data;
   },
 
-  async getFundRequests(
+  // ========================================================
+  // FINANCE QUEUE (permission-gated)
+  // ========================================================
+
+  async listFundRequests(
     params?: FundRequestListParams
   ): Promise<FundRequest[]> {
     const response = await api.get<FundRequest[]>(
       '/finance/fund-requests',
-      {
-        params,
-      }
+      { params }
     );
 
     return response.data;
@@ -64,81 +54,9 @@ export const financeService = {
 
   async getFundRequest(
     requestId: string
-  ): Promise<FundRequest> {
-    const response = await api.get<FundRequest>(
+  ): Promise<FundRequestDetail> {
+    const response = await api.get<FundRequestDetail>(
       `/finance/fund-requests/${requestId}`
-    );
-
-    return response.data;
-  },
-
-  async createFundRequest(
-    payload: CreateFundRequestPayload
-  ): Promise<FundRequest> {
-    const response = await api.post<FundRequest>(
-      '/finance/fund-requests',
-      payload
-    );
-
-    return response.data;
-  },
-
-  async submitFundRequest(
-    requestId: string
-  ): Promise<FundRequest> {
-    const response = await api.post<FundRequest>(
-      `/finance/fund-requests/${requestId}/submit`
-    );
-
-    return response.data;
-  },
-
-  async reviewFundRequest(
-    requestId: string,
-    reviewNotes?: string
-  ): Promise<FundRequest> {
-    const payload: FundRequestReviewPayload = {
-      review_notes: reviewNotes?.trim() || undefined,
-    };
-
-    const response = await api.post<FundRequest>(
-      `/finance/fund-requests/${requestId}/review`,
-      payload
-    );
-
-    return response.data;
-  },
-
-  async approveFundRequest(
-    requestId: string,
-    approvedAmount?: number,
-    approvalNotes?: string
-  ): Promise<FundRequest> {
-    const payload: FundRequestApprovalPayload = {
-      approved_amount: approvedAmount,
-      approval_notes:
-        approvalNotes?.trim() || undefined,
-    };
-
-    const response = await api.post<FundRequest>(
-      `/finance/fund-requests/${requestId}/approve`,
-      payload
-    );
-
-    return response.data;
-  },
-
-  async rejectFundRequest(
-    requestId: string,
-    rejectionReason: string
-  ): Promise<FundRequest> {
-    const payload: FundRequestRejectionPayload = {
-      rejection_reason: rejectionReason.trim(),
-    };
-
-    const response = await api.post<FundRequest>(
-      `/finance/fund-requests/${requestId}/reject`,
-      payload
     );
 
     return response.data;
@@ -149,32 +67,117 @@ export const financeService = {
     amountDisbursed: number,
     disbursementNotes?: string
   ): Promise<FundRequest> {
-    const payload: FundRequestDisbursementPayload = {
-      amount_disbursed: amountDisbursed,
-      disbursement_notes:
-        disbursementNotes?.trim() || undefined,
-    };
-
     const response = await api.post<FundRequest>(
       `/finance/fund-requests/${requestId}/disburse`,
+      {
+        amount_disbursed: amountDisbursed,
+        disbursement_notes:
+          disbursementNotes?.trim() || undefined,
+      }
+    );
+
+    return response.data;
+  },
+
+  async verifyFundRequestReceipt(
+    requestId: string,
+    payload: FundRequestReceiptVerificationPayload
+  ): Promise<FundRequest> {
+    const response = await api.post<FundRequest>(
+      `/finance/fund-requests/${requestId}/verify-receipt`,
+      {
+        verified: payload.verified,
+        note: payload.note?.trim() || undefined,
+        receipt_reference:
+          payload.receipt_reference?.trim() || undefined,
+      }
+    );
+
+    return response.data;
+  },
+
+  // ========================================================
+  // SELF-SERVICE (every authenticated employee)
+  // ========================================================
+
+  async listMyFundRequests(params?: {
+    status?: FundRequestStatus;
+    limit?: number;
+    offset?: number;
+  }): Promise<FundRequest[]> {
+    const response = await api.get<FundRequest[]>(
+      '/finance/me/fund-requests',
+      { params }
+    );
+
+    return response.data;
+  },
+
+  async getMyFundRequest(
+    requestId: string
+  ): Promise<FundRequestDetail> {
+    const response = await api.get<FundRequestDetail>(
+      `/finance/me/fund-requests/${requestId}`
+    );
+
+    return response.data;
+  },
+
+  async createMyFundRequest(
+    payload: CreateFundRequestPayload
+  ): Promise<FundRequest> {
+    const response = await api.post<FundRequest>(
+      '/finance/me/fund-requests',
       payload
     );
 
     return response.data;
   },
 
-  async reconcileFundRequest(
+  async updateMyFundRequest(
     requestId: string,
-    reconciliationNotes?: string
+    payload: UpdateFundRequestPayload
   ): Promise<FundRequest> {
-    const payload: FundRequestReconciliationPayload = {
-      reconciliation_notes:
-        reconciliationNotes?.trim() || undefined,
-    };
-
-    const response = await api.post<FundRequest>(
-      `/finance/fund-requests/${requestId}/reconcile`,
+    const response = await api.patch<FundRequest>(
+      `/finance/me/fund-requests/${requestId}`,
       payload
+    );
+
+    return response.data;
+  },
+
+  async submitMyFundRequest(
+    requestId: string
+  ): Promise<FundRequest> {
+    const response = await api.post<FundRequest>(
+      `/finance/me/fund-requests/${requestId}/submit`
+    );
+
+    return response.data;
+  },
+
+  async cancelMyFundRequest(
+    requestId: string
+  ): Promise<FundRequest> {
+    const response = await api.post<FundRequest>(
+      `/finance/me/fund-requests/${requestId}/cancel`
+    );
+
+    return response.data;
+  },
+
+  async resubmitMyReceipt(
+    requestId: string,
+    note?: string
+  ): Promise<FundRequest> {
+    const response = await api.post<FundRequest>(
+      `/finance/me/fund-requests/${requestId}/resubmit-receipt`,
+      null,
+      {
+        params: note?.trim()
+          ? { note: note.trim() }
+          : undefined,
+      }
     );
 
     return response.data;

@@ -13,6 +13,8 @@ import {
   Lock,
   User,
   Circle,
+  Paperclip,
+  ExternalLink,
 } from 'lucide-react';
 import { format, isBefore, parseISO } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -25,12 +27,40 @@ interface HRApprovalDetailPageProps {
   backTo?: string;
 }
 
+interface FundDocument {
+  id: string;
+  name: string;
+  file_url: string;
+  mime_type?: string | null;
+  category?: string | null;
+}
+
 const STAGE_LABELS: Record<string, string> = {
   manager: 'Manager review',
+  finance: 'Finance review',
   hr: 'HR review',
   ceo: 'CEO approval',
   exec: 'Executive review',
 };
+
+function formatAmount(
+  value: unknown,
+  currency?: unknown,
+): string {
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount)) return '—';
+
+  try {
+    return new Intl.NumberFormat('en-GH', {
+      style: 'currency',
+      currency: String(currency || 'GHS'),
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${String(currency || 'GHS')} ${amount.toLocaleString()}`;
+  }
+}
 
 export function HRApprovalDetailPage({
   backTo = '/hr/approvals',
@@ -44,6 +74,7 @@ export function HRApprovalDetailPage({
   const [isInternal, setIsInternal] = useState(false);
   const [rejectNote, setRejectNote] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [approvedAmount, setApprovedAmount] = useState('');
 
   const { data: approval, isLoading, error } = useQuery({
     queryKey: ['hr', 'approval', id],
@@ -52,7 +83,16 @@ export function HRApprovalDetailPage({
   });
 
   const approveMutation = useMutation({
-    mutationFn: () => hrService.approveRequest(id!),
+    mutationFn: () =>
+      hrService.approveRequest(
+        id!,
+        undefined,
+        approval?.entity_type === 'fund_request' &&
+          approval.stage === 'finance' &&
+          approvedAmount.trim()
+          ? Number(approvedAmount)
+          : undefined,
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hr', 'approval', id] });
       queryClient.invalidateQueries({ queryKey: ['hr', 'approvals'] });
@@ -164,6 +204,15 @@ export function HRApprovalDetailPage({
     !!approval.due_at &&
     isBefore(new Date(approval.due_at), new Date());
   const stageLabel = STAGE_LABELS[approval.stage] ?? 'Review';
+  const isFundRequest = approval.entity_type === 'fund_request';
+  const isFinanceStage = isFundRequest && approval.stage === 'finance';
+  const fundDetail =
+    approval.detail?.kind === 'fund_request'
+      ? approval.detail.payload
+      : null;
+  const fundDocuments: FundDocument[] = Array.isArray(fundDetail?.documents)
+    ? (fundDetail?.documents as FundDocument[])
+    : [];
 
   return (
     <div className="space-y-5">
@@ -336,35 +385,211 @@ export function HRApprovalDetailPage({
           </div>
         )}
 
+        {/* Fund-request detail */}
+        {fundDetail && (
+          <div className="mt-5 pt-5 border-t border-gray-100">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+              Fund Claim
+            </h3>
+
+            <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+              <div>
+                <div className="text-gray-500 text-xs">Reference</div>
+                <div className="font-medium text-gray-900 mt-0.5">
+                  {String(fundDetail.request_number ?? '—')}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-gray-500 text-xs">Type</div>
+                <div className="font-medium text-gray-900 mt-0.5 capitalize">
+                  {String(fundDetail.request_type ?? '—')}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-gray-500 text-xs">Requested</div>
+                <div className="font-medium text-gray-900 mt-0.5">
+                  {formatAmount(
+                    fundDetail.amount_requested,
+                    fundDetail.currency,
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-gray-500 text-xs">Approved</div>
+                <div className="font-medium text-gray-900 mt-0.5">
+                  {fundDetail.approved_amount != null
+                    ? formatAmount(
+                        fundDetail.approved_amount,
+                        fundDetail.currency,
+                      )
+                    : 'Not yet approved'}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-gray-500 text-xs">Paid out</div>
+                <div className="font-medium text-gray-900 mt-0.5">
+                  {formatAmount(
+                    fundDetail.amount_disbursed,
+                    fundDetail.currency,
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-gray-500 text-xs">Spent on</div>
+                <div className="font-medium text-gray-900 mt-0.5">
+                  {fundDetail.expense_date
+                    ? formatDate(fundDetail.expense_date)
+                    : '—'}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-gray-500 text-xs">Needed by</div>
+                <div className="font-medium text-gray-900 mt-0.5">
+                  {fundDetail.required_by_date
+                    ? formatDate(fundDetail.required_by_date)
+                    : '—'}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-gray-500 text-xs">Stage</div>
+                <div className="font-medium text-gray-900 mt-0.5 capitalize">
+                  {String(fundDetail.current_stage ?? '—')}
+                </div>
+              </div>
+            </div>
+
+            {fundDetail.description ? (
+              <div className="mt-4">
+                <div className="text-gray-500 text-xs">
+                  What the money was used for
+                </div>
+                <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap">
+                  {String(fundDetail.description)}
+                </p>
+              </div>
+            ) : null}
+
+            {fundDetail.justification ? (
+              <div className="mt-3">
+                <div className="text-gray-500 text-xs">Justification</div>
+                <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap">
+                  {String(fundDetail.justification)}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="mt-4">
+              <div className="flex items-center gap-1.5 text-gray-500 text-xs">
+                <Paperclip className="w-3.5 h-3.5" />
+                Supporting documents
+                <span className="text-gray-400">({fundDocuments.length})</span>
+              </div>
+
+              {fundDocuments.length === 0 ? (
+                <p className="mt-2 text-[12px] text-amber-700 bg-amber-50 border border-amber-100 rounded-md px-3 py-2">
+                  No documents attached yet. Claims cannot be submitted without
+                  at least one receipt or supporting file.
+                </p>
+              ) : (
+                <ul className="mt-2 divide-y divide-gray-100 border border-gray-200 rounded-md overflow-hidden">
+                  {fundDocuments.map((document) => (
+                    <li key={document.id}>
+                      <a
+                        href={document.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 transition-colors"
+                      >
+                        <Paperclip className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                        <span className="flex-1 min-w-0 truncate">
+                          {document.name}
+                        </span>
+                        {document.category && (
+                          <span className="hidden sm:inline text-[10px] uppercase tracking-wider text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">
+                            {document.category.replace(/_/g, ' ')}
+                          </span>
+                        )}
+                        <ExternalLink className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Actions */}
         {canAct && (
-          <div className="mt-5 pt-5 border-t border-gray-100 flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => approveMutation.mutate()}
-              disabled={approveMutation.isPending}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              {approveMutation.isPending ? 'Approving…' : 'Approve'}
-            </button>
-            <button
-              onClick={() => setShowRejectModal(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-red-200 bg-white text-red-700 rounded-md text-sm font-medium hover:bg-red-50 transition-colors"
-            >
-              <XCircle className="w-4 h-4" />
-              Reject
-            </button>
-            {approval.escalation_level < 2 &&
-              approval.entity_type !== 'compensation_request' && (
-              <button
-                onClick={() => escalateMutation.mutate()}
-                disabled={escalateMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 ml-auto"
-              >
-                <ArrowUpCircle className="w-4 h-4" />
-                Escalate
-              </button>
+          <div className="mt-5 pt-5 border-t border-gray-100">
+            {isFinanceStage && (
+              <div className="mb-3 max-w-xs">
+                <label
+                  htmlFor="approval-amount"
+                  className="block text-xs font-medium text-gray-600 mb-1"
+                >
+                  Approved amount ({String(fundDetail?.currency ?? 'GHS')})
+                </label>
+
+                <input
+                  id="approval-amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={approvedAmount}
+                  onChange={(event) =>
+                    setApprovedAmount(event.target.value)
+                  }
+                  placeholder={
+                    fundDetail?.amount_requested != null
+                      ? String(fundDetail.amount_requested)
+                      : '0.00'
+                  }
+                  className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Leave blank to approve the full requested amount.
+                </p>
+              </div>
             )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => approveMutation.mutate()}
+                disabled={approveMutation.isPending}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                {approveMutation.isPending ? 'Approving…' : 'Approve'}
+              </button>
+              <button
+                onClick={() => setShowRejectModal(true)}
+                className="flex items-center gap-2 px-4 py-2 border border-red-200 bg-white text-red-700 rounded-md text-sm font-medium hover:bg-red-50 transition-colors"
+              >
+                <XCircle className="w-4 h-4" />
+                Reject
+              </button>
+              {approval.escalation_level < 2 &&
+                approval.entity_type !== 'compensation_request' &&
+                approval.entity_type !== 'fund_request' && (
+                <button
+                  onClick={() => escalateMutation.mutate()}
+                  disabled={escalateMutation.isPending}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-200 bg-white text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 ml-auto"
+                >
+                  <ArrowUpCircle className="w-4 h-4" />
+                  Escalate
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

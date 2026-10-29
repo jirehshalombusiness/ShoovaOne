@@ -44,6 +44,8 @@ ZERO = Decimal("0")
 UTC = dt.timezone.utc
 NOW = dt.datetime(2026, 10, 29, 18, 0, tzinfo=UTC)
 
+FUND_REQUEST_IDS = {}
+
 
 def money(value) -> Decimal:
     return Decimal(value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -750,58 +752,478 @@ async def seed_finance(conn):
         )
     await insert_many(conn, "allocations", allocation_rows)
 
-    fund_rows = [
-        ("FR-2026-001", "Digital Learning Platform hosting & licences", "PRG-DLP", "julius", "45000", "reconciled", dt.date(2026, 8, 3)),
-        ("FR-2026-002", "Community health outreach supplies", "PRG-CHO", "daniel", "28500", "disbursed", dt.date(2026, 8, 18)),
-        ("FR-2026-003", "Youth accelerator seed grants", "PRG-GYEA", "daniel", "60000", "approved", dt.date(2026, 9, 14)),
-        ("FR-2026-004", "Quarterly staff training", None, "efua", "15000", "under_review", dt.date(2026, 10, 6)),
-        ("FR-2026-005", "Office equipment refresh", None, "solomon", "9800", "submitted", dt.date(2026, 10, 20)),
-        ("FR-2026-006", "STEM lab equipment", "PRG-STEM", "isaac", "120000", "rejected", dt.date(2026, 9, 2)),
-        ("FR-2026-007", "Field travel advance — Kumasi", None, "kofi", "7500", "draft", dt.date(2026, 10, 27)),
+    fund_specs = [
+        {
+            "number": "FR-2026-001",
+            "title": "Digital Learning Platform hosting & licences",
+            "request_type": "reimbursement",
+            "project": "PRG-DLP",
+            "requester": "julius",
+            "amount": "45000",
+            "status": "verified",
+            "submitted": dt.date(2026, 8, 3),
+            "decisions": ["approved", "approved", "approved"],
+            "receipt": "verified",
+        },
+        {
+            "number": "FR-2026-002",
+            "title": "Community health outreach supplies",
+            "request_type": "reimbursement",
+            "project": "PRG-CHO",
+            "requester": "daniel",
+            "amount": "28500",
+            "status": "disbursed",
+            "submitted": dt.date(2026, 8, 18),
+            "decisions": ["approved", "approved", "approved"],
+        },
+        {
+            "number": "FR-2026-003",
+            "title": "Youth accelerator seed grants",
+            "request_type": "reimbursement",
+            "project": "PRG-GYEA",
+            "requester": "daniel",
+            "amount": "60000",
+            "status": "verification_failed",
+            "submitted": dt.date(2026, 9, 14),
+            "decisions": ["approved", "approved", "approved"],
+            "receipt": "failed",
+        },
+        {
+            "number": "FR-2026-004",
+            "title": "Quarterly staff training",
+            "request_type": "reimbursement",
+            "project": None,
+            "requester": "efua",
+            "amount": "15000",
+            "status": "finance_approved",
+            "submitted": dt.date(2026, 10, 6),
+            "decisions": ["approved", "approved", "pending"],
+        },
+        {
+            "number": "FR-2026-005",
+            "title": "Office equipment refresh",
+            "request_type": "reimbursement",
+            "project": None,
+            "requester": "solomon",
+            "amount": "9800",
+            "status": "manager_approved",
+            "submitted": dt.date(2026, 10, 20),
+            "decisions": ["approved", "pending"],
+        },
+        {
+            "number": "FR-2026-006",
+            "title": "STEM lab equipment",
+            "request_type": "advance",
+            "project": "PRG-STEM",
+            "requester": "isaac",
+            "amount": "120000",
+            "status": "submitted",
+            "submitted": dt.date(2026, 10, 27),
+            "decisions": ["pending"],
+        },
+        {
+            "number": "FR-2026-007",
+            "title": "Field travel advance — Kumasi",
+            "request_type": "advance",
+            "project": None,
+            "requester": "kofi",
+            "amount": "7500",
+            "status": "rejected",
+            "submitted": dt.date(2026, 9, 2),
+            "decisions": ["rejected"],
+        },
+        {
+            "number": "FR-2026-008",
+            "title": "Finance systems subscription renewal",
+            "request_type": "reimbursement",
+            "project": None,
+            "requester": "gifty",
+            "amount": "4200",
+            "status": "verified",
+            "submitted": dt.date(2026, 9, 21),
+            "decisions": ["approved", "approved"],
+            "receipt": "verified",
+        },
+        {
+            "number": "FR-2026-009",
+            "title": "Executive travel — partner summit",
+            "request_type": "advance",
+            "project": None,
+            "requester": "william",
+            "amount": "12000",
+            "status": "approved",
+            "submitted": dt.date(2026, 10, 19),
+            "decisions": ["approved"],
+            "partial_disbursed": "3000",
+        },
+        {
+            "number": "FR-2026-010",
+            "title": "Team retreat deposit",
+            "request_type": "advance",
+            "project": None,
+            "requester": "kofi",
+            "amount": "5500",
+            "status": "cancelled",
+            "submitted": dt.date(2026, 10, 12),
+            "decisions": ["approved", "cancelled"],
+        },
+        {
+            "number": "FR-2026-011",
+            "title": "Field data collection tablets",
+            "request_type": "advance",
+            "project": "PRG-CHO",
+            "requester": "michael",
+            "amount": "14500",
+            "status": "draft",
+            "submitted": dt.date(2026, 10, 28),
+            "decisions": [],
+        },
     ]
+
+    # Seeded reporting lines for the demo organisation.
+    reporting_manager = {
+        "julius": "kwame",
+        "daniel": "kwame",
+        "efua": "kwame",
+        "solomon": "kwame",
+        "isaac": "william",
+        "kofi": "julius",
+        "gifty": "salome",
+        "michael": "daniel",
+        "william": None,
+    }
+
+    def stage_plan(requester):
+        plan = []
+        seen = {requester}
+
+        manager = reporting_manager.get(requester)
+        if manager and manager not in seen:
+            plan.append(("manager", manager))
+            seen.add(manager)
+
+        for finance_lead in ("salome", "gifty"):
+            if finance_lead not in seen:
+                plan.append(("finance", finance_lead))
+                seen.add(finance_lead)
+                break
+
+        if "william" not in seen:
+            plan.append(("ceo", "william"))
+
+        return plan
+
+    decision_notes = {
+        "manager": "Approved — activity is budgeted and documented.",
+        "finance": "Approved as budgeted. Hardcopy receipts required on payment.",
+        "ceo": "Approved.",
+    }
+
     fund_request_rows = []
-    for number, title, project, requester, amount, status, submitted_day in fund_rows:
-        submitted = at(submitted_day, 9) if status != "draft" else None
-        reviewed = at(submitted_day + dt.timedelta(days=2), 11) if status in ("under_review", "approved", "rejected", "disbursed", "reconciled") else None
-        approved = at(submitted_day + dt.timedelta(days=4), 10) if status in ("approved", "disbursed", "reconciled") else None
-        disbursed = at(submitted_day + dt.timedelta(days=8), 14) if status in ("disbursed", "reconciled") else None
-        reconciled = at(submitted_day + dt.timedelta(days=20), 15) if status == "reconciled" else None
+    fund_approval_rows = []
+    fund_document_rows = []
+    fund_stage_dates = []
+
+    for spec in fund_specs:
+        fund_id = uuid.uuid4()
+        plan = stage_plan(spec["requester"])
+        decisions = spec["decisions"]
+        submitted_day = spec["submitted"]
+
+        if decisions and len(decisions) > len(plan):
+            raise ValueError(
+                f"{spec['number']} has more decisions than stages"
+            )
+
+        stage_dates = []
+        stage_people = []
+        for index in range(len(decisions)):
+            stage_dates.append(
+                at(
+                    submitted_day + dt.timedelta(days=index + 1),
+                    10,
+                )
+            )
+            stage_people.append(plan[index])
+
+        pending_index = (
+            decisions.index("pending") if "pending" in decisions else None
+        )
+        rejected_index = (
+            decisions.index("rejected") if "rejected" in decisions else None
+        )
+        cancelled_index = (
+            decisions.index("cancelled") if "cancelled" in decisions else None
+        )
+
+        approval_rows = []
+        for index, decision in enumerate(decisions):
+            stage, person = stage_people[index]
+            approval_id = uuid.uuid4()
+            decided = decision in ("approved", "rejected", "cancelled")
+            decided_by = person if decision != "cancelled" else spec["requester"]
+            approval_rows.append(
+                {
+                    "id": approval_id,
+                    "entity_type": "fund_request",
+                    "entity_id": fund_id,
+                    "requested_by_id": p[spec["requester"]],
+                    "assigned_to_id": p[person],
+                    "status": decision,
+                    "priority": "normal",
+                    "stage": stage,
+                    "escalation_level": index,
+                    "due_at": (
+                        stage_dates[index] + dt.timedelta(days=2)
+                        if decision == "pending"
+                        else None
+                    ),
+                    "decided_at": stage_dates[index] if decided else None,
+                    "decided_by_id": p[decided_by] if decided else None,
+                    "decision_note": (
+                        "Withdrawn by requester."
+                        if decision == "cancelled"
+                        else (
+                            "Amount exceeds the approved allocation for the "
+                            "period; resubmit with a phased plan."
+                            if decision == "rejected"
+                            else decision_notes.get(stage)
+                            if decision == "approved"
+                            else None
+                        )
+                    ),
+                    "title": (
+                        f"{stage.title()} approval — {spec['number']}"
+                    ),
+                    "summary": (
+                        f"{spec['request_type'].title()} claim of GHS "
+                        f"{amt(spec['amount']):,.2f}"
+                    ),
+                    "created_at": stage_dates[index],
+                    "updated_at": stage_dates[index],
+                }
+            )
+
+        fund_approval_rows.extend(approval_rows)
+
+        current_approval_id = None
+        if pending_index is not None:
+            current_approval_id = approval_rows[pending_index]["id"]
+
+        chain_complete = (
+            len(decisions) == len(plan)
+            and all(decision == "approved" for decision in decisions)
+        )
+
+        approved_amount = None
+        amount_disbursed = ZERO
+        approved_at = None
+        disbursed_at = None
+
+        if chain_complete:
+            approved_amount = amt(spec["amount"])
+            approved_at = stage_dates[-1]
+
+        if spec["status"] in ("disbursed", "verified", "verification_failed"):
+            amount_disbursed = amt(spec["amount"])
+            disbursed_at = at(
+                submitted_day + dt.timedelta(days=8), 14
+            )
+        elif spec.get("partial_disbursed"):
+            amount_disbursed = amt(spec["partial_disbursed"])
+
+        stage_values = {
+            "manager_decided_by_id": None,
+            "manager_decided_at": None,
+            "manager_decision_note": None,
+            "finance_decided_by_id": None,
+            "finance_decided_at": None,
+            "finance_decision_note": None,
+            "ceo_decided_by_id": None,
+            "ceo_decided_at": None,
+            "ceo_decision_note": None,
+        }
+        for index, decision in enumerate(decisions):
+            stage = stage_people[index][0]
+            if decision == "approved":
+                stage_values[f"{stage}_decided_by_id"] = p[
+                    stage_people[index][1]
+                ]
+                stage_values[f"{stage}_decided_at"] = stage_dates[index]
+                stage_values[f"{stage}_decision_note"] = decision_notes[stage]
+
+        if spec["status"] in ("draft", "rejected", "cancelled"):
+            current_stage = None if spec["status"] == "draft" else "closed"
+        elif pending_index is not None:
+            current_stage = plan[pending_index][0]
+        elif spec["status"] == "approved":
+            current_stage = "disbursement"
+        elif spec["status"] in ("disbursed", "verification_failed"):
+            current_stage = "verification"
+        else:
+            current_stage = "closed"
+
+        receipt_verified_at = None
+        receipt_verified_by = None
+        receipt_note = None
+        receipt_reference = None
+
+        if spec.get("receipt") == "verified":
+            receipt_verified_at = at(
+                submitted_day + dt.timedelta(days=12), 11
+            )
+            receipt_verified_by = p["gifty" if spec["requester"] != "gifty" else "salome"]
+            receipt_note = "Signed hardcopy receipts received and matched."
+            receipt_reference = f"RCV-{spec['number'][-3:]}"
+        elif spec.get("receipt") == "failed":
+            receipt_verified_at = at(
+                submitted_day + dt.timedelta(days=11), 15
+            )
+            receipt_verified_by = p["gifty"]
+            receipt_note = (
+                "Two receipts are unsigned and one amount does not match "
+                "the claim. Resubmit the corrected hardcopies."
+            )
+
         fund_request_rows.append(
             {
-                "id": uuid.uuid4(),
-                "request_number": number,
-                "title": title,
-                "description": f"{title}.",
-                "justification": "Approved programme activity with supporting quotations on file.",
-                "requester_id": p[requester],
-                "project_id": PROJECTS[project] if project else None,
+                "id": fund_id,
+                "request_number": spec["number"],
+                "request_type": spec["request_type"],
+                "title": spec["title"],
+                "description": f"{spec['title']}.",
+                "justification": (
+                    "Approved programme activity with supporting "
+                    "quotations on file."
+                ),
+                "expense_date": (
+                    submitted_day - dt.timedelta(days=3)
+                    if spec["request_type"] == "reimbursement"
+                    else None
+                ),
+                "requester_id": p[spec["requester"]],
+                "project_id": (
+                    PROJECTS[spec["project"]]
+                    if spec["project"]
+                    else None
+                ),
                 "programme_id": None,
-                "department_id": d["PROG"] if project else None,
-                "amount_requested": amt(amount),
+                "department_id": (
+                    d["PROG"] if spec["project"] else None
+                ),
+                "amount_requested": amt(spec["amount"]),
                 "currency": "GHS",
-                "approved_amount": amt(amount) if status in ("approved", "disbursed", "reconciled") else None,
-                "amount_disbursed": amt(amount) if status in ("disbursed", "reconciled") else ZERO,
-                "status": status,
-                "required_by_date": submitted_day + dt.timedelta(days=14),
-                "submitted_at": submitted,
-                "reviewed_at": reviewed,
-                "approved_at": approved,
-                "disbursed_at": disbursed,
-                "reconciled_at": reconciled,
-                "reviewer_id": p["salome"] if reviewed else None,
-                "approver_id": p["william"] if approved else None,
-                "disburser_id": p["gifty"] if disbursed else None,
-                "reconciler_id": p["salome"] if reconciled else None,
-                "rejection_reason": "Amount exceeds the approved allocation for the period; resubmit with a phased plan." if status == "rejected" else None,
-                "review_notes": "Supporting documents verified." if reviewed else None,
-                "approval_notes": "Approved as budgeted." if approved else None,
-                "disbursement_notes": "Funds transferred to programme account." if disbursed else None,
-                "reconciliation_notes": "Receipts and activity report received." if reconciled else None,
-                "created_at": at(submitted_day - dt.timedelta(days=3), 10),
-                "updated_at": at(submitted_day, 9),
+                "approved_amount": approved_amount,
+                "amount_disbursed": amount_disbursed,
+                "status": spec["status"],
+                "current_stage": current_stage,
+                "approval_id": current_approval_id,
+                "required_by_date": (
+                    submitted_day + dt.timedelta(days=14)
+                ),
+                "submitted_at": (
+                    at(submitted_day, 9)
+                    if spec["status"] != "draft"
+                    else None
+                ),
+                "approved_at": approved_at,
+                "disbursed_at": disbursed_at,
+                **stage_values,
+                "disburser_id": (
+                    p["gifty"] if amount_disbursed > ZERO else None
+                ),
+                "disbursement_notes": (
+                    "Funds transferred to the requester's bank account."
+                    if amount_disbursed >= amt(spec["amount"])
+                    else "Part-payment released pending the supplier invoice."
+                    if amount_disbursed > ZERO
+                    else None
+                ),
+                "rejection_reason": (
+                    "Amount exceeds the approved allocation for the period; "
+                    "resubmit with a phased plan."
+                    if rejected_index is not None
+                    else None
+                ),
+                "receipt_required": True,
+                "receipt_reference": receipt_reference,
+                "receipt_verified_by_id": receipt_verified_by,
+                "receipt_verified_at": receipt_verified_at,
+                "receipt_verification_note": receipt_note,
+                "created_at": at(
+                    submitted_day - dt.timedelta(days=3), 10
+                ),
+                "updated_at": at(
+                    submitted_day + dt.timedelta(days=3), 10
+                ),
             }
         )
+
+        fund_stage_dates.append(
+            {
+                "id": fund_id,
+                "number": spec["number"],
+                "requester": spec["requester"],
+                "submitted": submitted_day,
+                "disbursed": disbursed_at,
+            }
+        )
+
+        proof_titles = (
+            ["Supplier invoice", "Payment receipt"]
+            if spec["number"] in {"FR-2026-001", "FR-2026-003"}
+            else ["Payment receipt"]
+        )
+        for proof_index, proof_title in enumerate(proof_titles):
+            fund_document_rows.append(
+                {
+                    "id": uuid.uuid4(),
+                    "name": f"{proof_title} — {spec['number']}",
+                    "file_url": (
+                        "https://files.shoova.org/demo/"
+                        f"{uuid.uuid4()}.pdf"
+                    ),
+                    "file_size_bytes": 212000 + proof_index * 15000,
+                    "mime_type": "application/pdf",
+                    "type": "finance",
+                    "owner_id": p[spec["requester"]],
+                    "related_entity_type": "fund_request",
+                    "related_entity_id": fund_id,
+                    "visibility": "internal",
+                    "version": 1,
+                    "deleted_at": None,
+                    "document_type_id": None,
+                    "expiry_date": None,
+                    "verified": spec["status"] == "verified",
+                    "verified_by": (
+                        p["gifty"]
+                        if spec["status"] == "verified"
+                        else None
+                    ),
+                    "verified_at": (
+                        at(submitted_day + dt.timedelta(days=12), 11)
+                        if spec["status"] == "verified"
+                        else None
+                    ),
+                    "created_at": at(
+                        submitted_day - dt.timedelta(days=1), 12
+                    ),
+                    "updated_at": at(
+                        submitted_day - dt.timedelta(days=1), 12
+                    ),
+                }
+            )
+
     await insert_many(conn, "fund_requests", fund_request_rows)
+    await insert_many(conn, "approval_requests", fund_approval_rows)
+    await insert_many(conn, "documents", fund_document_rows)
+
+    FUND_REQUEST_IDS.update(
+        {
+            row["number"]: row["id"]
+            for row in fund_stage_dates
+        }
+    )
 
     expense_specs = [
         ("EXP-2026-001", "Cohort graduation venue", "Programme Delivery", "12400", "michael", "PRG-DLP", "reconciled", dt.date(2026, 8, 12)),
@@ -1009,6 +1431,8 @@ async def seed_finance(conn):
         "budgets": len(budget_rows),
         "allocations": len(allocation_rows),
         "fund_requests": len(fund_request_rows),
+        "fund_approvals": len(fund_approval_rows),
+        "fund_documents": len(fund_document_rows),
         "expenses": len(expense_rows),
         "reimbursements": len(reimbursement_rows),
         "invoices": len(invoice_rows),
@@ -1320,9 +1744,9 @@ async def seed_support(conn):
         ("salome", "approve", "payroll_run", runs[0]["id"], "Finance approved August Leadership payroll", dt.date(2026, 8, 28)),
         ("william", "finalize", "payroll_run", runs[0]["id"], "Final approval for August Leadership payroll", dt.date(2026, 8, 30)),
         ("gifty", "disburse", "payroll_run", runs[0]["id"], "Uploaded bank batch DB-2026-08-LEAD", dt.date(2026, 8, 31)),
-        ("daniel", "create", "fund_request", PEOPLE["daniel"], "Created fund request FR-2026-002", dt.date(2026, 8, 15)),
-        ("salome", "disburse", "fund_request", PEOPLE["daniel"], "Disbursed FR-2026-002", dt.date(2026, 8, 26)),
-        ("salome", "reconcile", "fund_request", PEOPLE["daniel"], "Reconciled FR-2026-001", dt.date(2026, 8, 23)),
+        ("daniel", "create", "fund_request", FUND_REQUEST_IDS["FR-2026-002"], "Created fund request FR-2026-002", dt.date(2026, 8, 15)),
+        ("salome", "disburse", "fund_request", FUND_REQUEST_IDS["FR-2026-002"], "Disbursed FR-2026-002", dt.date(2026, 8, 26)),
+        ("gifty", "verify_receipt", "fund_request", FUND_REQUEST_IDS["FR-2026-001"], "Verified signed hardcopy receipts for FR-2026-001", dt.date(2026, 8, 15)),
         ("efua", "create", "hr_note", PEOPLE["michael"], "Added probation review note", dt.date(2026, 10, 14)),
         ("solomon", "assign_device", "device", PEOPLE["gifty"], "Assigned Dell Latitude to Gifty Amoako", dt.date(2026, 7, 24)),
         ("william", "create", "chat_conversation", conv_ids[0], "Created Leadership Team channel", dt.date(2026, 8, 3)),

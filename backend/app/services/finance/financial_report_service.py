@@ -251,7 +251,8 @@ class FinancialReportService:
                     [
                         "approved",
                         "disbursed",
-                        "reconciled",
+                        "verified",
+                        "verification_failed",
                     ]
                 ),
             )
