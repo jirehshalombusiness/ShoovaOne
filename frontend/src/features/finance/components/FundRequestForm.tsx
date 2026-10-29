@@ -12,6 +12,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 
+import { useHRAccess } from '@/hooks/useHRAccess';
 import { api } from '@/services/api';
 import { documentService } from '@/services/document.service';
 
@@ -136,6 +137,11 @@ export function FundRequestForm({
 }: FundRequestFormProps) {
   const isEdit = Boolean(initial);
 
+  const access = useHRAccess();
+  const canPickOrganisation = access.has('organisation.view');
+  const canPickProjects = access.has('projects.view');
+  const canClassify = canPickOrganisation || canPickProjects;
+
   const [form, setForm] = useState<FormState>(() =>
     initial
       ? {
@@ -192,24 +198,39 @@ export function FundRequestForm({
       try {
         setLoadingLookups(true);
 
-        const [orgResponse, projectResponse] = await Promise.all([
-          api.get<Organisation[]>('/organisation/', {
-            params: { status: 'active' },
-          }),
-          api.get<Project[]>('/projects/', {
-            params: { page: 1, page_size: 100 },
-          }),
+        if (!canPickOrganisation && !canPickProjects) {
+          return;
+        }
+
+        const [orgResult, projectResult] = await Promise.allSettled([
+          canPickOrganisation
+            ? api.get<Organisation[]>('/organisation/', {
+                params: { status: 'active' },
+              })
+            : Promise.resolve(null),
+          canPickProjects
+            ? api.get<Project[]>('/projects/', {
+                params: { page: 1, page_size: 100 },
+              })
+            : Promise.resolve(null),
         ]);
 
         if (!mounted) return;
 
-        const activeOrganisation = orgResponse.data[0] ?? null;
+        const activeOrganisation =
+          orgResult.status === 'fulfilled'
+            ? (orgResult.value?.data[0] ?? null)
+            : null;
+
         setOrganisation(activeOrganisation);
-        setProjects(projectResponse.data);
+
+        if (projectResult.status === 'fulfilled') {
+          setProjects(projectResult.value?.data ?? []);
+        }
 
         if (activeOrganisation) {
-          const [deptResponse, programmeResponse] =
-            await Promise.all([
+          const [deptResult, programmeResult] =
+            await Promise.allSettled([
               api.get<Department[]>(
                 `/organisation/${activeOrganisation.id}/departments`,
                 { params: { status: 'active' } }
@@ -222,11 +243,14 @@ export function FundRequestForm({
 
           if (!mounted) return;
 
-          setDepartments(deptResponse.data);
-          setProgrammes(programmeResponse.data);
+          if (deptResult.status === 'fulfilled') {
+            setDepartments(deptResult.value.data);
+          }
+
+          if (programmeResult.status === 'fulfilled') {
+            setProgrammes(programmeResult.value.data);
+          }
         }
-      } catch (err) {
-        console.error('Failed to load finance lookups:', err);
       } finally {
         if (mounted) setLoadingLookups(false);
       }
@@ -237,7 +261,7 @@ export function FundRequestForm({
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [canPickOrganisation, canPickProjects]);
 
   const availableProjects = useMemo(() => {
     let filtered = projects;
@@ -716,6 +740,7 @@ export function FundRequestForm({
           </section>
 
           {/* Classification */}
+          {canClassify && (
           <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 px-6 py-5">
               <h2 className="text-base font-semibold text-slate-900">
@@ -838,6 +863,7 @@ export function FundRequestForm({
               </div>
             </div>
           </section>
+          )}
 
           {/* Documents */}
           <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
