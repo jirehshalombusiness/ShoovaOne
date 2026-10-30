@@ -28,6 +28,7 @@ const SECTION_PERMISSIONS: Record<string, string | string[] | undefined> = {
   '/hr/celebrations': 'hr.view_sensitive',
   '/hr/documents': 'hr.view_sensitive',
   '/hr/compensation': 'hr.view_compensation',
+  '/hr/devices': 'devices.view',
   '/hr/reports': 'hr.view_sensitive',
   '/hr/settings': 'hr.view_sensitive',
 };

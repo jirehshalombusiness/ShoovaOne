@@ -12,6 +12,7 @@ from app.api.v1.endpoints.hr import documents
 from app.api.v1.endpoints.hr import reports
 from app.api.v1.endpoints.hr import org_chart
 from app.api.v1.endpoints.hr import me_compensation
+from app.api.v1.endpoints.hr import device_requests
 
 
 router = APIRouter()
@@ -32,3 +33,9 @@ router.include_router(documents.router,     prefix="/hr/documents",     tags=["h
 router.include_router(reports.router,       prefix="/hr/reports",       tags=["hr-reports"])
 router.include_router(org_chart.router,     prefix="/hr/org-chart",     tags=["hr-org-chart"])
 router.include_router(me_compensation.router, prefix="/me",             tags=["hr-me"])
+router.include_router(device_requests.router, prefix="/me",            tags=["me-devices"])
+router.include_router(
+    device_requests.admin_router,
+    prefix="/hr/device-requests",
+    tags=["hr-devices"],
+)

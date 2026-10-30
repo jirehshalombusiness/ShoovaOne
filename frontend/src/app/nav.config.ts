@@ -261,6 +261,7 @@ export const HR_TABS: NavItem[] = [
   { icon: Award, label: 'Celebrations', path: '/hr/celebrations' },
   { icon: FileText, label: 'Documents', path: '/hr/documents' },
   { icon: DollarSign, label: 'Compensation', path: '/hr/compensation' },
+  { icon: Laptop, label: 'Devices', path: '/hr/devices' },
   { icon: BarChart3, label: 'Reports', path: '/hr/reports' },
   { icon: Settings, label: 'Settings', path: '/hr/settings' },
 ];

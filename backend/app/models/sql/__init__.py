@@ -23,6 +23,7 @@ from app.models.sql.hr.compensation_request import CompensationRequest
 from app.models.sql.hr.employment_contract import EmploymentContract
 from app.models.sql.hr.hr_note import HRNote
 from app.models.sql.hr.device import Device, DeviceAssignment
+from app.models.sql.hr.device_request import DeviceRequest
 
 from app.models.sql.finance.expense import Expense
 from app.models.sql.finance.reimbursement import Reimbursement
@@ -122,6 +123,7 @@ __all__ = [
     "HRNote",
     "Device",
     "DeviceAssignment",
+    "DeviceRequest",
     "Expense",
     "Reimbursement",
     "Invoice",

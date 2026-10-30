@@ -289,6 +289,12 @@ class Permissions:
     HR_VIEW_PERFORMANCE = "hr.view_performance"
     HR_EDIT_PERFORMANCE = "hr.edit_performance"
     HR_VIEW_BASIC = "hr.view_basic"
+
+    # ============================================
+    # DEVICES
+    # ============================================
+    DEVICES_VIEW = "devices.view"
+    DEVICES_MANAGE = "devices.manage"
     
     # ============================================
     # TIMESHEETS

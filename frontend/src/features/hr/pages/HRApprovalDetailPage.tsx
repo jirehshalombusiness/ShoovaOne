@@ -39,6 +39,7 @@ const STAGE_LABELS: Record<string, string> = {
   manager: 'Manager review',
   finance: 'Finance review',
   hr: 'HR review',
+  fulfilment: 'Fulfilment',
   ceo: 'CEO approval',
   exec: 'Executive review',
 };
@@ -208,6 +209,10 @@ export function HRApprovalDetailPage({
   const isFinanceStage = isFundRequest && approval.stage === 'finance';
   const fundDetail =
     approval.detail?.kind === 'fund_request'
+      ? approval.detail.payload
+      : null;
+  const deviceDetail =
+    approval.detail?.kind === 'device_request'
       ? approval.detail.payload
       : null;
   const fundDocuments: FundDocument[] = Array.isArray(fundDetail?.documents)
@@ -523,6 +528,64 @@ export function HRApprovalDetailPage({
                 </ul>
               )}
             </div>
+          </div>
+        )}
+
+        {deviceDetail && (
+          <div className="mt-5 pt-5 border-t border-gray-100">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+              Equipment Details
+            </h3>
+
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <div className="text-gray-500 text-xs">Item</div>
+                <div className="font-medium text-gray-900 mt-0.5">
+                  {String(deviceDetail.item_name ?? '—')}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-gray-500 text-xs">Category</div>
+                <div className="font-medium text-gray-900 mt-0.5 capitalize">
+                  {String(deviceDetail.category ?? '—').replace(/_/g, ' ')}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-gray-500 text-xs">Needed by</div>
+                <div className="font-medium text-gray-900 mt-0.5">
+                  {deviceDetail.needed_by
+                    ? formatDate(String(deviceDetail.needed_by))
+                    : '—'}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-gray-500 text-xs">Status</div>
+                <div className="font-medium text-gray-900 mt-0.5 capitalize">
+                  {String(deviceDetail.status ?? '—').replace(/_/g, ' ')}
+                </div>
+              </div>
+            </div>
+
+            {deviceDetail.justification ? (
+              <div className="mt-3">
+                <div className="text-gray-500 text-xs">Justification</div>
+                <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap">
+                  {String(deviceDetail.justification)}
+                </p>
+              </div>
+            ) : null}
+
+            {deviceDetail.manager_note ? (
+              <div className="mt-3">
+                <div className="text-gray-500 text-xs">Manager note</div>
+                <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap">
+                  {String(deviceDetail.manager_note)}
+                </p>
+              </div>
+            ) : null}
           </div>
         )}
 

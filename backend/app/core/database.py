@@ -121,6 +121,7 @@ from app.models.sql.hr.leave import (  # noqa: F401
 )
 from app.models.sql.hr.public_holiday import PublicHoliday  # noqa: F401
 from app.models.sql.hr.device import Device, DeviceAssignment  # noqa: F401
+from app.models.sql.hr.device_request import DeviceRequest  # noqa: F401
 from app.models.sql.hr.hr_note import HRNote  # noqa: F401
 
 # --- Documents ---

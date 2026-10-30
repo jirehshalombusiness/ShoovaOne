@@ -15,6 +15,7 @@ import {
   FileText,
   UserCog,
   FileSignature,
+  Laptop,
   Loader2,
 } from 'lucide-react';
 import { format, isBefore, differenceInHours } from 'date-fns';
@@ -77,6 +78,11 @@ const ENTITY_META: Record<
     label: 'Fund claim',
     icon: DollarSign,
     tone: 'bg-amber-50 text-amber-600',
+  },
+  device_request: {
+    label: 'Device',
+    icon: Laptop,
+    tone: 'bg-sky-50 text-sky-600',
   },
 };
 
@@ -323,6 +329,7 @@ export function HRApprovalsPage({
               <option value="document_verification">Documents</option>
               <option value="employee_change">Employee changes</option>
               <option value="fund_request">Fund claims</option>
+              <option value="device_request">Device requests</option>
             </select>
           </div>
         </div>

@@ -24,6 +24,9 @@ PERMISSION_CATALOG: tuple[tuple[str, str, str], ...] = (
     ("hr", "edit_leave", "Edit leave information"),
     ("hr", "view_performance", "View performance information"),
     ("hr", "edit_performance", "Edit performance information"),
+    # Devices
+    ("devices", "view", "View the device register and device requests"),
+    ("devices", "manage", "Approve device requests and assign equipment"),
     # Timesheets
     ("timesheets", "view", "View timesheets"),
     ("timesheets", "submit", "Submit timesheets"),

@@ -166,6 +166,13 @@ def _stage_label(request: ApprovalRequest) -> str:
             request.escalation_level, "manager"
         )
 
+    if request.entity_type == "device_request":
+        if request.stage:
+            return request.stage
+        return {0: "manager", 1: "hr"}.get(
+            request.escalation_level, "manager"
+        )
+
     return {0: "manager", 1: "hr", 2: "exec"}.get(
         request.escalation_level, "manager"
     )
@@ -316,6 +323,53 @@ async def _enrich_detail(
                     }
                     for document in documents
                 ],
+            },
+        )
+
+    if request.entity_type == "device_request":
+        from app.models.sql.hr.device import Device
+        from app.models.sql.hr.device_request import DeviceRequest
+
+        device_request = (
+            await db.execute(
+                select(DeviceRequest).where(
+                    DeviceRequest.id == request.entity_id
+                )
+            )
+        ).scalar_one_or_none()
+
+        if not device_request:
+            return None
+
+        device_name = None
+        if device_request.device_id:
+            device_name = (
+                await db.execute(
+                    select(Device.name).where(
+                        Device.id == device_request.device_id
+                    )
+                )
+            ).scalar_one_or_none()
+
+        return ApprovalDetailLink(
+            kind="device_request",
+            payload={
+                "request_number": device_request.request_number,
+                "category": device_request.category,
+                "item_name": device_request.item_name,
+                "justification": device_request.justification,
+                "needed_by": (
+                    device_request.needed_by.isoformat()
+                    if device_request.needed_by
+                    else None
+                ),
+                "status": device_request.status,
+                "current_stage": device_request.current_stage,
+                "fulfilment": device_request.fulfilment,
+                "purchase_reference": device_request.purchase_reference,
+                "device_name": device_name,
+                "manager_note": device_request.manager_decision_note,
+                "hr_note": device_request.hr_decision_note,
             },
         )
 
@@ -702,6 +756,18 @@ async def approve_request(
             approved_amount=payload.approved_amount,
         )
 
+    elif request.entity_type == "device_request":
+        # Manager -> HR chain; the domain service owns the stage logic.
+        from app.services.hr import device_request_service
+
+        await device_request_service.decide(
+            db,
+            approval=request,
+            actor=current_user,
+            approve=True,
+            note=payload.note,
+        )
+
     elif request.entity_type == "employee_change":
         # Apply the approved structural change, then close the request.
         from app.services.hr import employee_change_service
@@ -842,6 +908,17 @@ async def reject_request(
             note=payload.note,
         )
 
+    elif request.entity_type == "device_request":
+        from app.services.hr import device_request_service
+
+        await device_request_service.decide(
+            db,
+            approval=request,
+            actor=current_user,
+            approve=False,
+            note=payload.note,
+        )
+
     else:
         await approval_service.reject(
             db,
@@ -870,7 +947,11 @@ async def escalate_request(
     if not request:
         raise HTTPException(status_code=404, detail="Approval request not found")
 
-    if request.entity_type in {"compensation_request", "fund_request"}:
+    if request.entity_type in {
+        "compensation_request",
+        "fund_request",
+        "device_request",
+    }:
         raise HTTPException(
             status_code=400,
             detail=(

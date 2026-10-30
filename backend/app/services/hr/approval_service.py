@@ -44,6 +44,7 @@ DEFAULT_SLA_HOURS = {
     "contract_renewal": 168,
     "termination": 72,
     "fund_request": 48,
+    "device_request": 48,
 }
 
 
@@ -805,7 +806,7 @@ async def auto_escalate_overdue(
             # Compensation and fund requests have their own fixed stage
             # flows; the generic ladder must not move them.
             ApprovalRequest.entity_type.notin_(
-                ["compensation_request", "fund_request"]
+                ["compensation_request", "fund_request", "device_request"]
             ),
         )
     )

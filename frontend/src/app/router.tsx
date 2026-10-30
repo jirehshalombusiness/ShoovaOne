@@ -279,6 +279,11 @@ const HRCompensationPage = lazy(() =>
     default: module.HRCompensationPage,
   }))
 );
+const HRDevicesPage = lazy(() =>
+  import('@/features/hr/pages/HRDevicesPage').then((module) => ({
+    default: module.HRDevicesPage,
+  }))
+);
 const HRReportsPage = lazy(() =>
   import('@/features/hr/pages/HRReportsPage').then((module) => ({
     default: module.HRReportsPage,
@@ -971,6 +976,15 @@ export function AppRouter() {
               element={
                 <PermissionRoute permission="hr.view_compensation">
                   <HRCompensationPage />
+                </PermissionRoute>
+              }
+            />
+
+            <Route
+              path="devices"
+              element={
+                <PermissionRoute permission="devices.view">
+                  <HRDevicesPage />
                 </PermissionRoute>
               }
             />
