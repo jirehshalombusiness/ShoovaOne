@@ -158,7 +158,7 @@ def render_layout(
               Shoova People &amp; Operations</div>
             <div style="color:{MUTED};font-size:12.5px;line-height:1.5;">
               Shoova Initiative &middot; Shoova ONE<br>
-              people@shoova.org
+              people@shoove.org
             </div>
           </td>
         </tr>

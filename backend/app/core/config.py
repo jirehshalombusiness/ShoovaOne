@@ -56,8 +56,8 @@ class Settings(BaseSettings):
     # Email - Resend
     RESEND_API_KEY: str = ""
     EMAIL_ENABLED: bool = True
-    EMAIL_FROM: str = "Shoova ONE <onboarding@resend.dev>"
-    EMAIL_REPLY_TO: str = ""
+    EMAIL_FROM: str = "Shoova ONE <notifications@shoove.org>"
+    EMAIL_REPLY_TO: str = "people@shoove.org"
     # While the seeded accounts still carry placeholder addresses, every
     # outbound message is redirected here and the original recipient is
     # kept in the subject line. Leave empty in production.
