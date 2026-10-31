@@ -22,6 +22,7 @@ from app.models.sql.core.user import Person, User
 from app.models.sql.hr.approval import ApprovalRequest
 from app.models.sql.hr.device import Device, DeviceAssignment
 from app.models.sql.hr.device_request import DeviceRequest
+from app.services.core import email_service
 from app.services.core.audit_service import AuditService
 from app.services.hr import approval_service
 
@@ -605,6 +606,12 @@ async def decide(
         ),
         link="/me/devices",
     )
+    await email_service.queue_device_approved(
+        db,
+        person_id=record.requester_id,
+        request_number=record.request_number,
+        item_name=record.item_name,
+    )
 
     return record
 
@@ -733,6 +740,12 @@ async def fulfil_with_device(
         ),
         link="/me/devices",
     )
+    await email_service.queue_device_ready(
+        db,
+        person_id=record.requester_id,
+        request_number=record.request_number,
+        device_name=device.name,
+    )
 
     return record
 
@@ -788,6 +801,12 @@ async def mark_purchase(
             f"You will be notified when it is assigned."
         ),
         link="/me/devices",
+    )
+    await email_service.queue_device_ordered(
+        db,
+        person_id=record.requester_id,
+        request_number=record.request_number,
+        item_name=record.item_name,
     )
 
     return record

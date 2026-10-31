@@ -14,6 +14,7 @@ from app.models.sql.core.role import Role
 from app.core.database import get_db
 from app.core.security import require_permission, require_any_permission, Permissions
 from app.services.core.permission_service import PermissionService
+from app.services.core import email_service
 from app.services.core.audit_service import AuditService
 
 from app.models.sql.timekeeping.timesheet import (
@@ -895,6 +896,15 @@ async def submit_timesheet(
                 link="/timesheets?tab=team",
             )
             db.add(notification)
+
+            await email_service.queue_timesheet_submitted(
+                db,
+                approver_person_id=approver_person_id,
+                submitter_name=(
+                    f"{submitter.first_name} {submitter.last_name}"
+                ),
+                week_start=timesheet.week_start_date,
+            )
             await db.commit()
 
     return await _get_timesheet_with_entries(
@@ -1282,6 +1292,12 @@ async def approve_timesheet(
             ),
             "comment": approve_data.comment,
         },
+    )
+
+    await email_service.queue_timesheet_approved(
+        db,
+        person_id=timesheet.person_id,
+        week_start=timesheet.week_start_date,
     )
 
     await db.commit()

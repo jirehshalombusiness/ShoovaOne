@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import uuid
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,6 +11,9 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import Permissions, require_any_permission, require_permission
+from app.models.sql.core.user import Person, User
+from app.models.sql.timekeeping.timesheet import Timesheet
+from app.services.core import email_service
 from app.models.pydantic.payroll.schemas import (
     GLEntryResponse,
     PayRunCreate,
@@ -57,10 +61,100 @@ finalize_access = require_any_permission(
     [Permissions.PAYROLL_REVIEW_FINANCE, Permissions.PAYROLL_APPROVE]
 )
 disburse_access = require_permission(Permissions.PAYROLL_DISBURSE)
+reminder_access = require_any_permission(
+    [
+        Permissions.PAYROLL_PREPARE,
+        Permissions.PAYROLL_REVIEW_HR,
+        Permissions.PAYROLL_APPROVE,
+    ]
+)
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+# ============================================================
+# TIMESHEET REMINDERS
+# ============================================================
+
+@router.post("/timesheet-reminders")
+async def send_timesheet_reminders(
+    week_start: Optional[date] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(reminder_access),
+):
+    """Email active staff whose timesheet for the week is missing.
+
+    Payroll is prepared from approved timesheets, so this nudges the
+    people who would otherwise hold the run up.
+    """
+    if week_start is None:
+        today = date.today()
+        week_start = today - timedelta(days=today.weekday())
+    week_end = week_start + timedelta(days=6)
+
+    submitted_result = await db.execute(
+        select(Timesheet.person_id).where(
+            Timesheet.week_start_date == week_start,
+            Timesheet.status.in_(["submitted", "approved"]),
+        )
+    )
+    submitted = {str(row[0]) for row in submitted_result.all()}
+
+    staff_result = await db.execute(
+        select(User.person_id, User.email)
+        .join(Person, Person.id == User.person_id)
+        .where(
+            User.is_active.is_(True),
+            Person.type == "staff",
+            Person.deleted_at.is_(None),
+        )
+    )
+    staff = staff_result.all()
+
+    reminded = 0
+    for person_id, login_email in staff:
+        if str(person_id) in submitted:
+            continue
+        await email_service.queue_timesheet_reminder(
+            db,
+            person_id=person_id,
+            week_start=week_start,
+        )
+        if login_email:
+            reminded += 1
+
+    await AuditService.log(
+        db=db,
+        actor=current_user,
+        action="PAYROLL_TIMESHEET_REMINDERS_SENT",
+        entity_type="payroll",
+        entity_id=str(
+            uuid.uuid5(
+                uuid.NAMESPACE_DNS,
+                f"timesheet-reminders-{week_start.isoformat()}",
+            )
+        ),
+        description=(
+            f"Sent timesheet reminders for week {week_start.isoformat()} "
+            f"to {reminded} staff"
+        ),
+        new_values={
+            "week_start": week_start.isoformat(),
+            "reminded": reminded,
+            "already_submitted": len(submitted),
+        },
+    )
+
+    await db.commit()
+
+    return {
+        "week_start": week_start.isoformat(),
+        "week_end": week_end.isoformat(),
+        "reminded": reminded,
+        "already_submitted": len(submitted),
+    }
 
 
 # ============================================================

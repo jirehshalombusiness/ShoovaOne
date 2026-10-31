@@ -24,6 +24,7 @@ from app.models.sql.core.user import User
 from app.models.sql.finance.fund_request import FundRequest
 from app.models.sql.hr.approval import ApprovalRequest
 from app.models.sql.projects.project import Project
+from app.services.core import email_service
 from app.services.core.audit_service import AuditService
 from app.services.hr import approval_service
 
@@ -957,6 +958,13 @@ async def decide(
         link=f"/me/finance/{record.id}",
         type="finance",
     )
+    await email_service.queue_fund_approved(
+        db,
+        person_id=record.requester_id,
+        request_number=record.request_number,
+        approved_amount=record.approved_amount,
+        currency=record.currency,
+    )
 
     await _notify_finance(
         db,
@@ -1048,6 +1056,14 @@ async def disburse(
             record.receipt_verified_by_id = actor.person_id
             record.receipt_verified_at = now
             record.receipt_verification_note = "Receipt not required."
+
+        await email_service.queue_fund_disbursed(
+            db,
+            person_id=record.requester_id,
+            request_number=record.request_number,
+            amount=record.amount_disbursed,
+            currency=record.currency,
+        )
 
     await AuditService.log(
         db,

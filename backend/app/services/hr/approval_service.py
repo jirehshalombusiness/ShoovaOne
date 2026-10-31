@@ -12,6 +12,7 @@ from app.models.sql.core.user import User, Person
 from app.models.sql.core.role import Role
 from app.models.sql.core.audit_log import AuditLog
 from app.models.sql.core.notification import Notification
+from app.services.core import email_service
 from app.services.core.audit_service import AuditService
 
 
@@ -356,6 +357,11 @@ async def create_request(
         body=f"{requester_name} submitted: {title}",
         link=f"/me/approvals/{request.id}",
     )
+    await email_service.queue_approval_assigned(
+        db,
+        approval=request,
+        requester_name=requester_name,
+    )
 
     return request
 
@@ -656,6 +662,14 @@ async def reject(
         person_id=request.requested_by_id,
         title="Request rejected",
         body=f"{actor_name} rejected: {request.title}",
+        link=f"/me/approvals/{request.id}",
+    )
+    await email_service.queue_request_rejected(
+        db,
+        person_id=request.requested_by_id,
+        title=request.title,
+        actor_name=actor_name,
+        note=note,
         link=f"/me/approvals/{request.id}",
     )
 

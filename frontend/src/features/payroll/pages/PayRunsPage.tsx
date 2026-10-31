@@ -6,6 +6,7 @@ import {
   ArrowRight,
   CalendarRange,
   Loader2,
+  Mail,
   Plus,
   RefreshCcw,
   X,
@@ -65,6 +66,20 @@ export function PayRunsPage() {
 
   const runs = runsQuery.data ?? [];
 
+  const reminderMutation = useMutation({
+    mutationFn: () => payrollService.sendTimesheetReminders(),
+    onSuccess: (data) => {
+      toast.success(
+        data.reminded === 0
+          ? 'Everyone has already submitted this week.'
+          : `Reminder sent to ${formatNumber(data.reminded)} ${
+              data.reminded === 1 ? 'person' : 'people'
+            }.`,
+      );
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  });
+
   const totals = useMemo(() => {
     return runs.reduce(
       (acc, run) => {
@@ -111,6 +126,22 @@ export function PayRunsPage() {
             <RefreshCcw className="h-4 w-4" />
             Refresh
           </button>
+
+          {access.has(['payroll.prepare', 'payroll.review_hr']) && (
+            <button
+              type="button"
+              onClick={() => reminderMutation.mutate()}
+              disabled={reminderMutation.isPending}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {reminderMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Mail className="h-4 w-4" />
+              )}
+              Remind timesheets
+            </button>
+          )}
 
           {access.has(['payroll.prepare', 'payroll.review_hr']) && (
             <button

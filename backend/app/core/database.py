@@ -4,10 +4,15 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     AsyncEngine,
 )
+from sqlalchemy import event
+from sqlalchemy.orm import Session
 from typing import AsyncGenerator
+
+import asyncio
 
 from app.core.config import settings
 from app.models.sql.base import Base
+from app.services.core.email_service import QUEUE_KEY
 from app.models.sql.core.organisation import Organisation, Department, Programme  # noqa: F401
 
 # Convert database URL for async
@@ -44,6 +49,35 @@ AsyncSessionLocal = async_sessionmaker(
     autocommit=False,
     autoflush=False,
 )
+
+
+# =============================================
+# EMAIL OUTBOX
+# =============================================
+# Services queue messages on the session; they are handed to Resend only
+# once the transaction commits. A rollback drops them, so failed or
+# rolled-back work (smoke tests) never sends mail.
+# =============================================
+
+def _dispatch_queued_emails(session: Session) -> None:
+    payloads = session.info.pop(QUEUE_KEY, None)
+    if not payloads:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    from app.services.core.email_service import deliver_queued
+
+    loop.create_task(deliver_queued(payloads))
+
+
+def _drop_queued_emails(session: Session) -> None:
+    session.info.pop(QUEUE_KEY, None)
+
+
+event.listen(Session, "after_commit", _dispatch_queued_emails)
+event.listen(Session, "after_rollback", _drop_queued_emails)
 
 
 # =============================================

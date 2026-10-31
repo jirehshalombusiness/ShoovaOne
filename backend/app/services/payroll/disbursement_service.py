@@ -20,6 +20,7 @@ from app.models.sql.payroll.disbursement import (
 )
 from app.models.sql.payroll.employee import EmployeeBankAccount
 from app.models.sql.payroll.runs import PayRun, PayRunItem
+from app.services.core import email_service
 from app.services.core.audit_service import AuditService
 from app.services.payroll.calculator import dec, money
 from app.services.payroll.encryption import BankAccountEncryption
@@ -32,6 +33,32 @@ VALID_METHODS = {"bank_transfer", "mobile_money", "check", "cash"}
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+async def _queue_payment_emails(
+    db: AsyncSession,
+    *,
+    batch: DisbursementBatch,
+    items: list[DisbursementItem],
+) -> None:
+    """Tell each employee their salary landed, once the batch commits."""
+    if not items:
+        return
+
+    run = (
+        await db.execute(select(PayRun).where(PayRun.id == batch.run_id))
+    ).scalar_one_or_none()
+    period_name = run.period.name if run and run.period else None
+
+    for item in items:
+        await email_service.queue_payment_made(
+            db,
+            person_id=item.person_id,
+            amount=item.amount,
+            currency=batch.currency,
+            period_name=period_name,
+            pay_date=batch.pay_date,
+        )
 
 
 def item_to_dict(item: DisbursementItem) -> dict:
@@ -552,6 +579,8 @@ class DisbursementService:
 
         batch = await load_batch(db, str(item.batch_id))
         await DisbursementService._refresh_batch_status(db, batch)
+        if outcome == "paid":
+            await _queue_payment_emails(db, batch=batch, items=[item])
         await db.commit()
         return await load_batch(db, str(item.batch_id))
 
@@ -574,6 +603,7 @@ class DisbursementService:
             )
 
         now = utcnow()
+        paid_items: list[DisbursementItem] = []
         for item in batch.items:
             if item.status in {"paid", "failed", "cancelled"}:
                 continue
@@ -583,6 +613,7 @@ class DisbursementService:
                 item.paid_at = now
                 item.failure_reason = None
                 item.provider_reference = provider_reference or item.provider_reference
+                paid_items.append(item)
 
                 run_item_result = await db.execute(
                     select(PayRunItem).where(PayRunItem.id == item.run_item_id)
@@ -596,6 +627,7 @@ class DisbursementService:
                 item.provider_reference = provider_reference or item.provider_reference
 
         await DisbursementService._refresh_batch_status(db, batch)
+        await _queue_payment_emails(db, batch=batch, items=paid_items)
 
         await AuditService.log(
             db=db,

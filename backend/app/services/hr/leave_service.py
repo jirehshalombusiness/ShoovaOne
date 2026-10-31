@@ -12,6 +12,7 @@ from app.models.sql.hr.approval import ApprovalRequest
 from app.models.sql.hr.leave import LeaveType, LeaveBalance, LeaveRequest
 from app.models.sql.hr.public_holiday import PublicHoliday
 from app.models.sql.core.user import User, Person
+from app.services.core import email_service
 from app.services.core.audit_service import AuditService
 from app.services.hr import approval_service
 
@@ -644,6 +645,19 @@ async def approve_leave_request(
         request_id=approval.id,
         actor=actor,
         note=note,
+    )
+
+    await email_service.queue_leave_approved(
+        db,
+        person_id=leave_request.person_id,
+        start_date=leave_request.start_date,
+        end_date=leave_request.end_date,
+        total_days=leave_request.total_days,
+        leave_type=(
+            leave_request.leave_type.name
+            if leave_request.leave_type
+            else None
+        ),
     )
 
     await AuditService.log(

@@ -12,6 +12,7 @@ from app.models.sql.hr.compensation import CompensationChange
 from app.models.sql.hr.compensation_request import CompensationRequest
 from app.models.sql.core.user import User, Person
 from app.models.sql.core.role import Role
+from app.services.core import email_service
 from app.services.core.audit_service import AuditService
 
 
@@ -203,6 +204,14 @@ async def approve_stage(
                 "note": note,
                 "applied_change_id": applied.id,
             },
+        )
+
+        await email_service.queue_compensation_approved(
+            db,
+            person_id=comp_request.person_id,
+            amount=comp_request.requested_amount,
+            currency=comp_request.currency,
+            frequency=comp_request.frequency,
         )
 
         return {

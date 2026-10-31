@@ -325,6 +325,18 @@ export const payrollService = {
     return data;
   },
 
+  async sendTimesheetReminders(weekStart?: string): Promise<{
+    week_start: string;
+    week_end: string;
+    reminded: number;
+    already_submitted: number;
+  }> {
+    const { data } = await api.post('/payroll/timesheet-reminders', null, {
+      params: weekStart ? { week_start: weekStart } : undefined,
+    });
+    return data;
+  },
+
   async createRun(payload: {
     period_id: string;
     pay_group_id: string;
