@@ -1,5 +1,10 @@
 from app.models.sql.base import Base, BaseModel, GUID
 
+from app.models.sql.core.entity import (
+    Entity,
+    UserEntityMembership,
+    user_entity_roles,
+)
 from app.models.sql.core.user import User, Person
 from app.models.sql.core.role import (
     Role,
@@ -98,6 +103,9 @@ __all__ = [
     "GUID",
     "User",
     "Person",
+    "Entity",
+    "UserEntityMembership",
+    "user_entity_roles",
     "Role",
     "Permission",
     "user_roles",

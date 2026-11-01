@@ -5,7 +5,7 @@ import uuid
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -13,7 +13,9 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.sql.core.user import User
+from app.core.entity_context import set_active_entity_id
+from app.models.sql.core.entity import UserEntityMembership
+from app.models.sql.core.user import Person, User
 from app.models.sql.core.role import Role
 from app.services.core.permission_service import PermissionService
 
@@ -142,10 +144,11 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
 
 
 async def get_current_user(
+    request: Request,
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get current user from JWT token."""
+    """Get current user from JWT token and bind their active workspace."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -160,7 +163,9 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    # Load user with person relationship
+    # Load user with person relationship. The person may belong to a
+    # different entity than the active workspace, so bypass entity scoping
+    # for the identity lookup.
     result = await db.execute(
         select(User)
         .options(
@@ -168,6 +173,7 @@ async def get_current_user(
             selectinload(User.roles).selectinload(Role.permissions)
         )
         .where(User.id == user_id)
+        .execution_options(include_all_entities=True)
     )
     user = result.scalar_one_or_none()
     
@@ -178,6 +184,48 @@ async def get_current_user(
     # issued. A password change or reset revokes every older session.
     if payload.get("pwdv") != password_fingerprint(user.password_hash):
         raise credentials_exception
+
+    # selectin loaders are not guaranteed to honour the bypass above.
+    if user.person is None and user.person_id:
+        person = (
+            await db.execute(
+                select(Person)
+                .where(Person.id == user.person_id)
+                .execution_options(include_all_entities=True)
+            )
+        ).scalar_one_or_none()
+        if person is not None:
+            user.person = person
+
+    memberships = (
+        await db.execute(
+            select(UserEntityMembership)
+            .where(UserEntityMembership.user_id == user.id)
+            .order_by(UserEntityMembership.is_default.desc())
+        )
+    ).scalars().all()
+
+    if not memberships:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is not assigned to a workspace.",
+        )
+
+    requested = (request.headers.get("x-entity-id") or "").strip()
+    if requested:
+        active = next(
+            (m for m in memberships if str(m.entity_id) == requested),
+            None,
+        )
+        if active is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have access to this workspace.",
+            )
+    else:
+        active = memberships[0]
+
+    set_active_entity_id(active.entity_id)
 
     return user
 

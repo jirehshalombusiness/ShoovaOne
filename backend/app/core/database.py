@@ -5,13 +5,15 @@ from sqlalchemy.ext.asyncio import (
     AsyncEngine,
 )
 from sqlalchemy import event
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, with_loader_criteria
 from typing import AsyncGenerator
 
 import asyncio
 
 from app.core.config import settings
+from app.core.entity_context import get_active_entity_id
 from app.models.sql.base import Base
+from app.models.sql.entity_scoped import EntityScopedMixin
 from app.services.core.email_service import QUEUE_KEY
 from app.models.sql.core.organisation import Organisation, Department, Programme  # noqa: F401
 
@@ -81,6 +83,48 @@ event.listen(Session, "after_rollback", _drop_queued_emails)
 
 
 # =============================================
+# ENTITY SCOPING
+# =============================================
+# Reads on EntityScopedMixin models are filtered to the active workspace
+# unless the statement opts out with execution_options(include_all_entities=True).
+# New rows inherit the active workspace on flush. When no workspace is
+# active (scripts, background jobs, seeds) queries stay unscoped.
+# =============================================
+
+def _scope_to_active_entity(orm_execute_state) -> None:
+    if not orm_execute_state.is_select:
+        return
+    if orm_execute_state.execution_options.get("include_all_entities"):
+        return
+    entity_id = get_active_entity_id()
+    if entity_id is None:
+        return
+    orm_execute_state.statement = orm_execute_state.statement.options(
+        with_loader_criteria(
+            EntityScopedMixin,
+            lambda cls: cls.entity_id == entity_id,
+            include_aliases=True,
+        )
+    )
+
+
+def _stamp_active_entity(session: Session, flush_context, instances) -> None:
+    entity_id = get_active_entity_id()
+    if entity_id is None:
+        return
+    for obj in session.new:
+        if (
+            isinstance(obj, EntityScopedMixin)
+            and getattr(obj, "entity_id", None) is None
+        ):
+            obj.entity_id = entity_id
+
+
+event.listen(Session, "do_orm_execute", _scope_to_active_entity)
+event.listen(Session, "before_flush", _stamp_active_entity)
+
+
+# =============================================
 # IMPORT ALL MODELS TO REGISTER WITH SQLALCHEMY
 # =============================================
 # This is CRITICAL — without importing all models, SQLAlchemy
@@ -109,6 +153,11 @@ from app.models.sql.crm.opportunity import (  # noqa: F401
 )
 
 # --- Identity & access ---
+from app.models.sql.core.entity import (  # noqa: F401
+    Entity,
+    UserEntityMembership,
+    user_entity_roles,
+)
 from app.models.sql.core.user import User, Person  # noqa: F401
 from app.models.sql.core.role import (  # noqa: F401
     Role,

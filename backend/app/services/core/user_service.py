@@ -2,8 +2,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from sqlalchemy.sql import func
 
+from app.models.sql.core.entity import UserEntityMembership
 from app.models.sql.core.user import User, Person
 from app.models.pydantic.core.user import UserCreate
+from app.core.entity_context import get_active_entity_id
 from app.core.security import get_password_hash
 import uuid
 
@@ -56,6 +58,17 @@ class UserService:
             is_active=True,
         )
         db.add(user)
+
+        entity_id = get_active_entity_id()
+        if entity_id:
+            db.add(
+                UserEntityMembership(
+                    user_id=user_id,
+                    entity_id=entity_id,
+                    is_default=True,
+                )
+            )
+
         await db.commit()
         await db.refresh(user)
 

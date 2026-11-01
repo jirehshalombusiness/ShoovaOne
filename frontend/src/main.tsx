@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from '@/lib/auth';
+import { WorkspaceProvider } from '@/lib/workspace';
 import { ThemeProvider } from '@/lib/theme';
 import { NotificationProvider } from '@/lib/notifications';
 import { ChatRealtimeProvider } from '@/lib/chatRealtime';
@@ -23,22 +24,24 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <ChatRealtimeProvider>
-            <NotificationProvider>
-              <AppRouter />
-              <Toaster
-                position="bottom-right"
-                toastOptions={{
-                  style: {
-                    background: 'var(--card)',
-                    color: 'var(--text)',
-                    border: '1px solid var(--border)',
-                    boxShadow: '0 10px 30px rgb(0 0 0 / 0.12)',
-                  },
-                }}
-              />
-            </NotificationProvider>
-          </ChatRealtimeProvider>
+          <WorkspaceProvider>
+            <ChatRealtimeProvider>
+              <NotificationProvider>
+                <AppRouter />
+                <Toaster
+                  position="bottom-right"
+                  toastOptions={{
+                    style: {
+                      background: 'var(--card)',
+                      color: 'var(--text)',
+                      border: '1px solid var(--border)',
+                      boxShadow: '0 10px 30px rgb(0 0 0 / 0.12)',
+                    },
+                  }}
+                />
+              </NotificationProvider>
+            </ChatRealtimeProvider>
+          </WorkspaceProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

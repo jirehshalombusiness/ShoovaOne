@@ -15,6 +15,24 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  const entityId = localStorage.getItem('active_entity_id');
+  if (entityId) {
+    let currentUserId: string | null = null;
+    try {
+      currentUserId = JSON.parse(localStorage.getItem('user') || 'null')?.id ?? null;
+    } catch {
+      currentUserId = null;
+    }
+    // Only send a workspace the signed-in user selected.
+    if (
+      currentUserId &&
+      localStorage.getItem('active_entity_owner') === currentUserId
+    ) {
+      config.headers['X-Entity-Id'] = entityId;
+    }
+  }
+
   return config;
 });
 

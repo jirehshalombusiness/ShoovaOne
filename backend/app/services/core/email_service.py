@@ -239,6 +239,7 @@ async def person_contact(
             select(User.email, Person.first_name, Person.last_name)
             .join(Person, Person.id == User.person_id)
             .where(User.person_id == person_id, User.is_active.is_(True))
+            .execution_options(include_all_entities=True)
         )
     ).first()
     if not row:
