@@ -7,7 +7,6 @@ import { CommandPalette } from '@/components/ui/CommandPalette';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { cn } from '@/lib/utils';
 import { SessionIndicator } from '@/components/ui/SessionIndicator';
-import { WorkspaceSwitcher } from '@/components/ui/WorkspaceSwitcher';
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -90,7 +89,6 @@ export function TopBar({ onMenuClick }: TopBarProps) {
 
       {/* Desktop right actions */}
       <div className="hidden lg:flex items-center gap-1 ml-auto">
-        <WorkspaceSwitcher />
         <ThemeToggle />
         <CreateMenu />
         <NotificationBell />
@@ -109,7 +107,6 @@ export function TopBar({ onMenuClick }: TopBarProps) {
         >
           <Search className="w-5 h-5 text-gray-700" strokeWidth={1.75} />
         </button>
-        <WorkspaceSwitcher compact />
         <ThemeToggle />
         <NotificationBell />
         <UserMenu />

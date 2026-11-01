@@ -11,7 +11,6 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.email_utils import normalize_email
-from app.core.entity_context import get_active_entity_id
 from app.core.rate_limit import auth_limiter
 from app.core.security import (
     create_access_token,
@@ -28,9 +27,8 @@ from app.models.pydantic.core.user import (
     Token,
     UserResponse,
 )
-from app.models.sql.core.entity import Entity, UserEntityMembership
 from app.models.sql.core.role import Role
-from app.models.sql.core.user import Person, User
+from app.models.sql.core.user import User
 from app.services.auth.email_service import send_password_reset_email
 from app.services.auth.password_reset_service import (
     create_password_reset_token,
@@ -267,7 +265,6 @@ async def get_current_user_info(
             selectinload(User.roles).selectinload(Role.permissions),
         )
         .where(User.id == current_user.id)
-        .execution_options(include_all_entities=True)
     )
 
     user = result.scalar_one_or_none()
@@ -279,14 +276,6 @@ async def get_current_user_info(
         )
 
     person = user.person
-    if person is None and user.person_id:
-        person = (
-            await db.execute(
-                select(Person)
-                .where(Person.id == user.person_id)
-                .execution_options(include_all_entities=True)
-            )
-        ).scalar_one_or_none()
 
     permissions = await PermissionService.get_user_permissions(
         db,
@@ -310,46 +299,6 @@ async def get_current_user_info(
         "roles": roles,
         "permissions": permissions,
     }
-
-
-@router.get("/workspaces")
-async def list_workspaces(
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
-):
-    """Workspaces (legal entities) the signed-in user can switch to."""
-
-    rows = (
-        await db.execute(
-            select(UserEntityMembership, Entity)
-            .join(Entity, Entity.id == UserEntityMembership.entity_id)
-            .where(
-                UserEntityMembership.user_id == current_user.id,
-                Entity.status == "active",
-            )
-            .order_by(
-                UserEntityMembership.is_default.desc(),
-                Entity.name,
-            )
-        )
-    ).all()
-
-    active_id = get_active_entity_id()
-
-    return [
-        {
-            "id": str(membership.entity_id),
-            "code": entity.code,
-            "name": entity.name,
-            "country_code": entity.country_code,
-            "currency": entity.currency,
-            "timezone": entity.timezone,
-            "is_default": membership.is_default,
-            "access_level": membership.access_level,
-            "is_active": str(membership.entity_id) == active_id,
-        }
-        for membership, entity in rows
-    ]
 
 
 # =============================================

@@ -3,7 +3,6 @@ from sqlalchemy.orm import relationship
 
 from app.models.sql.base import BaseModel, GUID
 from app.models.sql.core.role import user_roles, user_permissions
-from app.models.sql.entity_scoped import EntityScopedMixin
 
 
 class User(BaseModel):
@@ -69,7 +68,7 @@ class User(BaseModel):
     )
 
 
-class Person(EntityScopedMixin, BaseModel):
+class Person(BaseModel):
     __tablename__ = "people"
 
     first_name = Column(String(100), nullable=False)

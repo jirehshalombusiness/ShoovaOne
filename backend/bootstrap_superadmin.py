@@ -236,49 +236,6 @@ async def bootstrap_superadmin() -> None:
             role_id,
         )
 
-        # ---------------------------------------------------------
-        # 6. Assign every workspace to the super admin
-        # ---------------------------------------------------------
-        entities_ready = await conn.fetchval(
-            "SELECT to_regclass('public.entities') IS NOT NULL"
-        )
-
-        if entities_ready:
-            await conn.execute(
-                """
-                INSERT INTO user_entity_memberships (
-                    id, user_id, entity_id, is_default, access_level
-                )
-                SELECT
-                    gen_random_uuid(),
-                    $1::uuid,
-                    e.id,
-                    FALSE,
-                    'admin'
-                FROM entities e
-                ON CONFLICT (user_id, entity_id) DO NOTHING
-                """,
-                user_id,
-            )
-
-            await conn.execute(
-                """
-                UPDATE user_entity_memberships m
-                SET is_default = TRUE
-                FROM entities e
-                WHERE e.id = m.entity_id
-                  AND m.user_id = $1::uuid
-                  AND e.code = 'GH'
-                  AND NOT EXISTS (
-                      SELECT 1 FROM user_entity_memberships d
-                      WHERE d.user_id = $1::uuid AND d.is_default
-                  )
-                """,
-                user_id,
-            )
-
-            print("Super-admin workspace memberships verified")
-
         print(f"Super-admin account ready: {email}")
 
     finally:

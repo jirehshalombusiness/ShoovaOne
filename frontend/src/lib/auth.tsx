@@ -83,8 +83,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Failed to refresh user:', error);
         localStorage.removeItem('access_token');
         localStorage.removeItem('user');
-        localStorage.removeItem('active_entity_id');
-        localStorage.removeItem('active_entity_owner');
         setUser(null);
       } finally {
         if (!bootAbortedRef.current) {
@@ -99,10 +97,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string): Promise<User> => {
     // Mark boot as aborted — prevents race with the useEffect above
     bootAbortedRef.current = true;
-
-    // A previous user's workspace must not leak into this session.
-    localStorage.removeItem('active_entity_id');
-    localStorage.removeItem('active_entity_owner');
 
     const response = await authService.login(email, password);
     const normalized = normalizeUser(response.user);
@@ -134,8 +128,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     bootAbortedRef.current = false; // reset for next login
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
-    localStorage.removeItem('active_entity_id');
-    localStorage.removeItem('active_entity_owner');
     setUser(null);
   };
 

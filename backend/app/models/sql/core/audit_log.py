@@ -33,15 +33,6 @@ class AuditLog(BaseModel):
         nullable=False,
     )
 
-    # Legal entity that owns the audited record. Distinct from entity_id,
-    # which identifies the record itself.
-    owning_entity_id = Column(
-        GUID,
-        ForeignKey("entities.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-
     old_values = Column(JSON)
 
     new_values = Column(JSON)

@@ -3,7 +3,6 @@ from typing import Any, Optional
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.entity_context import get_active_entity_id
 from app.models.sql.core.audit_log import AuditLog
 from app.models.sql.core.user import User
 
@@ -67,7 +66,6 @@ class AuditService:
             action=action,
             entity_type=entity_type,
             entity_id=entity_id,
-            owning_entity_id=get_active_entity_id(),
             description=description,
             old_values=old_values,
             new_values=new_values,
