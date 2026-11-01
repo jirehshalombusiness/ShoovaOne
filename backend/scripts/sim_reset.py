@@ -55,12 +55,15 @@ async def main() -> None:
         if admin_person is None:
             raise SystemExit("Admin person row not found; aborting before any writes.")
 
+        admin_person = dict(admin_person)
+        admin_person["reports_to_id"] = None  # the manager row is wiped too
+
         BACKUP_DIR.mkdir(parents=True, exist_ok=True)
         stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         preserve_path = BACKUP_DIR / f"preserved_admin_{stamp}.json"
         preserve_path.write_text(
             json.dumps(
-                {"user": _encode(dict(admin_user)), "person": _encode(dict(admin_person))},
+                {"user": _encode(dict(admin_user)), "person": _encode(admin_person)},
                 indent=1,
             ),
             encoding="utf-8",
