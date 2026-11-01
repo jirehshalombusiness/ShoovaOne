@@ -4,6 +4,7 @@ import {
   Briefcase,
   MessageSquare,
   FolderKanban,
+  FolderOpen,
   CheckSquare,
   Clock,
   FileText,
@@ -97,6 +98,12 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Projects',
         path: '/projects',
         permission: 'projects.view',
+      },
+      {
+        icon: FolderOpen,
+        label: 'Documents',
+        path: '/documents',
+        permission: 'documents.view',
       },
       {
         icon: CalendarDays,

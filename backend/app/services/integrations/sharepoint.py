@@ -11,9 +11,10 @@ with the Sites.Selected application permission.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any, Optional
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlsplit
 
 import httpx
 
@@ -24,8 +25,13 @@ GRAPH_ROOT = "https://graph.microsoft.com/v1.0"
 LOGIN_ROOT = "https://login.microsoftonline.com"
 GRAPH_SCOPE = "https://graph.microsoft.com/.default"
 
-ITEM_SELECT = "id,name,size,webUrl,lastModifiedDateTime,folder,file"
+ITEM_SELECT = (
+    "id,name,size,webUrl,lastModifiedDateTime,folder,file,"
+    "parentReference"
+)
 MAX_ITEM_ID_LENGTH = 400
+MAX_PARENT_LOOKUPS = 40
+PARENT_LOOKUP_CONCURRENCY = 6
 
 
 class SharePointError(Exception):
@@ -68,7 +74,48 @@ def _clean_item_id(item_id: str) -> str:
     return value
 
 
-def summarize_item(raw: dict) -> dict:
+def _drive_web_prefix(drive: dict) -> str:
+    path = unquote(urlsplit(drive.get("webUrl") or "").path).rstrip("/")
+    return f"{path}/" if path else ""
+
+
+def relative_path(raw: dict, drive: Optional[dict] = None) -> str:
+    """Drive-relative path of an item, e.g. ``/Finance/Invoices``.
+
+    Graph reports the containing folder as
+    ``/drives/{id}/root:/Finance``; appending the item name produces the
+    path used for folder access rules. Search results omit that path, so
+    the item's own ``webUrl`` is used against the drive URL instead.
+    Returns ``""`` when the location cannot be established, which callers
+    treat as restricted.
+    """
+
+    parent = (raw.get("parentReference") or {}).get("path") or ""
+    marker = "/root:"
+
+    if parent and marker in parent:
+        tail = parent.split(marker, 1)[1]
+        parts = [part for part in tail.split("/") if part]
+        name = (raw.get("name") or "").strip()
+
+        if name:
+            parts.append(name)
+
+        return "/" + "/".join(parts)
+
+    if drive:
+        prefix = _drive_web_prefix(drive)
+        item_path = unquote(urlsplit(raw.get("webUrl") or "").path)
+
+        if prefix and item_path.startswith(prefix):
+            remainder = item_path[len(prefix):].strip("/")
+            if remainder:
+                return "/" + remainder
+
+    return ""
+
+
+def summarize_item(raw: dict, drive: Optional[dict] = None) -> dict:
     """Reduce a Graph driveItem to the fields ShoovaOne actually uses."""
 
     file_meta = raw.get("file") or {}
@@ -77,6 +124,7 @@ def summarize_item(raw: dict) -> dict:
     return {
         "id": raw.get("id"),
         "name": raw.get("name"),
+        "path": relative_path(raw, drive),
         "is_folder": bool(folder_meta),
         "size": raw.get("size"),
         "mime_type": file_meta.get("mimeType"),
@@ -244,7 +292,7 @@ class SharePointClient:
         )
 
         items = [
-            summarize_item(raw) for raw in payload.get("value", [])
+            summarize_item(raw, drive) for raw in payload.get("value", [])
         ]
 
         items.sort(key=lambda entry: (
@@ -254,7 +302,11 @@ class SharePointClient:
 
         return items
 
-    async def search(self, query: str) -> list[dict]:
+    async def search(
+        self,
+        query: str,
+        resolve_paths: bool = False,
+    ) -> list[dict]:
         drive = await self.drive()
         term = quote(query.strip(), safe="")
 
@@ -263,9 +315,76 @@ class SharePointClient:
             params={"$select": ITEM_SELECT, "$top": "100"},
         )
 
-        return [
-            summarize_item(raw) for raw in payload.get("value", [])
-        ]
+        raw_items = payload.get("value", [])
+        items = [summarize_item(raw, drive) for raw in raw_items]
+
+        if resolve_paths:
+            await self._resolve_parent_paths(raw_items, items)
+
+        return items
+
+    async def _resolve_parent_paths(
+        self,
+        raw_items: list[dict],
+        items: list[dict],
+    ) -> None:
+        """Fill in paths Graph omitted from search results.
+
+        Office files come back with a ``Doc.aspx`` webUrl and a
+        parentReference that carries only the parent id, so the containing
+        folder is read once per distinct parent. Anything still unknown
+        keeps an empty path and is treated as restricted.
+        """
+
+        pending: list[tuple[dict, str]] = []
+
+        for raw, item in zip(raw_items, items):
+            if item["path"]:
+                continue
+
+            parent_id = (raw.get("parentReference") or {}).get("id")
+
+            if parent_id:
+                pending.append((item, parent_id))
+
+        if not pending:
+            return
+
+        unique = list({parent_id for _, parent_id in pending})
+        unique = unique[:MAX_PARENT_LOOKUPS]
+        resolved: dict[str, str] = {}
+        semaphore = asyncio.Semaphore(PARENT_LOOKUP_CONCURRENCY)
+
+        async def lookup(parent_id: str) -> None:
+            async with semaphore:
+                try:
+                    parent = await self.get_item(parent_id)
+                except SharePointError:
+                    resolved[parent_id] = ""
+                    return
+
+                path = parent.get("path") or ""
+
+                if not path and self._drive:
+                    parent_url = (parent.get("web_url") or "").rstrip("/")
+                    drive_url = (self._drive.get("webUrl") or "").rstrip("/")
+
+                    if parent_url and parent_url == drive_url:
+                        path = "/"
+
+                resolved[parent_id] = path
+
+        await asyncio.gather(*(lookup(parent_id) for parent_id in unique))
+
+        for item, parent_id in pending:
+            base = resolved.get(parent_id) or ""
+            name = item.get("name") or ""
+
+            item["path"] = (
+                f"{base.rstrip('/')}/{name}"
+                if base and name
+                else ""
+            )
 
     async def get_item(self, item_id: str) -> dict:
         item = _clean_item_id(item_id)
@@ -276,7 +395,7 @@ class SharePointClient:
             params={"$select": ITEM_SELECT},
         )
 
-        return summarize_item(raw)
+        return summarize_item(raw, drive)
 
 
 sharepoint_client = SharePointClient()

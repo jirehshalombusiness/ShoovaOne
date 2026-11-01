@@ -234,6 +234,132 @@ async def test_unconfigured_client_names_the_missing_settings(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_search_is_not_enriched_unless_asked(client, recorder):
+    await client.search("contract report")
+
+    item_requests = [
+        path
+        for path in recorder.paths()
+        if path.startswith(f"{DRIVE_ROOT}/items/")
+    ]
+    assert item_requests == []
+
+
+@pytest.mark.asyncio
+async def test_search_resolves_office_file_path_from_its_parent(configured_settings):
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+
+        if path.endswith("/oauth2/v2.0/token"):
+            return httpx.Response(
+                200,
+                json={"access_token": "token-1", "expires_in": 3600},
+            )
+
+        if path == SITE_PATH:
+            return httpx.Response(200, json={"id": "site-1"})
+
+        if path == DRIVES_PATH:
+            return httpx.Response(
+                200,
+                json={"value": [{"id": "drive-docs", "name": "Documents"}]},
+            )
+
+        if path.startswith(f"{DRIVE_ROOT}/root/search("):
+            return httpx.Response(
+                200,
+                json={
+                    "value": [
+                        {
+                            "id": "doc-1",
+                            "name": "HRM-System-Proposal.docx",
+                            "file": {"mimeType": "application/msword"},
+                            "webUrl": (
+                                "https://shoova.sharepoint.com/sites/Portal/"
+                                "_layouts/15/Doc.aspx?sourcedoc=abc"
+                            ),
+                            "parentReference": {"id": "folder-hr"},
+                        }
+                    ]
+                },
+            )
+
+        if path == f"{DRIVE_ROOT}/items/folder-hr":
+            return httpx.Response(
+                200,
+                json={
+                    "id": "folder-hr",
+                    "name": "Human Resources",
+                    "folder": {"childCount": 3},
+                    "webUrl": "https://shoova.sharepoint.com/hr",
+                    "parentReference": {
+                        "path": f"/drives/drive-docs/root:",
+                    },
+                },
+            )
+
+        return httpx.Response(
+            404,
+            json={"error": {"message": "Item not found"}},
+        )
+
+    client = sp.SharePointClient(transport=httpx.MockTransport(handler))
+
+    results = await client.search("proposal", resolve_paths=True)
+
+    assert results[0]["path"] == (
+        "/Human Resources/HRM-System-Proposal.docx"
+    )
+
+
+@pytest.mark.asyncio
+async def test_unresolved_search_hit_keeps_an_empty_path(configured_settings):
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+
+        if path.endswith("/oauth2/v2.0/token"):
+            return httpx.Response(
+                200,
+                json={"access_token": "token-1", "expires_in": 3600},
+            )
+
+        if path == SITE_PATH:
+            return httpx.Response(200, json={"id": "site-1"})
+
+        if path == DRIVES_PATH:
+            return httpx.Response(
+                200,
+                json={"value": [{"id": "drive-docs", "name": "Documents"}]},
+            )
+
+        if path.startswith(f"{DRIVE_ROOT}/root/search("):
+            return httpx.Response(
+                200,
+                json={
+                    "value": [
+                        {
+                            "id": "doc-1",
+                            "name": "orphan.docx",
+                            "file": {"mimeType": "application/msword"},
+                            "parentReference": {"id": "gone"},
+                        }
+                    ]
+                },
+            )
+
+        return httpx.Response(
+            404,
+            json={"error": {"message": "Item not found"}},
+        )
+
+    client = sp.SharePointClient(transport=httpx.MockTransport(handler))
+
+    results = await client.search("orphan", resolve_paths=True)
+
+    assert results[0]["path"] == ""
+
+
+@pytest.mark.asyncio
 async def test_rejected_credentials_are_reported_without_the_secret():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(

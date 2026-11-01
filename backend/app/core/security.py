@@ -397,6 +397,7 @@ class Permissions:
     # ============================================
     DOCUMENTS_VIEW = "documents.view"
     DOCUMENTS_UPLOAD = "documents.upload"
+    DOCUMENTS_MANAGE = "documents.manage"
 
     # ============================================
     # MEETINGS

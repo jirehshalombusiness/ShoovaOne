@@ -17,19 +17,19 @@ itself, not as whichever person is browsing.
 | Graph client (token, site, drive, listing, search) | Built and tested |
 | API endpoints `/api/v1/integrations/sharepoint/*` | Built, behind `documents.view` |
 | Settings in `backend/.env` | Present locally |
-| Azure application permission | **Missing — this is the only blocker** |
-| Settings on Render (production) | Not yet added |
-| Browse / attach picker in the Documents UI | Not started |
+| Azure application permission | `Sites.Selected` granted, plus broad `Sites.*` roles kept for later |
+| Settings on Render (production) | Configured — connection verified live on 2026-11-01 |
+| Documents browse / search UI | Built at `/documents` (2026-11-01) |
+| Folder access rules | Built — `/Finance` and `/Human Resources` restricted by permission |
 
-A live call today returns:
+Production check on 2026-11-01 returned `configured: true, reachable: true` for
+`Shoova Initiative Portal` / `Documents`, listed the 7 root folders, read a
+nested file's metadata and found it by search.
 
-```
-SITE FAILED: Microsoft Graph returned 401: General exception while processing
-```
-
-Decoding the token shows `roles: None`, which means the app has **no
-application permissions**. It only has delegated `User.Read` — useful for
-signed-in users, irrelevant for an app-only connection.
+If the connection ever reports `Microsoft Graph returned 401: General
+exception while processing`, check the app's application permissions. An
+app-only token with `roles: None` has no application permissions at all —
+delegated `User.Read` does not help here.
 
 ---
 
@@ -152,13 +152,17 @@ This endpoint never throws. A failure is reported in the body:
 
 ## 5. Endpoints
 
-All three require `documents.view`.
+Browsing endpoints require `documents.view`; the rules endpoints require
+`documents.manage`.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/api/v1/integrations/sharepoint/status` | Configuration + live reachability |
 | GET | `/api/v1/integrations/sharepoint/items?folder_id=&q=` | List a folder, or search |
 | GET | `/api/v1/integrations/sharepoint/items/{item_id}` | One file/folder's metadata |
+| GET | `/api/v1/integrations/sharepoint/rules` | Every folder restriction |
+| POST | `/api/v1/integrations/sharepoint/rules` | Restrict a folder (`folder_id`, `required_permission`) |
+| DELETE | `/api/v1/integrations/sharepoint/rules/{rule_id}` | Remove a restriction |
 
 `folder_id` may be omitted for the library root. `q` searches the whole
 library and must be 2–200 characters; when `q` is set, `folder_id` is
@@ -168,6 +172,7 @@ ignored. Each item looks like:
 {
   "id": "...",
   "name": "Contract - Acme 2026.pdf",
+  "path": "/Partnerships & Donors/Contracts/Contract - Acme 2026.pdf",
   "is_folder": false,
   "size": 481233,
   "mime_type": "application/pdf",
@@ -177,10 +182,18 @@ ignored. Each item looks like:
 }
 ```
 
-Folders are returned first, then files, each alphabetically.
+Folders are returned first, then files, each alphabetically. `path` is
+drive-relative and is what the rules match against; it is empty only when
+Graph cannot say where an item lives.
+
+Restricted content is removed server-side: a restricted folder is absent
+from its parent's listing, search hits inside it are dropped, and a direct
+`GET /items/{id}` for it returns `404`. `POST /rules` takes a folder id and
+resolves the path from Graph itself, so the caller cannot claim a path.
 
 Errors: `503` when the integration is not configured, `502` when Graph
-rejects or fails the call, `403` when the user lacks `documents.view`.
+rejects or fails the call, `403` when the user lacks the required
+permission, `404` for restricted items.
 
 Paging is fixed at 200 items per folder and 100 search results. Nothing
 follows `@odata.nextLink` yet — a folder with more than 200 direct
@@ -192,16 +205,37 @@ children shows the first 200.
 
 Because the connection is app-only, **SharePoint's own per-file
 permissions are not enforced**. Graph sees one identity (the app), so
-whoever can call ShoovaOne's endpoints sees whatever the app can see.
+ShoovaOne itself decides who sees what.
 
-The gate is ShoovaOne's permission: `documents.view`. Practical rules:
+Two layers apply:
 
-- Give `documents.view` to roles that are allowed to see **all** contracts
-  and documents in that library.
-- If a folder must stay restricted (HR case files, board minutes), do not
-  put it in the connected library, or connect a second library later with
-  its own permission — that is a deliberate next step, not something this
-  version does.
+1. **`documents.view`** — the door to the library at all.
+2. **Folder rules** — rows in `sharepoint_folder_rules` that name a
+   drive-relative path and the permission needed to see that subtree.
+   A path covers every descendant; no rule means visible to anyone with
+   `documents.view`.
+
+Defaults seeded by migration `017`:
+
+| Folder | Required permission |
+| --- | --- |
+| `/Finance` | `finance.view` |
+| `/Human Resources` | `hr.view_sensitive` |
+
+Holders of `documents.manage` (CEO, executive director, system admin by
+default) add, change and remove rules from the Documents screen. The
+server filters listings and search results and refuses direct item lookups,
+so a user without the permission cannot see the folder even by URL.
+
+**The limit of this control:** a copied SharePoint link opens under the
+viewer's own Microsoft 365 identity, not through ShoovaOne. If their
+SharePoint account has access to the folder, the link opens. Rules shape
+what ShoovaOne shows; they do not replace SharePoint folder permissions.
+If Finance or HR files must be truly private, tighten the sharing on those
+folders in SharePoint as well.
+
+Other points:
+
 - The client secret lives only in environment variables. It is never
   returned by an endpoint and never written to logs.
 - Tokens are held in memory only. Restarting the backend discards them.
@@ -214,9 +248,9 @@ The gate is ShoovaOne's permission: `documents.view`. Practical rules:
 
 Be clear about the boundary before planning work off this guide:
 
-- **No browse/attach UI.** The Documents screen does not show a SharePoint
-  picker yet. Attaching a file to a record (contract → programme, policy →
-  person) is the next build.
+- **No attach picker.** The Documents screen browses and searches the
+  library, but no record can yet point at a SharePoint file (contract →
+  programme, policy → person). That is the next build.
 - **No upload, rename, move or delete.** Read-only.
 - **No delta sync or indexing.** Searches go to SharePoint live; ShoovaOne
   does not keep a searchable copy, so results depend on Graph being
@@ -225,8 +259,10 @@ Be clear about the boundary before planning work off this guide:
 - **One library.** One site, one document library per deployment. A
   1 TB library is fine for listing and search; it does not change the
   limits above.
-- **No per-country or per-team filtering.** Combined with `documents.view`,
-  everyone with that permission sees one shared library.
+- **Rules match paths, not SharePoint ACLs.** Renaming or moving a
+  restricted folder in SharePoint changes its path and the rule stops
+  applying until it is updated. Folder ids are stored alongside the path
+  to make the rule editable, but path matching is what enforces access.
 
 ---
 
@@ -234,14 +270,19 @@ Be clear about the boundary before planning work off this guide:
 
 | File | Role |
 | --- | --- |
-| `backend/app/services/integrations/sharepoint.py` | Graph client: token cache, site/drive resolution, listing, search, item lookup |
-| `backend/app/api/v1/endpoints/integrations/sharepoint.py` | The three endpoints and their error mapping |
+| `backend/app/services/integrations/sharepoint.py` | Graph client: token cache, site/drive resolution, listing, search, item lookup, path resolution |
+| `backend/app/services/integrations/sharepoint_access.py` | Applies folder rules to listings and search results |
+| `backend/app/api/v1/endpoints/integrations/sharepoint.py` | Browse and rule endpoints, their error mapping |
+| `backend/app/models/sql/core/sharepoint_folder_rule.py` | `sharepoint_folder_rules` model |
+| `database/migrations/017_sharepoint_folder_rules.sql` | Table, `documents.manage`, default Finance/HR rules |
 | `backend/app/core/config.py` | `sharepoint_configured`, `sharepoint_missing_settings` |
-| `backend/tests/test_sharepoint_client.py` | 15 offline tests (MockTransport) covering auth caching, drive selection, ordering, id validation and error messages |
+| `backend/tests/test_sharepoint_client.py` | Offline Graph tests (MockTransport): auth caching, drive selection, ordering, path resolution, id validation, error messages |
+| `backend/tests/test_sharepoint_access.py` | Rule matching: subtree boundaries, case-insensitivity, fail-closed paths |
+| `frontend/src/features/documents/pages/DocumentsPage.tsx` | Browse, search, manage-access panel and per-folder rule dialog |
 
 Run the tests with:
 
 ```bash
 cd backend
-PYTHONPATH=. .venv/Scripts/python -m pytest tests/test_sharepoint_client.py -q
+PYTHONPATH=. .venv/Scripts/python -m pytest tests/test_sharepoint_client.py tests/test_sharepoint_access.py -q
 ```

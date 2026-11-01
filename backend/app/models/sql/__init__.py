@@ -14,6 +14,7 @@ from app.models.sql.core.password_reset_token import PasswordResetToken
 from app.models.sql.core.audit_log import AuditLog
 from app.models.sql.core.document import Document
 from app.models.sql.core.document_type import DocumentType
+from app.models.sql.core.sharepoint_folder_rule import SharePointFolderRule
 
 from app.models.sql.hr.approval import ApprovalRequest, ApprovalComment
 from app.models.sql.hr.leave import LeaveType, LeaveBalance, LeaveRequest

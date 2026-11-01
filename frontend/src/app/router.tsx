@@ -231,6 +231,14 @@ const MeProfilePage = lazy(() =>
   }))
 );
 // ============================================================
+// /documents — SHARED SHAREPOINT LIBRARY
+// ============================================================
+const DocumentsPage = lazy(() =>
+  import('@/features/documents/pages/DocumentsPage').then((module) => ({
+    default: module.DocumentsPage,
+  }))
+);
+// ============================================================
 // /hr PAGES — HR ADMIN
 // ============================================================
 
@@ -789,6 +797,19 @@ export function AppRouter() {
           <Route
             path="my-work"
             element={<MyWorkPage />}
+          />
+
+          {/* ======================================================= */}
+          {/* DOCUMENTS — SHARED SHAREPOINT LIBRARY                   */}
+          {/* ======================================================= */}
+
+          <Route
+            path="documents"
+            element={
+              <PermissionRoute permission="documents.view">
+                <DocumentsPage />
+              </PermissionRoute>
+            }
           />
 
           {/* ======================================================= */}

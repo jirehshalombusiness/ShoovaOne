@@ -95,6 +95,7 @@ PERMISSION_CATALOG: tuple[tuple[str, str, str], ...] = (
     # Documents
     ("documents", "view", "View documents"),
     ("documents", "upload", "Upload documents"),
+    ("documents", "manage", "Manage document folder access rules"),
     # Meetings
     ("meetings", "view", "View meetings"),
     ("meetings", "create", "Create meetings"),
