@@ -66,6 +66,40 @@ class Settings(BaseSettings):
     # Frontend
     FRONTEND_URL: str = "http://localhost:5173"
 
+    # Microsoft 365 / SharePoint
+    # App-only Graph access. The app registration needs the
+    # Sites.Selected (or Sites.Read.All) application permission.
+    MS_TENANT_ID: str = ""
+    MS_CLIENT_ID: str = ""
+    MS_CLIENT_SECRET: str = ""
+    SHAREPOINT_HOST: str = ""
+    SHAREPOINT_SITE_PATH: str = ""
+    SHAREPOINT_DRIVE: str = "Documents"
+
+    @property
+    def sharepoint_configured(self) -> bool:
+        return bool(
+            self.MS_TENANT_ID
+            and self.MS_CLIENT_ID
+            and self.MS_CLIENT_SECRET
+            and self.SHAREPOINT_HOST
+            and self.SHAREPOINT_SITE_PATH
+        )
+
+    @property
+    def sharepoint_missing_settings(self) -> List[str]:
+        return [
+            name
+            for name in (
+                "MS_TENANT_ID",
+                "MS_CLIENT_ID",
+                "MS_CLIENT_SECRET",
+                "SHAREPOINT_HOST",
+                "SHAREPOINT_SITE_PATH",
+            )
+            if not getattr(self, name)
+        ]
+
     @property
     def cors_origins_list(self) -> List[str]:
         """Convert CORS string to list."""

@@ -1,0 +1,249 @@
+"""Checks for the SharePoint Graph client.
+
+Every call is served by an httpx MockTransport, so the tests describe the
+Graph contract ShoovaOne depends on without needing a Microsoft 365 tenant.
+"""
+
+import httpx
+import pytest
+
+from app.core.config import settings
+from app.services.integrations import sharepoint as sp
+
+
+SITE_PATH = "/v1.0/sites/shoova.sharepoint.com:/sites/Portal"
+DRIVES_PATH = "/v1.0/sites/site-1/drives"
+DRIVE_ROOT = "/v1.0/drives/drive-docs"
+
+
+@pytest.fixture
+def configured_settings(monkeypatch):
+    monkeypatch.setattr(settings, "MS_TENANT_ID", "test-tenant", raising=False)
+    monkeypatch.setattr(settings, "MS_CLIENT_ID", "test-client", raising=False)
+    monkeypatch.setattr(settings, "MS_CLIENT_SECRET", "test-secret", raising=False)
+    monkeypatch.setattr(settings, "SHAREPOINT_HOST", "shoova.sharepoint.com", raising=False)
+    monkeypatch.setattr(settings, "SHAREPOINT_SITE_PATH", "/sites/Portal", raising=False)
+    monkeypatch.setattr(settings, "SHAREPOINT_DRIVE", "Documents", raising=False)
+
+
+def item(item_id, name, *, folder=False, files=False):
+    raw = {"id": item_id, "name": name, "size": 10, "webUrl": f"https://sp/{name}"}
+
+    if folder:
+        raw["folder"] = {"childCount": 2}
+
+    if files:
+        raw["file"] = {"mimeType": "application/pdf"}
+
+    return raw
+
+
+class Recorder:
+    def __init__(self):
+        self.requests = []
+        self.children = [
+            item("3", "zeta", folder=True),
+            item("1", "alpha.pdf", files=True),
+            item("2", "Beta", folder=True),
+            item("4", "bravo.docx", files=True),
+        ]
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        url = request.url
+
+        if url.path.endswith("/oauth2/v2.0/token"):
+            return httpx.Response(
+                200,
+                json={"access_token": "token-1", "expires_in": 3600},
+            )
+
+        if url.path == SITE_PATH:
+            return httpx.Response(
+                200,
+                json={
+                    "id": "site-1",
+                    "displayName": "Shoova Portal",
+                    "name": "Portal",
+                    "webUrl": "https://shoova.sharepoint.com/sites/Portal",
+                },
+            )
+
+        if url.path == DRIVES_PATH:
+            return httpx.Response(
+                200,
+                json={
+                    "value": [
+                        {"id": "drive-shared", "name": "Shared Documents"},
+                        {"id": "drive-docs", "name": "Documents"},
+                    ]
+                },
+            )
+
+        if url.path.endswith("/children"):
+            return httpx.Response(200, json={"value": self.children})
+
+        if url.path == f"{DRIVE_ROOT}/items/1":
+            return httpx.Response(200, json=item("1", "alpha.pdf", files=True))
+
+        if url.path.startswith(f"{DRIVE_ROOT}/root/search("):
+            return httpx.Response(
+                200,
+                json={"value": [item("9", "contract report.pdf", files=True)]},
+            )
+
+        return httpx.Response(
+            404,
+            json={"error": {"code": "itemNotFound", "message": "Item not found"}},
+        )
+
+    def paths(self):
+        return [request.url.path for request in self.requests]
+
+    def raw_paths(self):
+        return [
+            request.url.raw_path.decode().split("?")[0]
+            for request in self.requests
+        ]
+
+
+def client_for(recorder):
+    return sp.SharePointClient(transport=httpx.MockTransport(recorder))
+
+
+@pytest.fixture
+def recorder():
+    return Recorder()
+
+
+@pytest.fixture
+def client(configured_settings, recorder):
+    return client_for(recorder)
+
+
+@pytest.mark.asyncio
+async def test_token_is_requested_once_and_reused(client, recorder):
+    await client.site()
+    await client.drive()
+
+    token_calls = [
+        path for path in recorder.paths() if path.endswith("/oauth2/v2.0/token")
+    ]
+    assert len(token_calls) == 1
+
+    token_request = recorder.requests[0]
+    assert token_request.url.path == "/test-tenant/oauth2/v2.0/token"
+    body = token_request.read().decode()
+    assert "grant_type=client_credentials" in body
+    assert "scope=https%3A%2F%2Fgraph.microsoft.com%2F.default" in body
+
+
+@pytest.mark.asyncio
+async def test_site_is_resolved_from_host_and_path(client, recorder):
+    site = await client.site()
+
+    assert site["id"] == "site-1"
+    site_request = recorder.requests[1]
+    assert site_request.url.host == "graph.microsoft.com"
+    assert site_request.url.path == SITE_PATH
+    assert "displayName" in site_request.url.params["$select"]
+    assert site_request.headers["Authorization"] == "Bearer token-1"
+
+
+@pytest.mark.asyncio
+async def test_drive_is_chosen_by_name_not_by_position(client):
+    drive = await client.drive()
+
+    assert drive["id"] == "drive-docs"
+
+
+@pytest.mark.asyncio
+async def test_missing_drive_reports_what_is_available(configured_settings, monkeypatch):
+    monkeypatch.setattr(settings, "SHAREPOINT_DRIVE", "Contracts", raising=False)
+    client = client_for(Recorder())
+
+    with pytest.raises(sp.SharePointError) as error:
+        await client.drive()
+
+    message = str(error.value)
+    assert "Contracts" in message
+    assert "Shared Documents" in message
+    assert "Documents" in message
+
+
+@pytest.mark.asyncio
+async def test_children_are_summarised_and_folders_come_first(client):
+    items = await client.list_children()
+
+    assert [entry["name"] for entry in items] == [
+        "Beta",
+        "zeta",
+        "alpha.pdf",
+        "bravo.docx",
+    ]
+    assert items[0]["is_folder"] is True
+    assert items[2]["is_folder"] is False
+    assert items[2]["mime_type"] == "application/pdf"
+    assert items[0]["child_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_folder_id_is_used_in_the_path(client, recorder):
+    await client.list_children("folder-9")
+
+    assert f"{DRIVE_ROOT}/items/folder-9/children" in recorder.paths()
+
+
+@pytest.mark.asyncio
+async def test_search_encodes_the_query(client, recorder):
+    results = await client.search("contract report")
+
+    assert [entry["id"] for entry in results] == ["9"]
+    assert f"{DRIVE_ROOT}/root/search(q='contract%20report')" in recorder.raw_paths()
+
+
+@pytest.mark.asyncio
+async def test_missing_item_surfaces_the_graph_message(client):
+    with pytest.raises(sp.SharePointError) as error:
+        await client.get_item("999")
+
+    assert "404" in str(error.value)
+    assert "Item not found" in str(error.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_id", ["", "   ", "../etc/passwd", "a/b", "x" * 401])
+async def test_invalid_item_ids_are_rejected_before_requesting(client, recorder, bad_id):
+    recorder.requests.clear()
+
+    with pytest.raises(sp.SharePointError):
+        await client.get_item(bad_id)
+
+    assert recorder.requests == []
+
+
+@pytest.mark.asyncio
+async def test_unconfigured_client_names_the_missing_settings(monkeypatch):
+    monkeypatch.setattr(settings, "MS_CLIENT_SECRET", "", raising=False)
+    client = sp.SharePointClient(transport=httpx.MockTransport(Recorder()))
+
+    with pytest.raises(sp.SharePointNotConfigured) as error:
+        await client.site()
+
+    assert "MS_CLIENT_SECRET" in str(error.value)
+
+
+@pytest.mark.asyncio
+async def test_rejected_credentials_are_reported_without_the_secret():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            401,
+            json={"error": "invalid_client", "error_description": "AADSTS7000215"},
+        )
+
+    client = sp.SharePointClient(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(sp.SharePointError) as error:
+        await client.access_token()
+
+    assert "test-secret" not in str(error.value)

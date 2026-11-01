@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     events,
     finance,
     hr,
+    integrations,
     meetings,
     payroll,
     programmes,
@@ -18,6 +19,7 @@ api_router = APIRouter()
 
 api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 api_router.include_router(core.router)
+api_router.include_router(integrations.router)
 api_router.include_router(timekeeping.router)
 api_router.include_router(projects.router)
 api_router.include_router(crm.router)
