@@ -32,6 +32,13 @@ ITEM_SELECT = (
 MAX_ITEM_ID_LENGTH = 400
 MAX_PARENT_LOOKUPS = 40
 PARENT_LOOKUP_CONCURRENCY = 6
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+MAX_FILE_NAME_LENGTH = 255
+BLOCKED_UPLOAD_EXTENSIONS = {
+    "bat", "cmd", "com", "cpl", "dll", "exe", "gadget", "hta", "jar",
+    "js", "jse", "lnk", "msc", "msi", "pif", "ps1", "reg", "scr", "vbs",
+    "vbe", "ws", "wsf",
+}
 
 
 class SharePointError(Exception):
@@ -40,6 +47,10 @@ class SharePointError(Exception):
 
 class SharePointNotConfigured(SharePointError):
     """Required settings are missing."""
+
+
+class SharePointInvalidInput(SharePointError):
+    """The request is malformed; Graph was not called."""
 
 
 def _graph_error_message(response: httpx.Response) -> str:
@@ -70,6 +81,36 @@ def _clean_item_id(item_id: str) -> str:
         or any(char in value for char in "/\\?#")
     ):
         raise SharePointError("Invalid SharePoint item id")
+
+    return value
+
+
+def _clean_file_name(name: str) -> str:
+    """Reject names that Graph's path syntax or SharePoint cannot store."""
+
+    value = (name or "").strip()
+
+    if not value or len(value) > MAX_FILE_NAME_LENGTH:
+        raise SharePointInvalidInput(
+            "File name is required and must be "
+            f"{MAX_FILE_NAME_LENGTH} characters or fewer"
+        )
+
+    if any(ord(char) < 32 for char in value):
+        raise SharePointInvalidInput("File name contains invalid characters")
+
+    if any(char in value for char in '/\\:*?"<>|'):
+        raise SharePointInvalidInput("File name contains invalid characters")
+
+    if value in (".", "..") or value.endswith("."):
+        raise SharePointInvalidInput("File name is invalid")
+
+    extension = value.rsplit(".", 1)[-1].lower() if "." in value else ""
+
+    if extension in BLOCKED_UPLOAD_EXTENSIONS:
+        raise SharePointInvalidInput(
+            f"Files of type .{extension} cannot be uploaded"
+        )
 
     return value
 
@@ -396,6 +437,75 @@ class SharePointClient:
         )
 
         return summarize_item(raw, drive)
+
+    async def upload_file(
+        self,
+        filename: str,
+        content: bytes,
+        content_type: Optional[str] = None,
+        folder_id: Optional[str] = None,
+    ) -> dict:
+        """Write one file into a folder (or the library root).
+
+        An existing file with the same name is refused rather than replaced,
+        so an upload can never overwrite someone else's document.
+        """
+
+        name = _clean_file_name(filename)
+
+        if not content:
+            raise SharePointInvalidInput("The file is empty")
+
+        if len(content) > MAX_UPLOAD_BYTES:
+            raise SharePointInvalidInput(
+                f"Files must be {MAX_UPLOAD_BYTES // (1024 * 1024)} MB or smaller"
+            )
+
+        drive = await self.drive()
+        encoded = quote(name, safe="")
+        base = (
+            f"/drives/{drive['id']}/items/{_clean_item_id(folder_id)}"
+            if folder_id
+            else f"/drives/{drive['id']}/root"
+        )
+
+        token = await self.access_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        async with self._new_client() as client:
+            existing = await client.get(
+                f"{GRAPH_ROOT}{base}:/{encoded}",
+                headers=headers,
+            )
+
+            if existing.status_code == 200:
+                raise SharePointInvalidInput(
+                    f"'{name}' already exists in this folder"
+                )
+
+            if existing.status_code != 404:
+                raise SharePointError(
+                    f"Microsoft Graph returned {existing.status_code}: "
+                    + _graph_error_message(existing)
+                )
+
+            response = await client.put(
+                f"{GRAPH_ROOT}{base}:/{encoded}:/content",
+                headers={
+                    **headers,
+                    "Content-Type": content_type or "application/octet-stream",
+                },
+                content=content,
+                timeout=120.0,
+            )
+
+        if response.status_code >= 400:
+            raise SharePointError(
+                f"Microsoft Graph returned {response.status_code}: "
+                + _graph_error_message(response)
+            )
+
+        return summarize_item(response.json(), drive)
 
 
 sharepoint_client = SharePointClient()

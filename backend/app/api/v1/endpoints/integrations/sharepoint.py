@@ -1,12 +1,14 @@
-"""Browse the connected SharePoint library.
+"""Browse and upload to the connected SharePoint library.
 
 Documents stay in SharePoint; these endpoints return metadata and links
-so the documents module can reference a file without copying it.
+so the documents module can reference a file without copying it. Uploads
+write straight into the library, so the app registration needs a write
+grant on the site.
 
-The library is read with one app-only identity, so every viewer would
+The library is accessed with one app-only identity, so every viewer would
 otherwise see every file. Folder rules (see ``sharepoint_folder_rules``)
 subtract the Finance/HR subtrees from anyone without the matching
-permission before a response is built.
+permission before a response is built, and also block uploads into them.
 """
 
 from typing import Optional
@@ -14,9 +16,12 @@ from typing import Optional
 from fastapi import (
     APIRouter,
     Depends,
+    File,
+    Form,
     HTTPException,
     Query,
     Response,
+    UploadFile,
     status,
 )
 from pydantic import BaseModel, Field
@@ -30,7 +35,9 @@ from app.core.security import Permissions, require_permission
 from app.models.sql.core.sharepoint_folder_rule import SharePointFolderRule
 from app.models.sql.core.user import User
 from app.services.integrations.sharepoint import (
+    MAX_UPLOAD_BYTES,
     SharePointError,
+    SharePointInvalidInput,
     SharePointNotConfigured,
     sharepoint_client,
 )
@@ -50,6 +57,12 @@ class FolderRuleIn(BaseModel):
 
 
 def _graph_http_error(exc: SharePointError) -> HTTPException:
+    if isinstance(exc, SharePointInvalidInput):
+        return HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+
     if isinstance(exc, SharePointNotConfigured):
         return HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -60,6 +73,48 @@ def _graph_http_error(exc: SharePointError) -> HTTPException:
         status_code=status.HTTP_502_BAD_GATEWAY,
         detail=str(exc),
     )
+
+
+def _upload_file_name(raw: Optional[str]) -> str:
+    """Drop any directory part a client may have included."""
+
+    name = (raw or "").replace("\\", "/").split("/")[-1].strip()
+
+    if not name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A file name is required",
+        )
+
+    return name
+
+
+async def _read_upload(file: UploadFile) -> bytes:
+    """Read the upload in chunks so an oversized file is refused early."""
+
+    chunks: list[bytes] = []
+    total = 0
+
+    while True:
+        chunk = await file.read(1024 * 1024)
+
+        if not chunk:
+            break
+
+        total += len(chunk)
+
+        if total > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=(
+                    "Files must be "
+                    f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB or smaller"
+                ),
+            )
+
+        chunks.append(chunk)
+
+    return b"".join(chunks)
 
 
 def _rule_payload(rule: SharePointFolderRule) -> dict:
@@ -192,6 +247,58 @@ async def get_sharepoint_item(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Item not found",
         )
+
+    return item
+
+
+@router.post("/items/upload", status_code=status.HTTP_201_CREATED)
+async def upload_sharepoint_item(
+    file: UploadFile = File(...),
+    folder_id: Optional[str] = Form(None),
+    current_user: User = Depends(
+        require_permission(Permissions.DOCUMENTS_UPLOAD)
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload one file into a folder, or into the library root."""
+
+    denied_paths, denied_ids = await restricted_locations(
+        db,
+        current_user.id,
+    )
+    folder_path = ""
+
+    try:
+        if folder_id:
+            folder = await sharepoint_client.get_item(folder_id)
+
+            if not folder.get("is_folder"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Files can only be uploaded into a folder",
+                )
+
+            if item_is_restricted(folder, denied_paths, denied_ids):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You do not have access to this folder",
+                )
+
+            folder_path = folder.get("path") or ""
+
+        content = await _read_upload(file)
+
+        item = await sharepoint_client.upload_file(
+            filename=_upload_file_name(file.filename),
+            content=content,
+            content_type=file.content_type,
+            folder_id=folder_id,
+        )
+    except SharePointError as exc:
+        raise _graph_http_error(exc)
+
+    if not item.get("path") and folder_path:
+        item["path"] = f"{folder_path.rstrip('/')}/{item.get('name')}"
 
     return item
 

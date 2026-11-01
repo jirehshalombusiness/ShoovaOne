@@ -38,6 +38,7 @@ export interface SharePointListing {
 }
 
 const REQUEST_TIMEOUT = 45_000;
+const UPLOAD_TIMEOUT = 120_000;
 
 export const sharepointService = {
   async status(): Promise<SharePointStatus> {
@@ -66,6 +67,28 @@ export const sharepointService = {
     const response = await api.get<SharePointListing>(
       '/integrations/sharepoint/items',
       { params, timeout: REQUEST_TIMEOUT }
+    );
+    return response.data;
+  },
+
+  async upload(
+    file: File,
+    folderId?: string | null
+  ): Promise<SharePointItem> {
+    const form = new FormData();
+    form.append('file', file);
+
+    if (folderId) {
+      form.append('folder_id', folderId);
+    }
+
+    const response = await api.post<SharePointItem>(
+      '/integrations/sharepoint/items/upload',
+      form,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: UPLOAD_TIMEOUT,
+      }
     );
     return response.data;
   },

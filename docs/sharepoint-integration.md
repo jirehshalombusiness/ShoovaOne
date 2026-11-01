@@ -1,9 +1,10 @@
 # SharePoint integration
 
 ShoovaOne connects to the organisation's SharePoint library so contracts,
-policies and programme files can be browsed from inside the platform.
-Files are **not copied**. ShoovaOne asks Microsoft Graph for the folder
-listing and gets back a `webUrl` that opens the original file in SharePoint.
+policies and programme files can be browsed — and uploaded — from inside
+the platform. Files are **not copied**. ShoovaOne asks Microsoft Graph for
+the folder listing and gets back a `webUrl` that opens the original file in
+SharePoint; an upload writes the file straight into the library.
 
 The connection is app-only (client credentials): ShoovaOne signs in as
 itself, not as whichever person is browsing.
@@ -14,17 +15,22 @@ itself, not as whichever person is browsing.
 
 | Item | Status |
 | --- | --- |
-| Graph client (token, site, drive, listing, search) | Built and tested |
-| API endpoints `/api/v1/integrations/sharepoint/*` | Built, behind `documents.view` |
+| Graph client (token, site, drive, listing, search, upload) | Built and tested |
+| API endpoints `/api/v1/integrations/sharepoint/*` | Built, behind `documents.view` / `documents.upload` |
 | Settings in `backend/.env` | Present locally |
-| Azure application permission | `Sites.Selected` granted, plus broad `Sites.*` roles kept for later |
+| Azure application permission | `Sites.Selected` site grant is **read**, but tenant-wide `Sites.*` roles are still granted and allow writes |
 | Settings on Render (production) | Configured — connection verified live on 2026-11-01 |
-| Documents browse / search UI | Built at `/documents` (2026-11-01) |
+| Documents browse / search / upload UI | Built at `/documents` (2026-11-01) |
 | Folder access rules | Built — `/Finance` and `/Human Resources` restricted by permission |
 
 Production check on 2026-11-01 returned `configured: true, reachable: true` for
 `Shoova Initiative Portal` / `Documents`, listed the 7 root folders, read a
-nested file's metadata and found it by search.
+nested file's metadata, found it by search, **uploaded a probe file to the
+library root and deleted it again**. The site-level grant still reports
+`roles: ["read"]`; the write succeeded because the app registration also holds
+broader `Sites.*` application permissions, which take precedence. If those
+broad permissions are removed later (recommended), the site grant must be
+changed to `Write` before uploads will work again.
 
 If the connection ever reports `Microsoft Graph returned 401: General
 exception while processing`, check the app's application permissions. An
@@ -44,8 +50,8 @@ Go to **Azure Portal → Microsoft Entra ID → App registrations → ShoovaOne
 
 ### Option A — `Sites.Selected` (recommended)
 
-Least privilege: the app can only read sites that are explicitly granted
-to it.
+Least privilege: the app can only reach sites that are explicitly granted
+to it, with the roles it was granted there.
 
 1. **API permissions → Add a permission → Microsoft Graph → Application
    permissions → Sites → `Sites.Selected`**.
@@ -62,8 +68,25 @@ to it.
      -Site "https://shoovainitiative1.sharepoint.com/sites/ShoovaInitiativePortal"
    ```
 
-   `-Permissions Read` allows listing and metadata. Use `Write` only if
-   ShoovaOne will ever upload or replace files; the current code does not.
+   `-Permissions Read` allows listing and metadata only. Uploads need
+   `-Permissions Write`, and `Read` + `Write` are granted separately, so a
+   site that was granted `Read` must be granted `Write` as well before the
+   page can upload once the broad `Sites.*` permissions are removed.
+
+   To upgrade an existing grant, list the site's permissions and grant the
+   new role:
+
+   ```powershell
+   Get-PnPAzureADAppSitePermission -Site "https://shoovainitiative1.sharepoint.com/sites/ShoovaInitiativePortal"
+   Grant-PnPAzureADAppSitePermission `
+     -AppId "0cee5507-8d74-48e6-80de-eb2b75a55d0f" `
+     -DisplayName "ShoovaOne" `
+     -Permissions Write `
+     -Site "https://shoovainitiative1.sharepoint.com/sites/ShoovaInitiativePortal"
+   ```
+
+   Re-running the grant with `-Permissions Read,Write` replaces the roles on
+   the existing grant.
 
 ### Option B — `Sites.Read.All` (faster, broader)
 
@@ -152,14 +175,15 @@ This endpoint never throws. A failure is reported in the body:
 
 ## 5. Endpoints
 
-Browsing endpoints require `documents.view`; the rules endpoints require
-`documents.manage`.
+Browsing endpoints require `documents.view`; upload requires
+`documents.upload`; the rules endpoints require `documents.manage`.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/api/v1/integrations/sharepoint/status` | Configuration + live reachability |
 | GET | `/api/v1/integrations/sharepoint/items?folder_id=&q=` | List a folder, or search |
 | GET | `/api/v1/integrations/sharepoint/items/{item_id}` | One file/folder's metadata |
+| POST | `/api/v1/integrations/sharepoint/items/upload` | Upload one file (`file`, optional `folder_id`) |
 | GET | `/api/v1/integrations/sharepoint/rules` | Every folder restriction |
 | POST | `/api/v1/integrations/sharepoint/rules` | Restrict a folder (`folder_id`, `required_permission`) |
 | DELETE | `/api/v1/integrations/sharepoint/rules/{rule_id}` | Remove a restriction |
@@ -191,9 +215,33 @@ from its parent's listing, search hits inside it are dropped, and a direct
 `GET /items/{id}` for it returns `404`. `POST /rules` takes a folder id and
 resolves the path from Graph itself, so the caller cannot claim a path.
 
-Errors: `503` when the integration is not configured, `502` when Graph
-rejects or fails the call, `403` when the user lacks the required
-permission, `404` for restricted items.
+### Uploading
+
+`POST /items/upload` is a `multipart/form-data` request with one `file` part
+and an optional `folder_id` form field (omit it for the library root). It
+returns `201` and the same item shape as `GET /items/{id}`.
+
+Rules the server enforces before Graph is called:
+
+| Rule | Result |
+| --- | --- |
+| No `documents.upload` permission | `403` |
+| Uploading into a folder covered by a folder rule the caller cannot satisfy | `403` |
+| `folder_id` points at a file | `400` |
+| Empty file | `400` |
+| Larger than 25 MB | `413` |
+| Name longer than 255 characters, or containing `\ / : * ? " < > \|` or control characters | `400` |
+| Executable/script extension (`.exe`, `.bat`, `.cmd`, `.ps1`, `.js`, `.vbs`, `.msi`, …) | `400` |
+| A file with the same name already exists in the target folder | `400` — uploads never overwrite |
+
+The Graph write is a simple `PUT .../content` (25 MB ceiling), not a
+resumable session, so there is one request per file and no partial state to
+clean up. The frontend picks the file, shows `Uploading…` until the response
+and refreshes the folder listing on success.
+
+Errors otherwise match browsing: `503` when the integration is not
+configured, `502` when Graph rejects or fails the call, `403` when the user
+lacks the required permission, `404` for restricted items.
 
 Paging is fixed at 200 items per folder and 100 search results. Nothing
 follows `@odata.nextLink` yet — a folder with more than 200 direct
@@ -207,10 +255,12 @@ Because the connection is app-only, **SharePoint's own per-file
 permissions are not enforced**. Graph sees one identity (the app), so
 ShoovaOne itself decides who sees what.
 
-Two layers apply:
+Layers apply:
 
 1. **`documents.view`** — the door to the library at all.
-2. **Folder rules** — rows in `sharepoint_folder_rules` that name a
+2. **`documents.upload`** — the door to writing files into it. The upload
+   control is hidden without this permission and the endpoint refuses it.
+3. **Folder rules** — rows in `sharepoint_folder_rules` that name a
    drive-relative path and the permission needed to see that subtree.
    A path covers every descendant; no rule means visible to anyone with
    `documents.view`.
@@ -227,12 +277,17 @@ default) add, change and remove rules from the Documents screen. The
 server filters listings and search results and refuses direct item lookups,
 so a user without the permission cannot see the folder even by URL.
 
+Folder rules also gate uploads: the server resolves the target folder's
+path from Graph and refuses the write if a rule covers it and the caller
+lacks the rule's permission, so a user cannot drop a file into Finance or HR
+by posting a folder id directly.
+
 **The limit of this control:** a copied SharePoint link opens under the
 viewer's own Microsoft 365 identity, not through ShoovaOne. If their
 SharePoint account has access to the folder, the link opens. Rules shape
-what ShoovaOne shows; they do not replace SharePoint folder permissions.
-If Finance or HR files must be truly private, tighten the sharing on those
-folders in SharePoint as well.
+what ShoovaOne shows and accepts; they do not replace SharePoint folder
+permissions. If Finance or HR files must be truly private, tighten the
+sharing on those folders in SharePoint as well.
 
 Other points:
 
@@ -248,10 +303,11 @@ Other points:
 
 Be clear about the boundary before planning work off this guide:
 
-- **No attach picker.** The Documents screen browses and searches the
-  library, but no record can yet point at a SharePoint file (contract →
-  programme, policy → person). That is the next build.
-- **No upload, rename, move or delete.** Read-only.
+- **No attach picker.** The Documents screen browses, searches and uploads,
+  but no record can yet point at a SharePoint file (contract → programme,
+  policy → person). That is the next build.
+- **No rename, move or delete.** Uploads create new files; existing files
+  are never replaced, moved or removed from ShoovaOne.
 - **No delta sync or indexing.** Searches go to SharePoint live; ShoovaOne
   does not keep a searchable copy, so results depend on Graph being
   reachable at request time.
@@ -270,15 +326,17 @@ Be clear about the boundary before planning work off this guide:
 
 | File | Role |
 | --- | --- |
-| `backend/app/services/integrations/sharepoint.py` | Graph client: token cache, site/drive resolution, listing, search, item lookup, path resolution |
-| `backend/app/services/integrations/sharepoint_access.py` | Applies folder rules to listings and search results |
-| `backend/app/api/v1/endpoints/integrations/sharepoint.py` | Browse and rule endpoints, their error mapping |
+| `backend/app/services/integrations/sharepoint.py` | Graph client: token cache, site/drive resolution, listing, search, item lookup, path resolution, upload |
+| `backend/app/services/integrations/sharepoint_access.py` | Applies folder rules to listings, search results and upload targets |
+| `backend/app/api/v1/endpoints/integrations/sharepoint.py` | Browse, upload and rule endpoints, their error mapping |
 | `backend/app/models/sql/core/sharepoint_folder_rule.py` | `sharepoint_folder_rules` model |
 | `database/migrations/017_sharepoint_folder_rules.sql` | Table, `documents.manage`, default Finance/HR rules |
 | `backend/app/core/config.py` | `sharepoint_configured`, `sharepoint_missing_settings` |
-| `backend/tests/test_sharepoint_client.py` | Offline Graph tests (MockTransport): auth caching, drive selection, ordering, path resolution, id validation, error messages |
+| `backend/tests/test_sharepoint_client.py` | Offline Graph tests (MockTransport): auth caching, drive selection, ordering, path resolution, id validation, upload path/body, overwrite refusal, name and size validation, error messages |
 | `backend/tests/test_sharepoint_access.py` | Rule matching: subtree boundaries, case-insensitivity, fail-closed paths |
-| `frontend/src/features/documents/pages/DocumentsPage.tsx` | Browse, search, manage-access panel and per-folder rule dialog |
+| `backend/tests/test_sharepoint_upload_endpoint.py` | Upload route: restricted-folder refusal, file-as-folder refusal, path fill-in |
+| `frontend/src/services/sharepoint.service.ts` | Typed calls for status, listing, search, rules and upload |
+| `frontend/src/features/documents/pages/DocumentsPage.tsx` | Browse, search, upload control, manage-access panel and per-folder rule dialog |
 
 Run the tests with:
 

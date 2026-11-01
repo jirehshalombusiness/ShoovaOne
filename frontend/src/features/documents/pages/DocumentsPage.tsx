@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   keepPreviousData,
   useMutation,
@@ -22,6 +22,7 @@ import {
   Search,
   ShieldCheck,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -39,6 +40,8 @@ interface Crumb {
   id: string | null;
   name: string;
 }
+
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 const PERMISSION_OPTIONS = [
   { value: 'finance.view', label: 'Finance records (finance.view)' },
@@ -112,6 +115,8 @@ export function DocumentsPage() {
   const queryClient = useQueryClient();
   const { hasPermission } = usePermissions();
   const canManage = hasPermission('documents.manage');
+  const canUpload = hasPermission('documents.upload');
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   const [trail, setTrail] = useState<Crumb[]>([{ id: null, name: 'Library' }]);
   const [search, setSearch] = useState('');
@@ -220,6 +225,31 @@ export function DocumentsPage() {
     },
     onError: (error) => toast.error(sharepointErrorMessage(error)),
   });
+
+  const upload = useMutation({
+    mutationFn: (file: File) => sharepointService.upload(file, folder.id),
+    onSuccess: (item) => {
+      queryClient.invalidateQueries({ queryKey: ['sharepoint-items'] });
+      toast.success(`${item.name} uploaded`);
+    },
+    onError: (error) => toast.error(sharepointErrorMessage(error)),
+  });
+
+  function startUpload(file: File | undefined) {
+    if (!file) return;
+
+    if (file.size === 0) {
+      toast.error('That file is empty');
+      return;
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error('Files must be 25 MB or smaller');
+      return;
+    }
+
+    upload.mutate(file);
+  }
 
   const ruleTargetRule = ruleTarget ? exactRuleFor(ruleTarget) : undefined;
   const permissionOptions =
@@ -446,6 +476,28 @@ export function DocumentsPage() {
                   </button>
                 )}
               </div>
+              {canUpload && !searchActive && (
+                <>
+                  <input
+                    ref={uploadInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = '';
+                      startUpload(file);
+                    }}
+                  />
+                  <button
+                    onClick={() => uploadInputRef.current?.click()}
+                    disabled={upload.isPending}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-dark disabled:opacity-50"
+                  >
+                    <Upload className="h-4 w-4" />
+                    {upload.isPending ? 'Uploading...' : 'Upload'}
+                  </button>
+                </>
+              )}
               <button
                 onClick={() => itemsQuery.refetch()}
                 disabled={itemsQuery.isFetching}
@@ -553,8 +605,20 @@ export function DocumentsPage() {
                     This folder is empty
                   </p>
                   <p className="mt-1 text-xs text-gray-400">
-                    Files added in SharePoint will appear here.
+                    {canUpload
+                      ? 'Upload a file here, or add one in SharePoint.'
+                      : 'Files added in SharePoint will appear here.'}
                   </p>
+                  {canUpload && (
+                    <button
+                      onClick={() => uploadInputRef.current?.click()}
+                      disabled={upload.isPending}
+                      className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-xs font-medium text-white transition hover:bg-primary-dark disabled:opacity-50"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      Upload a file
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -673,7 +737,8 @@ export function DocumentsPage() {
           )}
 
           <div className="border-t border-gray-100 px-4 py-2.5 text-[11px] text-gray-400">
-            Read-only. Files open in SharePoint, where the original stays up to date.
+            Uploads go straight into SharePoint. Files open there, where the
+            original stays up to date.
           </div>
         </div>
       )}
