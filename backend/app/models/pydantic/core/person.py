@@ -27,6 +27,7 @@ class PersonBase(BaseModel):
     city: Optional[str] = None
     state: Optional[str] = None
     country: Optional[str] = None
+    country_code: Optional[str] = None
     postal_code: Optional[str] = None
     emergency_contact_name: Optional[str] = None
     emergency_contact_phone: Optional[str] = None

@@ -31,6 +31,7 @@ export interface PeopleFilters {
   search?: string;
   type?: string;
   status?: string;
+  country_code?: string;
   skip?: number;
   limit?: number;
 }

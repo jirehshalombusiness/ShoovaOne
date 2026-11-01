@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { peopleService, PeopleFilters } from '@/services/people.service';
 import { Person } from '@/types/person.types';
-import { Search, Filter, Plus, User, Mail, Phone, Building2, ChevronRight } from 'lucide-react';
+import { Search, Filter, Plus, User, Mail, Phone, Building2, MapPin, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useHRAccess } from '@/hooks/useHRAccess';
@@ -139,6 +139,18 @@ export function PeopleDirectory({ onSelectPerson }: PeopleDirectoryProps) {
               <option value="external_contact">External Contact</option>
             </select>
           </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Team</label>
+            <select
+              value={filters.country_code || ''}
+              onChange={(e) => setFilters({ ...filters, country_code: e.target.value || undefined })}
+              className="w-full px-3 py-1.5 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">All Teams</option>
+              <option value="GH">Ghana</option>
+              <option value="US">United States</option>
+            </select>
+          </div>
           <div className="flex items-end">
             <button
               onClick={() => setFilters({})}
@@ -209,6 +221,12 @@ export function PeopleDirectory({ onSelectPerson }: PeopleDirectoryProps) {
                         <span className="flex items-center gap-1">
                           <Building2 className="h-3 w-3" />
                           {person.organization}
+                        </span>
+                      )}
+                      {person.country && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {person.country}
                         </span>
                       )}
                       <span className="text-xs text-gray-400 capitalize">{person.type}</span>

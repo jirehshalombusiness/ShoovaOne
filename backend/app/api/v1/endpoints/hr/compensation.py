@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.countries import default_currency_for
 from app.core.security import require_permission, Permissions, get_current_active_user
 from app.models.sql.core.user import User, Person
 from app.models.sql.hr.compensation import CompensationChange
@@ -59,7 +60,7 @@ class CompensationListResponse(BaseModel):
 class CompensationCreate(BaseModel):
     person_id: str
     base_amount: float = Field(..., ge=0)
-    currency: str = Field("GHS", max_length=3)
+    currency: Optional[str] = Field(None, max_length=3)
     frequency: str = Field("monthly", max_length=20)
     effective_from: date
     reason: Optional[str] = Field(None, max_length=100)
@@ -268,6 +269,12 @@ async def create_compensation_change(
     if not person:
         raise HTTPException(status_code=404, detail="Person not found")
 
+    # One directory, many currencies: default to the currency of the
+    # country the person is based in unless the caller chose one.
+    currency = (
+        payload.currency or default_currency_for(person.country_code)
+    ).strip().upper()
+
     # Close any current comp record only after approval.
     # So we do NOT modify existing rows here.
 
@@ -275,7 +282,7 @@ async def create_compensation_change(
         id=str(uuid.uuid4()),
         person_id=payload.person_id,
         base_amount=Decimal(str(payload.base_amount)),
-        currency=payload.currency,
+        currency=currency,
         frequency=payload.frequency,
         effective_from=payload.effective_from,
         effective_to=None,
@@ -292,7 +299,7 @@ async def create_compensation_change(
         requested_by_id=current_user.person_id,
         title=(
             f"Compensation change: {person.first_name} {person.last_name} "
-            f"-> {payload.currency} {payload.base_amount:,.2f}/{payload.frequency}"
+            f"-> {currency} {payload.base_amount:,.2f}/{payload.frequency}"
         ),
         summary=(
             f"Effective from {payload.effective_from.isoformat()}"
@@ -311,7 +318,7 @@ async def create_compensation_change(
         description=f"Requested compensation change for {person.first_name} {person.last_name}",
         new_values={
             "base_amount": str(payload.base_amount),
-            "currency": payload.currency,
+            "currency": currency,
             "frequency": payload.frequency,
             "effective_from": payload.effective_from.isoformat(),
         },

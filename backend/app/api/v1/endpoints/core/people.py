@@ -4,6 +4,7 @@ from sqlalchemy import select, or_
 from typing import List, Optional
 
 from app.core.database import get_db
+from app.core.countries import resolve_country_code
 from app.core.security import require_permission, Permissions
 from app.models.sql.core.user import Person, User
 from app.models.pydantic.core.person import (
@@ -90,6 +91,7 @@ async def get_people(
     search: Optional[str] = None,
     type: Optional[str] = None,
     status: Optional[str] = None,
+    country_code: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_permission(Permissions.PEOPLE_VIEW)),
 ):
@@ -111,6 +113,11 @@ async def get_people(
 
     if status:
         query = query.where(Person.status == status)
+
+    if country_code:
+        query = query.where(
+            Person.country_code == country_code.strip().upper()
+        )
 
     query = (
         query
@@ -259,9 +266,15 @@ async def create_person(
     # --------------------------------------------
     import uuid
 
+    payload = person_data.model_dump()
+    payload["country_code"] = resolve_country_code(
+        payload.get("country"),
+        payload.get("country_code"),
+    )
+
     person = Person(
         id=str(uuid.uuid4()),
-        **person_data.model_dump(),
+        **payload,
     )
 
     db.add(person)
@@ -398,6 +411,13 @@ async def update_person(
     changes = person_data.model_dump(
         exclude_unset=True
     )
+
+    # Keep the code aligned with the free-text country the form edits,
+    # unless the caller sent an explicit code.
+    if "country" in changes and "country_code" not in changes:
+        changes["country_code"] = resolve_country_code(
+            changes["country"]
+        )
 
     # Organisational fields are a separate privilege from general
     # profile editing (people.edit). Only an actual value change needs

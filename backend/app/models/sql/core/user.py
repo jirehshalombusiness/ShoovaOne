@@ -104,6 +104,7 @@ class Person(BaseModel):
     city = Column(String(100))
     state = Column(String(100))
     country = Column(String(100))
+    country_code = Column(String(10), nullable=True, index=True)
     postal_code = Column(String(20))
     emergency_contact_name = Column(String(200))
     emergency_contact_phone = Column(String(50))

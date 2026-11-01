@@ -52,20 +52,34 @@ export function HRCompensationPage() {
   }, [items, debouncedSearch]);
 
   const totals = useMemo(() => {
-    let monthly = 0;
-    let currency = 'GHS';
+    const byCurrency = new Map<string, number>();
     for (const c of filtered) {
       const amt = c.base_amount;
       const freq = (c.frequency || 'monthly').toLowerCase();
-      if (freq === 'annual') monthly += amt / 12;
-      else if (freq === 'biweekly') monthly += (amt * 26) / 12;
-      else if (freq === 'weekly') monthly += (amt * 52) / 12;
-      else if (freq === 'hourly') monthly += amt * 160;
-      else monthly += amt;
-      currency = c.currency;
+      let monthly: number;
+      if (freq === 'annual') monthly = amt / 12;
+      else if (freq === 'biweekly') monthly = (amt * 26) / 12;
+      else if (freq === 'weekly') monthly = (amt * 52) / 12;
+      else if (freq === 'hourly') monthly = amt * 160;
+      else monthly = amt;
+      byCurrency.set(c.currency, (byCurrency.get(c.currency) ?? 0) + monthly);
     }
-    return { monthly, annual: monthly * 12, currency };
+    return Array.from(byCurrency, ([currency, monthly]) => ({
+      currency,
+      monthly,
+      annual: monthly * 12,
+    })).sort((a, b) => a.currency.localeCompare(b.currency));
   }, [filtered]);
+
+  const formatTotals = (key: 'monthly' | 'annual') =>
+    totals.length === 0
+      ? '—'
+      : totals
+          .map(
+            (t) =>
+              `${t.currency} ${t[key].toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+          )
+          .join(' · ');
 
   return (
     <div className="space-y-5">
@@ -111,7 +125,7 @@ export function HRCompensationPage() {
             <DollarSign className="w-4 h-4 text-emerald-500" strokeWidth={1.75} />
           </div>
           <div className="text-3xl font-bold text-gray-900 tabular-nums">
-            {totals.currency} {totals.monthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            {formatTotals('monthly')}
           </div>
           <div className="text-[11px] text-gray-500 mt-1">across tracked employees</div>
         </div>
@@ -124,7 +138,7 @@ export function HRCompensationPage() {
             <DollarSign className="w-4 h-4 text-blue-500" strokeWidth={1.75} />
           </div>
           <div className="text-3xl font-bold text-gray-900 tabular-nums">
-            {totals.currency} {totals.annual.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            {formatTotals('annual')}
           </div>
           <div className="text-[11px] text-gray-500 mt-1">projected</div>
         </div>
@@ -342,7 +356,16 @@ function RequestCompChangeModal({ onClose }: { onClose: () => void }) {
             </label>
             <select
               value={form.person_id}
-              onChange={(e) => setForm({ ...form, person_id: e.target.value })}
+              onChange={(e) => {
+                const person = (peopleQuery.data ?? []).find(
+                  (p) => p.id === e.target.value,
+                );
+                setForm({
+                  ...form,
+                  person_id: e.target.value,
+                  currency: person?.country_code === 'US' ? 'USD' : 'GHS',
+                });
+              }}
               required
               className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
             >

@@ -35,6 +35,7 @@ export interface Person {
   city?: string | null;
   state?: string | null;
   country?: string | null;
+  country_code?: string | null;
   postal_code?: string | null;
 
   // Emergency contact
