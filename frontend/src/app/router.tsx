@@ -532,6 +532,16 @@ const CohortDetailPage = lazy(() =>
     default: module.CohortDetailPage,
   }))
 );
+const LearnerJourneyPage = lazy(() =>
+  import('@/features/programmes/pages/LearnerJourneyPage').then((module) => ({
+    default: module.LearnerJourneyPage,
+  }))
+);
+const CohortDashboardPage = lazy(() =>
+  import('@/features/programmes/pages/CohortDashboardPage').then((module) => ({
+    default: module.CohortDashboardPage,
+  }))
+);
 // HELPERS
 // ============================================================
 
@@ -1246,6 +1256,24 @@ export function AppRouter() {
             element={
               <PermissionRoute permission="programmes.view">
                 <CohortDetailPage />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="programmes/enrolments/:enrolmentId/journey"
+            element={
+              <PermissionRoute permission="programmes.view">
+                <LearnerJourneyPage />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="programmes/cohorts/:cohortId/dashboard"
+            element={
+              <PermissionRoute permission="programmes.view">
+                <CohortDashboardPage />
               </PermissionRoute>
             }
           />

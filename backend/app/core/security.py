@@ -391,6 +391,8 @@ class Permissions:
     PROGRAMMES_VIEW = "programmes.view"
     PROGRAMMES_CREATE = "programmes.create"
     PROGRAMMES_EDIT = "programmes.edit"
+    PROGRAMMES_ASSESS = "programmes.assess"
+    PROGRAMMES_VIEW_BASELINE = "programmes.view_baseline"
     
     # ============================================
     # DOCUMENTS

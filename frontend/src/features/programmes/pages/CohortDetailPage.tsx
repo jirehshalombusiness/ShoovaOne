@@ -7,8 +7,10 @@ import {
   BookOpen,
   CalendarRange,
   ClipboardList,
+  LayoutDashboard,
   MapPin,
   Plus,
+  Route,
   Trash2,
   UserPlus,
   Users,
@@ -293,14 +295,23 @@ export function CohortDetailPage() {
             )}
           </div>
 
-          {canManage && (
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button
-              onClick={() => setShowEdit(true)}
-              className="px-4 py-2 border border-gray-200 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors"
+              onClick={() => navigate(`/programmes/cohorts/${cohort.id}/dashboard`)}
+              className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors"
             >
-              Edit cohort
+              <LayoutDashboard className="w-4 h-4" />
+              Dashboard
             </button>
-          )}
+            {canManage && (
+              <button
+                onClick={() => setShowEdit(true)}
+                className="px-4 py-2 border border-gray-200 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                Edit cohort
+              </button>
+            )}
+          </div>
         </div>
 
         {!cohort.courses.length && (
@@ -445,6 +456,9 @@ export function CohortDetailPage() {
                   })
                 }
                 onGrades={() => setGradingEnrolment(enrolment)}
+                onJourney={() =>
+                  navigate(`/programmes/enrolments/${enrolment.id}/journey`)
+                }
                 onRemove={() => {
                   if (
                     window.confirm(
@@ -536,6 +550,7 @@ function LearnerRow({
   isRemoving,
   onStatusChange,
   onGrades,
+  onJourney,
   onRemove,
 }: {
   enrolment: CohortEnrolment;
@@ -545,6 +560,7 @@ function LearnerRow({
   isRemoving: boolean;
   onStatusChange: (status: EnrolmentStatus) => void;
   onGrades: () => void;
+  onJourney: () => void;
   onRemove: () => void;
 }) {
   const statusStyles: Record<EnrolmentStatus, string> = {
@@ -596,6 +612,14 @@ function LearnerRow({
           </span>
         </div>
       </div>
+
+      <button
+        onClick={onJourney}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 flex-shrink-0"
+      >
+        <Route className="w-3.5 h-3.5" />
+        Journey
+      </button>
 
       {canManage && (
         <div className="flex items-center gap-2 flex-shrink-0">

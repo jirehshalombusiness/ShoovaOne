@@ -90,6 +90,14 @@ from app.models.sql.programmes.academics import (
     ProgrammeCohort,
     ProgrammeCourse,
 )
+from app.models.sql.programmes.learner_workflow import (
+    EvidenceRecord,
+    LearnerBaseline,
+    LearnerOutcome,
+    MentorAssessment,
+    ModuleAssignment,
+    PracticalTask,
+)
 
 from app.models.sql.chat import Conversation, ConversationMember, ChatMessage
 
@@ -176,6 +184,12 @@ __all__ = [
     "CohortInstructor",
     "CohortEnrolment",
     "EnrolmentResult",
+    "LearnerBaseline",
+    "ModuleAssignment",
+    "PracticalTask",
+    "EvidenceRecord",
+    "MentorAssessment",
+    "LearnerOutcome",
     "Conversation",
     "ConversationMember",
     "ChatMessage",

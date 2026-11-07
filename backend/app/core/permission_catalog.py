@@ -92,6 +92,8 @@ PERMISSION_CATALOG: tuple[tuple[str, str, str], ...] = (
     ("programmes", "view", "View programmes"),
     ("programmes", "create", "Create programmes"),
     ("programmes", "edit", "Edit programmes"),
+    ("programmes", "assess", "Record mentor assessments of learner evidence"),
+    ("programmes", "view_baseline", "View learner socioeconomic baseline data"),
     # Documents
     ("documents", "view", "View documents"),
     ("documents", "upload", "Upload documents"),
