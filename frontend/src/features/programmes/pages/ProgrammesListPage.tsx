@@ -44,7 +44,7 @@ export function ProgrammesListPage() {
   const programmes = data ?? [];
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="space-y-5">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
@@ -54,16 +54,6 @@ export function ProgrammesListPage() {
             Academic catalogue, curriculum and cohorts
           </p>
         </div>
-
-        {access.has('programmes.create') && (
-          <button
-            onClick={() => navigate('/programmes/new')}
-            className="flex items-center gap-2 px-3.5 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-dark transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            New Programme
-          </button>
-        )}
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
@@ -214,14 +204,6 @@ export function ProgrammesListPage() {
                   )}
                 </span>
               </div>
-
-              {(programme.organisation_name || programme.department_name) && (
-                <div className="text-[11px] text-gray-400 mt-2 truncate">
-                  {[programme.organisation_name, programme.department_name]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </div>
-              )}
             </button>
           ))}
         </div>

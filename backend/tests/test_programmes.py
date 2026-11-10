@@ -9,6 +9,7 @@ from datetime import date, timedelta
 import pytest
 import pytest_asyncio
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -21,6 +22,8 @@ from app.core.database import Base
 from app.models.sql.core.organisation import Department, Organisation, Programme
 from app.models.sql.core.role import Role, user_roles
 from app.models.sql.core.user import Person, User
+from app.models.sql.programmes.academics import CohortEnrolment
+from app.models.sql.programmes.learner_workflow import ModuleAssignment
 from app.api.v1.endpoints.programmes import programmes as api
 
 
@@ -658,3 +661,405 @@ async def test_detail_survives_cold_session(session: AsyncSession):
     assert detail.organisation_name == "Shoova Academy"
     assert detail.department_name == "Academics"
     assert detail.lead and detail.lead.id == data["manager_person"].id
+
+
+@pytest.mark.asyncio
+async def test_create_programme_defaults_organisation(session: AsyncSession):
+    """The creation form no longer asks for an organisation."""
+    data = await seed(session)
+    manager = data["manager"]
+
+    created = await api.create_programme(
+        payload=api.ProgrammeCreateRequest(name="No Org Asked"),
+        db=session,
+        current_user=manager,
+    )
+    assert created.organisation_id == data["organisation"].id
+    assert created.organisation_name == "Shoova Academy"
+    assert created.department_name is None
+    assert created.status == "draft"
+
+
+@pytest.mark.asyncio
+async def test_create_programme_prefers_shoova_code(session: AsyncSession):
+    data = await seed(session)
+    manager = data["manager"]
+
+    # A second, SHOOVA-coded organisation wins over the older seeded one.
+    shoova = Organisation(name="Shoova Initiative", code="SHOOVA")
+    session.add(shoova)
+    await session.commit()
+
+    created = await api.create_programme(
+        payload=api.ProgrammeCreateRequest(name="Default Home"),
+        db=session,
+        current_user=manager,
+    )
+    assert created.organisation_id == shoova.id
+    assert created.organisation_name == "Shoova Initiative"
+
+
+@pytest.mark.asyncio
+async def test_create_programme_without_any_organisation(session: AsyncSession):
+    person = Person(first_name="Solo", last_name="Admin", email="solo@example.org")
+    session.add(person)
+    await session.flush()
+    manager = User(
+        person_id=person.id, email="solo@example.org", password_hash="x"
+    )
+    session.add(manager)
+    await session.flush()
+    ceo_role = Role(name="ceo", description="Chief Executive")
+    session.add(ceo_role)
+    await session.flush()
+    await session.execute(
+        user_roles.insert().values(user_id=manager.id, role_id=ceo_role.id)
+    )
+    await session.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await api.create_programme(
+            payload=api.ProgrammeCreateRequest(name="Orphan"),
+            db=session,
+            current_user=manager,
+        )
+    assert exc.value.status_code == 400
+
+
+async def _directory_programme(session: AsyncSession, data, manager):
+    """An active programme with one cohort, two learners and module counts."""
+    programme = await api.create_programme(
+        payload=api.ProgrammeCreateRequest(name="Environmental Stewardship"),
+        db=session,
+        current_user=manager,
+    )
+    detail = await api.add_course(
+        programme_id=programme.id,
+        payload=api.CourseCreateRequest(code="ENV101", title="Auditing"),
+        db=session,
+        current_user=manager,
+    )
+    detail = await api.add_course(
+        programme_id=programme.id,
+        payload=api.CourseCreateRequest(code="ENV102", title="Recycling"),
+        db=session,
+        current_user=manager,
+    )
+    env101, env102 = detail.courses
+    await api.change_programme_status(
+        programme_id=programme.id,
+        payload=api.StatusChangeRequest(status="active"),
+        db=session,
+        current_user=manager,
+    )
+    cohort_detail = await api.create_cohort(
+        programme_id=programme.id,
+        payload=api.CohortCreateRequest(
+            name="Pilot Cohort", code="ENV-PILOT", status="enrolling"
+        ),
+        db=session,
+        current_user=manager,
+    )
+    cohort = cohort_detail.cohorts[0]
+    enrolled = await api.enrol_learners(
+        cohort_id=cohort.id,
+        payload=api.EnrolRequest(
+            person_ids=[
+                data["learner_person"].id,
+                data["extra_person"].id,
+            ],
+            enrolled_on=date(2026, 11, 2),
+        ),
+        db=session,
+        current_user=manager,
+    )
+    await api.add_instructor(
+        cohort_id=cohort.id,
+        payload=api.InstructorRequest(
+            person_id=data["manager_person"].id, role="lead"
+        ),
+        db=session,
+        current_user=manager,
+    )
+
+    rows = (
+        await session.execute(
+            select(CohortEnrolment).where(
+                CohortEnrolment.cohort_id == cohort.id
+            )
+        )
+    ).scalars().all()
+    by_person = {str(row.person_id): row for row in rows}
+    kofi = by_person[str(data["learner_person"].id)]
+    efua = by_person[str(data["extra_person"].id)]
+    session.add_all(
+        [
+            ModuleAssignment(
+                enrolment_id=kofi.id,
+                course_id=env101.id,
+                competency="Audit a community",
+                status="completed",
+            ),
+            ModuleAssignment(
+                enrolment_id=kofi.id,
+                course_id=env102.id,
+                competency="Segregate waste",
+                status="assigned",
+            ),
+            ModuleAssignment(
+                enrolment_id=efua.id,
+                course_id=env101.id,
+                competency="Audit a community",
+                status="assigned",
+            ),
+        ]
+    )
+    await session.commit()
+    return programme, cohort, enrolled, kofi
+
+
+@pytest.mark.asyncio
+async def test_learner_directory(session: AsyncSession):
+    data = await seed(session)
+    manager = data["manager"]
+    viewer = data["viewer"]
+    programme, cohort, enrolled, kofi = await _directory_programme(
+        session, data, manager
+    )
+
+    learners = await api.list_learners(
+        programme_id=None,
+        status_filter=None,
+        search=None,
+        limit=200,
+        offset=0,
+        db=session,
+        current_user=manager,
+    )
+    assert len(learners) == 2
+    assert {item.programme_id for item in learners} == {programme.id}
+    assert {item.cohort_id for item in learners} == {cohort.id}
+    assert all(item.programme_name == "Environmental Stewardship" for item in learners)
+    assert all(item.cohort_name == "Pilot Cohort" for item in learners)
+
+    kofi_item = next(
+        item for item in learners if item.person.id == data["learner_person"].id
+    )
+    assert kofi_item.assignments_total == 2
+    assert kofi_item.assignments_completed == 1
+    assert kofi_item.enrolment_id == kofi.id
+    assert kofi_item.enrolled_on == date(2026, 11, 2)
+    efua_item = next(
+        item for item in learners if item.person.id == data["extra_person"].id
+    )
+    assert efua_item.assignments_total == 1
+    assert efua_item.assignments_completed == 0
+
+    # Search by learner name.
+    found = await api.list_learners(
+        programme_id=None,
+        status_filter=None,
+        search="Kofi",
+        limit=200,
+        offset=0,
+        db=session,
+        current_user=manager,
+    )
+    assert [item.person.id for item in found] == [data["learner_person"].id]
+
+    # Filter by programme.
+    scoped = await api.list_learners(
+        programme_id=programme.id,
+        status_filter=None,
+        search=None,
+        limit=200,
+        offset=0,
+        db=session,
+        current_user=manager,
+    )
+    assert len(scoped) == 2
+
+    # Complete one learner, then filter by status.
+    await api.update_enrolment(
+        enrolment_id=kofi.id,
+        payload=api.EnrolmentUpdateRequest(status="completed"),
+        db=session,
+        current_user=manager,
+    )
+    completed = await api.list_learners(
+        programme_id=None,
+        status_filter="completed",
+        search=None,
+        limit=200,
+        offset=0,
+        db=session,
+        current_user=manager,
+    )
+    assert [item.person.id for item in completed] == [data["learner_person"].id]
+
+    # Invalid status is rejected.
+    with pytest.raises(HTTPException) as exc:
+        await api.list_learners(
+            programme_id=None,
+            status_filter="bogus",
+            search=None,
+            limit=200,
+            offset=0,
+            db=session,
+            current_user=manager,
+        )
+    assert exc.value.status_code == 400
+
+    # A draft programme's learners stay hidden from non-managers.
+    draft = await api.create_programme(
+        payload=api.ProgrammeCreateRequest(name="Hidden Draft"),
+        db=session,
+        current_user=manager,
+    )
+    draft_cohort = await api.create_cohort(
+        programme_id=draft.id,
+        payload=api.CohortCreateRequest(name="Draft Cohort", status="enrolling"),
+        db=session,
+        current_user=manager,
+    )
+    await api.enrol_learners(
+        cohort_id=draft_cohort.cohorts[0].id,
+        payload=api.EnrolRequest(person_ids=[data["learner_person"].id]),
+        db=session,
+        current_user=manager,
+    )
+    viewer_view = await api.list_learners(
+        programme_id=None,
+        status_filter=None,
+        search=None,
+        limit=200,
+        offset=0,
+        db=session,
+        current_user=viewer,
+    )
+    assert {item.programme_id for item in viewer_view} == {programme.id}
+    manager_view = await api.list_learners(
+        programme_id=None,
+        status_filter=None,
+        search=None,
+        limit=200,
+        offset=0,
+        db=session,
+        current_user=manager,
+    )
+    assert draft.id in {item.programme_id for item in manager_view}
+
+
+@pytest.mark.asyncio
+async def test_cohort_directory(session: AsyncSession):
+    data = await seed(session)
+    manager = data["manager"]
+    viewer = data["viewer"]
+    programme, cohort, enrolled, kofi = await _directory_programme(
+        session, data, manager
+    )
+
+    cohorts = await api.list_cohorts(
+        programme_id=None,
+        status_filter=None,
+        search=None,
+        limit=200,
+        offset=0,
+        db=session,
+        current_user=manager,
+    )
+    pilot = next(item for item in cohorts if item.id == cohort.id)
+    assert pilot.programme_name == "Environmental Stewardship"
+    assert pilot.enrolled_count == 2
+    assert pilot.instructor_count == 1
+    assert pilot.code == "ENV-PILOT"
+
+    # Search by cohort name and by parent programme name.
+    by_name = await api.list_cohorts(
+        programme_id=None,
+        status_filter=None,
+        search="Pilot",
+        limit=200,
+        offset=0,
+        db=session,
+        current_user=manager,
+    )
+    assert [item.id for item in by_name] == [cohort.id]
+    by_programme = await api.list_cohorts(
+        programme_id=None,
+        status_filter=None,
+        search="Environmental",
+        limit=200,
+        offset=0,
+        db=session,
+        current_user=manager,
+    )
+    assert [item.id for item in by_programme] == [cohort.id]
+
+    # Status filter.
+    enrolling = await api.list_cohorts(
+        programme_id=None,
+        status_filter="enrolling",
+        search=None,
+        limit=200,
+        offset=0,
+        db=session,
+        current_user=manager,
+    )
+    assert cohort.id in {item.id for item in enrolling}
+    planned = await api.list_cohorts(
+        programme_id=None,
+        status_filter="planned",
+        search=None,
+        limit=200,
+        offset=0,
+        db=session,
+        current_user=manager,
+    )
+    assert cohort.id not in {item.id for item in planned}
+
+    with pytest.raises(HTTPException) as exc:
+        await api.list_cohorts(
+            programme_id=None,
+            status_filter="bogus",
+            search=None,
+            limit=200,
+            offset=0,
+            db=session,
+            current_user=manager,
+        )
+    assert exc.value.status_code == 400
+
+    # Draft programme cohorts are hidden from non-managers.
+    draft = await api.create_programme(
+        payload=api.ProgrammeCreateRequest(name="Hidden Draft"),
+        db=session,
+        current_user=manager,
+    )
+    draft_cohort = await api.create_cohort(
+        programme_id=draft.id,
+        payload=api.CohortCreateRequest(name="Draft Cohort"),
+        db=session,
+        current_user=manager,
+    )
+    viewer_view = await api.list_cohorts(
+        programme_id=None,
+        status_filter=None,
+        search=None,
+        limit=200,
+        offset=0,
+        db=session,
+        current_user=viewer,
+    )
+    assert draft_cohort.cohorts[0].id not in {item.id for item in viewer_view}
+    assert cohort.id in {item.id for item in viewer_view}
+    manager_view = await api.list_cohorts(
+        programme_id=None,
+        status_filter=None,
+        search=None,
+        limit=200,
+        offset=0,
+        db=session,
+        current_user=manager,
+    )
+    assert draft_cohort.cohorts[0].id in {item.id for item in manager_view}

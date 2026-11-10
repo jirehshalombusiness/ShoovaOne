@@ -79,7 +79,7 @@ export function CohortDashboardPage() {
   return (
     <div className="max-w-5xl p-6 space-y-5">
       <button
-        onClick={() => navigate(`/programmes/cohorts/${dashboard.cohort_id}`)}
+        onClick={() => navigate(`/programmes/cohort/${dashboard.cohort_id}`)}
         className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />

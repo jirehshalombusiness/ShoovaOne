@@ -236,7 +236,7 @@ export function CohortDetailPage() {
     <div className="max-w-5xl p-6 space-y-5">
       <button
         onClick={() =>
-          navigate(`/programmes/${cohort.programme_id}?tab=cohorts`)
+          navigate(`/programmes/${cohort.programme_id}/cohorts`)
         }
         className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 transition-colors"
       >
@@ -297,7 +297,7 @@ export function CohortDetailPage() {
 
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
-              onClick={() => navigate(`/programmes/cohorts/${cohort.id}/dashboard`)}
+              onClick={() => navigate(`/programmes/cohort/${cohort.id}/dashboard`)}
               className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors"
             >
               <LayoutDashboard className="w-4 h-4" />

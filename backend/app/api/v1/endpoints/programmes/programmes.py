@@ -18,6 +18,7 @@ from app.models.sql.programmes.academics import (
     ProgrammeCohort,
     ProgrammeCourse,
 )
+from app.models.sql.programmes.learner_workflow import ModuleAssignment
 from app.services.core.audit_service import AuditService
 from app.services.core.permission_service import PermissionService
 
@@ -153,7 +154,7 @@ class ProgrammeCreateRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=200)
     code: Optional[str] = Field(None, max_length=50)
     description: Optional[str] = None
-    organisation_id: str
+    organisation_id: Optional[str] = None
     department_id: Optional[str] = None
     level: Optional[str] = Field(None, max_length=30)
     duration_weeks: Optional[int] = Field(None, ge=1, le=520)
@@ -322,6 +323,24 @@ class ResultRequest(BaseModel):
         if value not in RESULT_STATUSES:
             raise ValueError(f"must be one of {sorted(RESULT_STATUSES)}")
         return value
+
+
+class LearnerDirectoryItem(BaseModel):
+    enrolment_id: str
+    person: PersonBrief
+    programme_id: str
+    programme_name: str
+    cohort_id: str
+    cohort_name: str
+    status: str
+    enrolled_on: Optional[date] = None
+    completed_on: Optional[date] = None
+    assignments_total: int = 0
+    assignments_completed: int = 0
+
+
+class CohortDirectoryItem(CohortSummary):
+    programme_name: str
 
 
 # ============================================================
@@ -919,12 +938,33 @@ async def create_programme(
     ),
 ):
     """Create a programme as a draft. Curriculum is added afterwards."""
-    organisation = await db.get(Organisation, payload.organisation_id)
-    if not organisation:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Organisation not found",
-        )
+    if payload.organisation_id:
+        organisation = await db.get(Organisation, payload.organisation_id)
+        if not organisation:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Organisation not found",
+            )
+    else:
+        # Single-platform default: the Shoova organisation, else the oldest.
+        organisation = (
+            await db.execute(
+                select(Organisation).where(Organisation.code == "SHOOVA")
+            )
+        ).scalar_one_or_none()
+        if organisation is None:
+            organisation = (
+                await db.execute(
+                    select(Organisation)
+                    .order_by(Organisation.created_at.asc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        if organisation is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No organisation exists yet. Create one first.",
+            )
 
     department_id = _clean(payload.department_id)
     if department_id:
@@ -1550,6 +1590,178 @@ async def remove_result(
             for row, title in results
         ],
     )
+
+
+# ============================================================
+# DIRECTORIES (module-level learner + cohort listings)
+# ============================================================
+
+@router.get("/learners", response_model=List[LearnerDirectoryItem])
+async def list_learners(
+    programme_id: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    search: Optional[str] = None,
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission(Permissions.PROGRAMMES_VIEW)
+    ),
+):
+    """Student records across every visible programme."""
+    if status_filter and status_filter not in ENROLMENT_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"status must be one of {sorted(ENROLMENT_STATUSES)}",
+        )
+
+    query = (
+        select(CohortEnrolment, ProgrammeCohort, Programme, Person)
+        .join(ProgrammeCohort, ProgrammeCohort.id == CohortEnrolment.cohort_id)
+        .join(Programme, Programme.id == ProgrammeCohort.programme_id)
+        .join(Person, Person.id == CohortEnrolment.person_id)
+        .where(Person.deleted_at.is_(None))
+    )
+
+    if not await _can_manage(db, current_user):
+        query = query.where(Programme.status != "draft")
+    if programme_id:
+        query = query.where(Programme.id == programme_id)
+    if status_filter:
+        query = query.where(CohortEnrolment.status == status_filter)
+    if search and search.strip():
+        pattern = f"%{search.strip()}%"
+        query = query.where(
+            or_(
+                Person.first_name.ilike(pattern),
+                Person.last_name.ilike(pattern),
+                Person.email.ilike(pattern),
+                Programme.name.ilike(pattern),
+            )
+        )
+
+    query = (
+        query.order_by(
+            Person.first_name.asc(),
+            Person.last_name.asc(),
+            CohortEnrolment.enrolled_on.desc(),
+        )
+        .offset(offset)
+        .limit(limit)
+    )
+    rows = (await db.execute(query)).all()
+
+    enrolment_ids = [str(row[0].id) for row in rows]
+    totals: dict = {}
+    completed: dict = {}
+    if enrolment_ids:
+        counts = await db.execute(
+            select(
+                ModuleAssignment.enrolment_id,
+                ModuleAssignment.status,
+                func.count(ModuleAssignment.id),
+            )
+            .where(ModuleAssignment.enrolment_id.in_(enrolment_ids))
+            .group_by(
+                ModuleAssignment.enrolment_id,
+                ModuleAssignment.status,
+            )
+        )
+        for enrolment_id, assignment_status, count in counts:
+            key = str(enrolment_id)
+            totals[key] = totals.get(key, 0) + count
+            if assignment_status == "completed":
+                completed[key] = completed.get(key, 0) + count
+
+    items: List[LearnerDirectoryItem] = []
+    for enrolment, cohort, programme, person in rows:
+        key = str(enrolment.id)
+        items.append(
+            LearnerDirectoryItem(
+                enrolment_id=key,
+                person=_person_brief(person),
+                programme_id=str(programme.id),
+                programme_name=programme.name,
+                cohort_id=str(cohort.id),
+                cohort_name=cohort.name,
+                status=enrolment.status,
+                enrolled_on=enrolment.enrolled_on,
+                completed_on=enrolment.completed_on,
+                assignments_total=totals.get(key, 0),
+                assignments_completed=completed.get(key, 0),
+            )
+        )
+    return items
+
+
+@router.get("/cohorts", response_model=List[CohortDirectoryItem])
+async def list_cohorts(
+    programme_id: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    search: Optional[str] = None,
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission(Permissions.PROGRAMMES_VIEW)
+    ),
+):
+    """Every intake across visible programmes, with its parent name."""
+    if status_filter and status_filter not in COHORT_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"status must be one of {sorted(COHORT_STATUSES)}",
+        )
+
+    query = (
+        select(ProgrammeCohort, Programme)
+        .join(Programme, Programme.id == ProgrammeCohort.programme_id)
+    )
+
+    if not await _can_manage(db, current_user):
+        query = query.where(Programme.status != "draft")
+    if programme_id:
+        query = query.where(Programme.id == programme_id)
+    if status_filter:
+        query = query.where(ProgrammeCohort.status == status_filter)
+    if search and search.strip():
+        pattern = f"%{search.strip()}%"
+        query = query.where(
+            or_(
+                ProgrammeCohort.name.ilike(pattern),
+                ProgrammeCohort.code.ilike(pattern),
+                Programme.name.ilike(pattern),
+            )
+        )
+
+    query = (
+        query.order_by(
+            Programme.name.asc(),
+            ProgrammeCohort.start_date.desc(),
+            ProgrammeCohort.name.asc(),
+        )
+        .offset(offset)
+        .limit(limit)
+    )
+    rows = (await db.execute(query)).all()
+
+    cohort_ids = [str(row[0].id) for row in rows]
+    enrolled, instructors = await _cohort_stats(db, cohort_ids)
+
+    items: List[CohortDirectoryItem] = []
+    for cohort, programme in rows:
+        summary = _cohort_summary(
+            cohort,
+            enrolled_count=enrolled.get(str(cohort.id), 0),
+            instructor_count=instructors.get(str(cohort.id), 0),
+        )
+        items.append(
+            CohortDirectoryItem(
+                **summary.model_dump(),
+                programme_name=programme.name,
+            )
+        )
+    return items
 
 
 # ============================================================

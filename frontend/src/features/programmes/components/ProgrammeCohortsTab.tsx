@@ -100,7 +100,7 @@ export function ProgrammeCohortsTab({
             return (
               <button
                 key={cohort.id}
-                onClick={() => navigate(`/programmes/cohorts/${cohort.id}`)}
+                onClick={() => navigate(`/programmes/cohort/${cohort.id}`)}
                 className="w-full flex items-start gap-4 px-5 py-4 text-left hover:bg-gray-50 transition-colors group"
               >
                 <div className="w-9 h-9 rounded-md bg-gray-50 flex items-center justify-center flex-shrink-0">

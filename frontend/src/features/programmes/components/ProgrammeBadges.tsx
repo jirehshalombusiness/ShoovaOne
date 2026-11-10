@@ -1,4 +1,4 @@
-import type { CohortStatus, ProgrammeStatus } from '@/services/programmes.service';
+import type { CohortStatus, EnrolmentStatus, ProgrammeStatus } from '@/services/programmes.service';
 import { COHORT_STATUS_LABELS, PROGRAMME_STATUS_LABELS } from '@/services/programmes.service';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +32,26 @@ export function CohortStatusBadge({ status }: { status: CohortStatus }) {
   return (
     <span className={cn(badgeClass, cohortStyles[status])}>
       {COHORT_STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+const enrolmentStyles: Record<EnrolmentStatus, string> = {
+  enrolled: 'bg-blue-50 text-blue-700 border-blue-200',
+  completed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  withdrawn: 'bg-red-50 text-red-700 border-red-200',
+};
+
+const ENROLMENT_STATUS_LABELS: Record<EnrolmentStatus, string> = {
+  enrolled: 'Enrolled',
+  completed: 'Completed',
+  withdrawn: 'Withdrawn',
+};
+
+export function EnrolmentStatusBadge({ status }: { status: EnrolmentStatus }) {
+  return (
+    <span className={cn(badgeClass, enrolmentStyles[status])}>
+      {ENROLMENT_STATUS_LABELS[status]}
     </span>
   );
 }

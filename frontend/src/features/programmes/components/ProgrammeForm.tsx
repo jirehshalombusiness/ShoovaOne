@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, X } from 'lucide-react';
 import {
@@ -8,7 +8,6 @@ import {
   type ProgrammePayload,
   type ProgrammePersonBrief,
 } from '@/services/programmes.service';
-import { organisationService } from '@/services/organisation.service';
 import { peopleService } from '@/services/people.service';
 import { useHRAccess } from '@/hooks/useHRAccess';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -36,15 +35,12 @@ export function ProgrammeForm({
   onCancel,
 }: ProgrammeFormProps) {
   const access = useHRAccess();
-  const canPickOrganisation = access.has('organisation.view');
   const canPickPeople = access.has('people.view');
 
   const [form, setForm] = useState({
     name: initial?.name ?? '',
     code: initial?.code ?? '',
     description: initial?.description ?? '',
-    organisationId: initial?.organisation_id ?? '',
-    departmentId: initial?.department_id ?? '',
     level: (initial?.level ?? '') as ProgrammeLevel | '',
     durationWeeks: initial?.duration_weeks?.toString() ?? '',
     startDate: initial?.start_date ?? '',
@@ -57,28 +53,6 @@ export function ProgrammeForm({
   );
   const [error, setError] = useState<string | null>(null);
 
-  const { data: organisations } = useQuery({
-    queryKey: ['organisation', 'programme-form'],
-    queryFn: () => organisationService.list({ limit: 100 }),
-    enabled: canPickOrganisation && mode === 'create',
-  });
-
-  useEffect(() => {
-    if (mode !== 'create') return;
-    if (!form.organisationId && organisations?.items.length === 1) {
-      setForm((prev) => ({
-        ...prev,
-        organisationId: organisations.items[0].id,
-      }));
-    }
-  }, [mode, organisations, form.organisationId]);
-
-  const { data: departments } = useQuery({
-    queryKey: ['organisation', 'departments', form.organisationId],
-    queryFn: () => organisationService.listDepartments(form.organisationId),
-    enabled: canPickOrganisation && !!form.organisationId,
-  });
-
   const update = (patch: Partial<typeof form>) =>
     setForm((prev) => ({ ...prev, ...patch }));
 
@@ -87,10 +61,6 @@ export function ProgrammeForm({
 
     if (form.name.trim().length < 2) {
       setError('Programme name must be at least 2 characters.');
-      return;
-    }
-    if (mode === 'create' && !form.organisationId) {
-      setError('Choose the organisation that owns this programme.');
       return;
     }
     if (form.startDate && form.endDate && form.endDate < form.startDate) {
@@ -108,7 +78,6 @@ export function ProgrammeForm({
       name: form.name.trim(),
       code: form.code.trim() || null,
       description: form.description.trim() || null,
-      department_id: form.departmentId || null,
       level: form.level || null,
       duration_weeks: duration ? Number(duration) : null,
       learning_outcomes: form.learningOutcomes.trim() || null,
@@ -116,10 +85,6 @@ export function ProgrammeForm({
       start_date: form.startDate || null,
       end_date: form.endDate || null,
     };
-
-    if (mode === 'create') {
-      payload.organisation_id = form.organisationId;
-    }
 
     onSubmit(payload);
   };
@@ -132,7 +97,7 @@ export function ProgrammeForm({
             Programme details
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            What learners see when they browse the catalogue
+            Start with the name — this is what learners and staff see first
           </p>
         </div>
 
@@ -144,8 +109,9 @@ export function ProgrammeForm({
             <input
               value={form.name}
               onChange={(e) => update({ name: e.target.value })}
-              placeholder="e.g. Certificate in Community Health"
+              placeholder="e.g. Environmental Stewardship"
               className={inputClass}
+              autoFocus={mode === 'create'}
             />
           </div>
 
@@ -156,7 +122,7 @@ export function ProgrammeForm({
             <input
               value={form.code}
               onChange={(e) => update({ code: e.target.value })}
-              placeholder="CCH-01"
+              placeholder="ENV-STEW"
               className={inputClass}
             />
           </div>
@@ -241,67 +207,14 @@ export function ProgrammeForm({
 
       <section className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">
-            Placement and dates
-          </h2>
+          <h2 className="text-sm font-semibold text-gray-900">Schedule</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Where the programme sits and when it runs
+            When the programme runs — individual cohorts set their own intake
+            dates
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-              Organisation *
-            </label>
-            {mode === 'edit' ? (
-              <div className="px-3 py-2 text-sm text-gray-700 border border-gray-100 rounded-md bg-gray-50">
-                {initial?.organisation_name ?? initial?.organisation_id}
-              </div>
-            ) : canPickOrganisation ? (
-              <select
-                value={form.organisationId}
-                onChange={(e) =>
-                  update({ organisationId: e.target.value, departmentId: '' })
-                }
-                className={inputClass}
-              >
-                <option value="">Select an organisation</option>
-                {(organisations?.items ?? []).map((organisation) => (
-                  <option key={organisation.id} value={organisation.id}>
-                    {organisation.name}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="px-3 py-2 text-sm text-gray-500 border border-gray-100 rounded-md bg-gray-50">
-                Your organisation
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-              Department
-            </label>
-            <select
-              value={form.departmentId}
-              onChange={(e) => update({ departmentId: e.target.value })}
-              disabled={!form.organisationId || !canPickOrganisation}
-              className={cn(
-                inputClass,
-                'disabled:bg-gray-50 disabled:text-gray-400',
-              )}
-            >
-              <option value="">None</option>
-              {(departments ?? []).map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">
               Start date

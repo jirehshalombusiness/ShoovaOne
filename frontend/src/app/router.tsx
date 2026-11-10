@@ -507,9 +507,24 @@ const EventDetailPage = lazy(() =>
   }))
 );
 // PROGRAMMES
+const ProgrammesLayout = lazy(() =>
+  import('@/features/programmes/layouts/ProgrammesLayout').then((module) => ({
+    default: module.ProgrammesLayout,
+  }))
+);
 const ProgrammesListPage = lazy(() =>
   import('@/features/programmes/pages/ProgrammesListPage').then((module) => ({
     default: module.ProgrammesListPage,
+  }))
+);
+const ProgrammeLearnersPage = lazy(() =>
+  import('@/features/programmes/pages/ProgrammeLearnersPage').then((module) => ({
+    default: module.ProgrammeLearnersPage,
+  }))
+);
+const ProgrammeCohortsPage = lazy(() =>
+  import('@/features/programmes/pages/ProgrammeCohortsPage').then((module) => ({
+    default: module.ProgrammeCohortsPage,
   }))
 );
 const NewProgrammePage = lazy(() =>
@@ -517,14 +532,39 @@ const NewProgrammePage = lazy(() =>
     default: module.NewProgrammePage,
   }))
 );
-const EditProgrammePage = lazy(() =>
-  import('@/features/programmes/pages/EditProgrammePage').then((module) => ({
-    default: module.EditProgrammePage,
+const ProgrammeLayout = lazy(() =>
+  import('@/features/programmes/layouts/ProgrammeLayout').then((module) => ({
+    default: module.ProgrammeLayout,
   }))
 );
-const ProgrammeDetailPage = lazy(() =>
-  import('@/features/programmes/pages/ProgrammeDetailPage').then((module) => ({
-    default: module.ProgrammeDetailPage,
+const ProgrammeOverviewPage = lazy(() =>
+  import('@/features/programmes/pages/ProgrammeOverviewPage').then((module) => ({
+    default: module.ProgrammeOverviewPage,
+  }))
+);
+const ProgrammeCurriculumPage = lazy(() =>
+  import('@/features/programmes/pages/ProgrammeCurriculumPage').then((module) => ({
+    default: module.ProgrammeCurriculumPage,
+  }))
+);
+const ProgrammeLearnersSection = lazy(() =>
+  import('@/features/programmes/pages/ProgrammeLearnersSection').then((module) => ({
+    default: module.ProgrammeLearnersSection,
+  }))
+);
+const ProgrammeCohortsSection = lazy(() =>
+  import('@/features/programmes/pages/ProgrammeCohortsSection').then((module) => ({
+    default: module.ProgrammeCohortsSection,
+  }))
+);
+const ProgrammeReportsPage = lazy(() =>
+  import('@/features/programmes/pages/ProgrammeReportsPage').then((module) => ({
+    default: module.ProgrammeReportsPage,
+  }))
+);
+const ProgrammeSettingsPage = lazy(() =>
+  import('@/features/programmes/pages/ProgrammeSettingsPage').then((module) => ({
+    default: module.ProgrammeSettingsPage,
   }))
 );
 const CohortDetailPage = lazy(() =>
@@ -1233,14 +1273,19 @@ export function AppRouter() {
             <Route path="reports" element={<CrmReportsPage />} />
             </Route>
 
+          {/* Programmes module — catalogue + student/cohort directories */}
           <Route
             path="programmes"
             element={
               <PermissionRoute permission="programmes.view">
-                <ProgrammesListPage />
+                <ProgrammesLayout />
               </PermissionRoute>
             }
-          />
+          >
+            <Route index element={<ProgrammesListPage />} />
+            <Route path="learners" element={<ProgrammeLearnersPage />} />
+            <Route path="cohorts" element={<ProgrammeCohortsPage />} />
+          </Route>
 
           <Route
             path="programmes/new"
@@ -1251,11 +1296,22 @@ export function AppRouter() {
             }
           />
 
+          {/* Standalone cohort + journey views (singular "cohort" avoids
+              colliding with the workspace's /programmes/:id/cohorts) */}
           <Route
-            path="programmes/cohorts/:cohortId"
+            path="programmes/cohort/:cohortId"
             element={
               <PermissionRoute permission="programmes.view">
                 <CohortDetailPage />
+              </PermissionRoute>
+            }
+          />
+
+          <Route
+            path="programmes/cohort/:cohortId/dashboard"
+            element={
+              <PermissionRoute permission="programmes.view">
+                <CohortDashboardPage />
               </PermissionRoute>
             }
           />
@@ -1269,32 +1325,29 @@ export function AppRouter() {
             }
           />
 
-          <Route
-            path="programmes/cohorts/:cohortId/dashboard"
-            element={
-              <PermissionRoute permission="programmes.view">
-                <CohortDashboardPage />
-              </PermissionRoute>
-            }
-          />
-
+          {/* Programme workspace — sidebar sections */}
           <Route
             path="programmes/:id"
             element={
               <PermissionRoute permission="programmes.view">
-                <ProgrammeDetailPage />
+                <ProgrammeLayout />
               </PermissionRoute>
             }
-          />
-
-          <Route
-            path="programmes/:id/edit"
-            element={
-              <PermissionRoute permission="programmes.edit">
-                <EditProgrammePage />
-              </PermissionRoute>
-            }
-          />
+          >
+            <Route index element={<ProgrammeOverviewPage />} />
+            <Route path="curriculum" element={<ProgrammeCurriculumPage />} />
+            <Route path="learners" element={<ProgrammeLearnersSection />} />
+            <Route path="cohorts" element={<ProgrammeCohortsSection />} />
+            <Route path="reports" element={<ProgrammeReportsPage />} />
+            <Route
+              path="edit"
+              element={
+                <PermissionRoute permission="programmes.edit">
+                  <ProgrammeSettingsPage />
+                </PermissionRoute>
+              }
+            />
+          </Route>
 
           <Route
             path="events"

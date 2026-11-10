@@ -128,6 +128,40 @@ export interface ProgrammeListParams {
   offset?: number;
 }
 
+export interface LearnerDirectoryItem {
+  enrolment_id: string;
+  person: ProgrammePersonBrief;
+  programme_id: string;
+  programme_name: string;
+  cohort_id: string;
+  cohort_name: string;
+  status: EnrolmentStatus;
+  enrolled_on: string | null;
+  completed_on: string | null;
+  assignments_total: number;
+  assignments_completed: number;
+}
+
+export interface CohortDirectoryItem extends CohortSummary {
+  programme_name: string;
+}
+
+export interface LearnerDirectoryParams {
+  programme_id?: string;
+  status?: EnrolmentStatus;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface CohortDirectoryParams {
+  programme_id?: string;
+  status?: CohortStatus;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface ProgrammePayload {
   name: string;
   code?: string | null;
@@ -181,6 +215,26 @@ export const programmesService = {
     const { data } = await api.get<ProgrammeSummary[]>('/programmes', {
       params,
     });
+    return data;
+  },
+
+  async listLearners(
+    params?: LearnerDirectoryParams,
+  ): Promise<LearnerDirectoryItem[]> {
+    const { data } = await api.get<LearnerDirectoryItem[]>(
+      '/programmes/learners',
+      { params },
+    );
+    return data;
+  },
+
+  async listCohorts(
+    params?: CohortDirectoryParams,
+  ): Promise<CohortDirectoryItem[]> {
+    const { data } = await api.get<CohortDirectoryItem[]>(
+      '/programmes/cohorts',
+      { params },
+    );
     return data;
   },
 

@@ -1,4 +1,3 @@
-import { GraduationCap } from 'lucide-react';
 import {
   PROGRAMME_LEVEL_LABELS,
   type ProgrammeDetail,
@@ -57,8 +56,6 @@ export function ProgrammeOverviewTab({
           />
           <Detail label="Start date" value={formatDate(programme.start_date)} />
           <Detail label="End date" value={formatDate(programme.end_date)} />
-          <Detail label="Organisation" value={programme.organisation_name} />
-          <Detail label="Department" value={programme.department_name} />
           <Detail
             label="Created"
             value={
@@ -77,24 +74,6 @@ export function ProgrammeOverviewTab({
           />
         </dl>
       </section>
-
-      {programme.status === 'draft' && (
-        <section className="bg-white border border-gray-200 rounded-lg p-6 flex items-start gap-3">
-          <div className="w-8 h-8 rounded-md bg-amber-50 flex items-center justify-center flex-shrink-0">
-            <GraduationCap className="w-4 h-4 text-amber-600" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900">
-              Before you activate
-            </h3>
-            <p className="text-xs text-gray-600 mt-1">
-              Add at least one course in the Curriculum tab and set up the first
-              intake in Cohorts. Once activated, everyone with programme access
-              can see it.
-            </p>
-          </div>
-        </section>
-      )}
     </div>
   );
 }
