@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   BookOpen,
   BarChart3,
+  ClipboardCheck,
   GraduationCap,
   Layers,
   Settings2,
@@ -30,6 +31,7 @@ type WorkspaceNavItem = {
   end?: boolean;
   icon: React.ElementType;
   editOnly?: boolean;
+  reviewOnly?: boolean;
   countKey?: 'course_count' | 'cohort_count' | 'learner_count';
 };
 
@@ -38,6 +40,8 @@ const NAV_ITEMS: WorkspaceNavItem[] = [
   { label: 'Curriculum', segment: 'curriculum', icon: BookOpen, countKey: 'course_count' },
   { label: 'Learners', segment: 'learners', icon: Users, countKey: 'learner_count' },
   { label: 'Cohorts', segment: 'cohorts', icon: Layers, countKey: 'cohort_count' },
+  { label: 'Assessments', segment: 'assessments', icon: ClipboardCheck },
+  { label: 'Gradebook', segment: 'gradebook', icon: BookOpen, reviewOnly: true },
   { label: 'Reports', segment: 'reports', icon: BarChart3 },
   { label: 'Settings', segment: 'edit', icon: Settings2, editOnly: true },
 ];
@@ -114,7 +118,9 @@ export function ProgrammeLayout() {
     );
   }
 
-  const items = NAV_ITEMS.filter((item) => !item.editOnly || canManage);
+  const items = NAV_ITEMS.filter((item) =>
+    (!item.editOnly || canManage) && (!item.reviewOnly || canManage || access.has('programmes.assess')),
+  );
   const base = `/programmes/${programme.id}`;
   const pathFor = (item: WorkspaceNavItem) =>
     item.segment ? `${base}/${item.segment}` : base;

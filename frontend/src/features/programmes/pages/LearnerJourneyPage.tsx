@@ -51,6 +51,7 @@ import { BaselineModal } from '../components/BaselineModal';
 import { EvidenceModal } from '../components/EvidenceModal';
 import { OutcomeModal } from '../components/OutcomeModal';
 import { TaskModal } from '../components/TaskModal';
+import { LearnerCourseworkList } from '../components/LearnerCourseworkList';
 
 const assignmentStyles: Record<AssignmentStatus, string> = {
   assigned: 'bg-gray-100 text-gray-600 border-gray-200',
@@ -370,6 +371,13 @@ export function LearnerJourneyPage() {
           </div>
         </div>
       </div>
+
+      {(canManage || canAssess) && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-gray-900">Course assignments & grades</h2>
+          <LearnerCourseworkList enrolmentId={journey.enrolment_id} canSubmit={canManage && journey.status === 'enrolled'} onBehalf canReview />
+        </section>
+      )}
 
       {/* 1 · Profile & baseline */}
       <div className="bg-white border border-gray-200 rounded-lg">

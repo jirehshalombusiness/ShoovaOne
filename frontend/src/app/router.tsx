@@ -567,6 +567,26 @@ const ProgrammeSettingsPage = lazy(() =>
     default: module.ProgrammeSettingsPage,
   }))
 );
+const ProgrammeAssessmentsPage = lazy(() =>
+  import('@/features/programmes/pages/ProgrammeAssessmentsPage').then((module) => ({
+    default: module.ProgrammeAssessmentsPage,
+  }))
+);
+const AssignmentGradingPage = lazy(() =>
+  import('@/features/programmes/pages/AssignmentGradingPage').then((module) => ({
+    default: module.AssignmentGradingPage,
+  }))
+);
+const ProgrammeGradebookPage = lazy(() =>
+  import('@/features/programmes/pages/ProgrammeGradebookPage').then((module) => ({
+    default: module.ProgrammeGradebookPage,
+  }))
+);
+const MyLearningPage = lazy(() =>
+  import('@/features/programmes/pages/MyLearningPage').then((module) => ({
+    default: module.MyLearningPage,
+  }))
+);
 const CohortDetailPage = lazy(() =>
   import('@/features/programmes/pages/CohortDetailPage').then((module) => ({
     default: module.CohortDetailPage,
@@ -848,6 +868,7 @@ export function AppRouter() {
             path="my-work"
             element={<MyWorkPage />}
           />
+          <Route path="my-learning" element={<MyLearningPage />} />
 
           {/* ======================================================= */}
           {/* DOCUMENTS — SHARED SHAREPOINT LIBRARY                   */}
@@ -1338,6 +1359,17 @@ export function AppRouter() {
             <Route path="curriculum" element={<ProgrammeCurriculumPage />} />
             <Route path="learners" element={<ProgrammeLearnersSection />} />
             <Route path="cohorts" element={<ProgrammeCohortsSection />} />
+            <Route path="assessments" element={<ProgrammeAssessmentsPage />} />
+            <Route path="assessments/:assignmentId" element={
+              <PermissionRoute permission={['programmes.edit', 'programmes.assess']}>
+                <AssignmentGradingPage />
+              </PermissionRoute>
+            } />
+            <Route path="gradebook" element={
+              <PermissionRoute permission={['programmes.edit', 'programmes.assess']}>
+                <ProgrammeGradebookPage />
+              </PermissionRoute>
+            } />
             <Route path="reports" element={<ProgrammeReportsPage />} />
             <Route
               path="edit"

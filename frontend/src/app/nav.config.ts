@@ -83,6 +83,11 @@ export const NAV_SECTIONS: NavSection[] = [
         path: '/me',
       },
       {
+        icon: BookOpen,
+        label: 'My Learning',
+        path: '/my-learning',
+      },
+      {
         icon: Bell,
         label: 'Notifications',
         path: '/notifications',

@@ -24,6 +24,7 @@ class ProgrammeCourse(BaseModel):
             "code",
             name="uq_programme_courses_programme_code",
         ),
+        UniqueConstraint("id", "programme_id", name="uq_programme_courses_id_programme"),
     )
 
     programme_id = Column(
@@ -53,6 +54,7 @@ class ProgrammeCohort(BaseModel):
             "code",
             name="uq_programme_cohorts_programme_code",
         ),
+        UniqueConstraint("id", "programme_id", name="uq_programme_cohorts_id_programme"),
     )
 
     programme_id = Column(
@@ -115,6 +117,7 @@ class CohortEnrolment(BaseModel):
             "person_id",
             name="uq_cohort_enrolments_cohort_person",
         ),
+        UniqueConstraint("id", "cohort_id", name="uq_cohort_enrolments_id_cohort"),
     )
 
     cohort_id = Column(
