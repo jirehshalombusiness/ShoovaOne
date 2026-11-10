@@ -93,6 +93,33 @@ export interface EnrolmentResult {
   status: ResultStatus;
 }
 
+export interface AcademicPerformanceCourse {
+  course_id: string;
+  course_code: string | null;
+  course_title: string;
+  score: number | null;
+  grade: string | null;
+  status: ResultStatus;
+}
+
+export interface AcademicPerformanceEnrolment {
+  enrolment_id: string;
+  programme_id: string;
+  programme_name: string;
+  cohort_id: string;
+  cohort_name: string;
+  status: EnrolmentStatus;
+  enrolled_on: string | null;
+  completed_on: string | null;
+  courses: AcademicPerformanceCourse[];
+}
+
+export interface AcademicPerformanceReport {
+  student: ProgrammePersonBrief;
+  generated_at: string;
+  enrolments: AcademicPerformanceEnrolment[];
+}
+
 export interface CohortEnrolment {
   id: string;
   person: ProgrammePersonBrief;
@@ -211,6 +238,13 @@ export interface ResultPayload {
 // ============================================================
 
 export const programmesService = {
+  async myAcademicPerformance(): Promise<AcademicPerformanceReport> {
+    const { data } = await api.get<AcademicPerformanceReport>(
+      '/programmes/my/academic-performance',
+    );
+    return data;
+  },
+
   async list(params?: ProgrammeListParams): Promise<ProgrammeSummary[]> {
     const { data } = await api.get<ProgrammeSummary[]>('/programmes', {
       params,

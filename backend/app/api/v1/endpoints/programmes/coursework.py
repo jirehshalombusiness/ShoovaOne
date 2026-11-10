@@ -13,8 +13,8 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.security import get_current_active_user, require_permission
 from app.models.sql.core.organisation import Programme
-from app.models.sql.core.user import User
-from app.models.sql.programmes.academics import CohortEnrolment, ProgrammeCohort, ProgrammeCourse
+from app.models.sql.core.user import Person, User
+from app.models.sql.programmes.academics import CohortEnrolment, EnrolmentResult, ProgrammeCohort, ProgrammeCourse
 from app.models.sql.programmes.coursework import AssignmentSubmission, CourseAssignment, utcnow, validate_rubric
 from app.api.v1.endpoints.programmes.learner_workflow import PersonBrief
 from app.services.core.audit_service import AuditService
@@ -210,6 +210,33 @@ class LearnerCourseworkItem(BaseModel):
     programme_name: str
     submission: SubmissionItem | None
     history: list[SubmissionItem]
+
+
+class AcademicPerformanceCourse(BaseModel):
+    course_id: str
+    course_code: str | None
+    course_title: str
+    score: float | None
+    grade: str | None
+    status: Literal["pending", "passed", "failed"]
+
+
+class AcademicPerformanceEnrolment(BaseModel):
+    enrolment_id: str
+    programme_id: str
+    programme_name: str
+    cohort_id: str
+    cohort_name: str
+    status: str
+    enrolled_on: date | None
+    completed_on: date | None
+    courses: list[AcademicPerformanceCourse]
+
+
+class AcademicPerformanceResponse(BaseModel):
+    student: PersonBrief
+    generated_at: datetime
+    enrolments: list[AcademicPerformanceEnrolment]
 
 
 def _id(value):
@@ -582,3 +609,74 @@ async def get_my_coursework(db: AsyncSession = Depends(get_db), current_user: Us
     permissions = await _permissions(db, current_user)
     enrolments = (await db.execute(select(CohortEnrolment).where(CohortEnrolment.person_id == current_user.person_id).order_by(CohortEnrolment.created_at, CohortEnrolment.id))).scalars().all()
     return await _learner_listing(db, enrolments, permissions)
+
+
+@router.get("/my/academic-performance", response_model=AcademicPerformanceResponse)
+async def get_my_academic_performance(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    person = await db.get(Person, current_user.person_id)
+    if person is None:
+        raise HTTPException(404, "Student profile not found")
+
+    rows = (await db.execute(
+        select(CohortEnrolment, ProgrammeCohort, Programme)
+        .join(ProgrammeCohort, CohortEnrolment.cohort_id == ProgrammeCohort.id)
+        .join(Programme, ProgrammeCohort.programme_id == Programme.id)
+        .where(CohortEnrolment.person_id == current_user.person_id)
+        .order_by(Programme.name, ProgrammeCohort.name, CohortEnrolment.created_at)
+    )).all()
+
+    enrolment_ids = [enrolment.id for enrolment, _, _ in rows]
+    programme_ids = {cohort.programme_id for _, cohort, _ in rows}
+    course_rows = (await db.execute(
+        select(ProgrammeCourse)
+        .where(ProgrammeCourse.programme_id.in_(programme_ids))
+        .order_by(ProgrammeCourse.sequence, ProgrammeCourse.title)
+    )).scalars().all() if programme_ids else []
+    results = (await db.execute(
+        select(EnrolmentResult)
+        .where(EnrolmentResult.enrolment_id.in_(enrolment_ids))
+    )).scalars().all() if enrolment_ids else []
+
+    result_by_course = {
+        (str(result.enrolment_id), str(result.course_id)): result
+        for result in results
+    }
+    courses_by_programme = {}
+    for course in course_rows:
+        courses_by_programme.setdefault(str(course.programme_id), []).append(course)
+
+    def course_performance(enrolment_id, course):
+        result = result_by_course.get((enrolment_id, str(course.id)))
+        return AcademicPerformanceCourse(
+            course_id=str(course.id),
+            course_code=course.code,
+            course_title=course.title,
+            score=result.score if result else None,
+            grade=result.grade if result else None,
+            status=result.status if result else "pending",
+        )
+
+    return AcademicPerformanceResponse(
+        student=_person(person),
+        generated_at=utcnow(),
+        enrolments=[
+            AcademicPerformanceEnrolment(
+                enrolment_id=str(enrolment.id),
+                programme_id=str(cohort.programme_id),
+                programme_name=programme.name,
+                cohort_id=str(cohort.id),
+                cohort_name=cohort.name,
+                status=enrolment.status,
+                enrolled_on=enrolment.enrolled_on,
+                completed_on=enrolment.completed_on,
+                courses=[
+                    course_performance(str(enrolment.id), course)
+                    for course in courses_by_programme.get(str(cohort.programme_id), [])
+                ],
+            )
+            for enrolment, cohort, programme in rows
+        ],
+    )

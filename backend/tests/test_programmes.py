@@ -22,8 +22,14 @@ from app.core.database import Base
 from app.models.sql.core.organisation import Department, Organisation, Programme
 from app.models.sql.core.role import Role, user_roles
 from app.models.sql.core.user import Person, User
-from app.models.sql.programmes.academics import CohortEnrolment
+from app.models.sql.programmes.academics import (
+    CohortEnrolment,
+    EnrolmentResult,
+    ProgrammeCohort,
+    ProgrammeCourse,
+)
 from app.models.sql.programmes.learner_workflow import ModuleAssignment
+from app.api.v1.endpoints.programmes import coursework as coursework_api
 from app.api.v1.endpoints.programmes import programmes as api
 
 
@@ -116,6 +122,77 @@ async def seed(db: AsyncSession):
         "department": department,
         "legacy": legacy,
     }
+
+
+@pytest.mark.asyncio
+async def test_student_academic_performance_is_limited_to_own_enrolments(
+    session: AsyncSession,
+):
+    data = await seed(session)
+    programme = data["legacy"]
+    course = ProgrammeCourse(
+        programme_id=programme.id,
+        code="CS101",
+        title="Foundations",
+        sequence=1,
+    )
+    pending_course = ProgrammeCourse(
+        programme_id=programme.id,
+        code="CS102",
+        title="Next Steps",
+        sequence=2,
+    )
+    cohort = ProgrammeCohort(programme_id=programme.id, name="2026 Intake")
+    session.add_all([course, pending_course, cohort])
+    await session.flush()
+
+    student_enrolment = CohortEnrolment(
+        cohort_id=cohort.id,
+        person_id=data["manager_person"].id,
+        status="enrolled",
+        enrolled_on=date(2026, 9, 1),
+    )
+    other_enrolment = CohortEnrolment(
+        cohort_id=cohort.id,
+        person_id=data["learner_person"].id,
+        status="enrolled",
+    )
+    session.add_all([student_enrolment, other_enrolment])
+    await session.flush()
+    session.add_all([
+        EnrolmentResult(
+            enrolment_id=student_enrolment.id,
+            course_id=course.id,
+            score=84,
+            grade="B",
+            status="passed",
+        ),
+        EnrolmentResult(
+            enrolment_id=other_enrolment.id,
+            course_id=course.id,
+            score=12,
+            grade="F",
+            status="failed",
+        ),
+    ])
+    await session.commit()
+
+    report = await coursework_api.get_my_academic_performance(
+        db=session,
+        current_user=data["manager"],
+    )
+
+    assert report.student.id == data["manager_person"].id
+    assert len(report.enrolments) == 1
+    assert report.enrolments[0].enrolment_id == student_enrolment.id
+    assert report.enrolments[0].programme_name == programme.name
+    assert [
+        (course.course_code, course.score, course.grade, course.status)
+        for course in report.enrolments[0].courses
+    ] == [
+        ("CS101", 84, "B", "passed"),
+        ("CS102", None, None, "pending"),
+    ]
 
 
 @pytest.mark.asyncio
