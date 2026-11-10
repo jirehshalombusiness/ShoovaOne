@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.pool import StaticPool
+from starlette.routing import Match
 
 import app.models.sql  # noqa: F401  (register every model)
 from app.core.database import Base
@@ -193,6 +194,25 @@ async def test_student_academic_performance_is_limited_to_own_enrolments(
         ("CS101", 84, "B", "passed"),
         ("CS102", None, None, "pending"),
     ]
+
+
+def test_my_coursework_route_precedes_programme_coursework_route():
+    scope = {
+        "type": "http",
+        "path": "/my/coursework",
+        "root_path": "",
+        "method": "GET",
+        "headers": [],
+        "query_string": b"",
+    }
+
+    matched_endpoint = next(
+        route.endpoint
+        for route in coursework_api.router.routes
+        if route.matches(scope)[0] is Match.FULL
+    )
+
+    assert matched_endpoint is coursework_api.get_my_coursework
 
 
 @pytest.mark.asyncio

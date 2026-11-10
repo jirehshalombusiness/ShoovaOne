@@ -375,6 +375,13 @@ def _rubric(rubric, points):
         raise HTTPException(400, str(exc))
 
 
+@router.get("/my/coursework", response_model=list[LearnerCourseworkItem])
+async def get_my_coursework(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    permissions = await _permissions(db, current_user)
+    enrolments = (await db.execute(select(CohortEnrolment).where(CohortEnrolment.person_id == current_user.person_id).order_by(CohortEnrolment.created_at, CohortEnrolment.id))).scalars().all()
+    return await _learner_listing(db, enrolments, permissions)
+
+
 @router.get("/{programme_id}/coursework", response_model=list[AssignmentItem])
 async def list_coursework(programme_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     permissions = await _permissions(db, current_user)
@@ -602,13 +609,6 @@ async def get_enrolment_coursework(enrolment_id: UUID, db: AsyncSession = Depend
     cohort = await db.get(ProgrammeCohort, enrolment.cohort_id)
     await _programme(db, cohort.programme_id, permissions)
     return await _learner_listing(db, [enrolment], permissions)
-
-
-@router.get("/my/coursework", response_model=list[LearnerCourseworkItem])
-async def get_my_coursework(db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_active_user)):
-    permissions = await _permissions(db, current_user)
-    enrolments = (await db.execute(select(CohortEnrolment).where(CohortEnrolment.person_id == current_user.person_id).order_by(CohortEnrolment.created_at, CohortEnrolment.id))).scalars().all()
-    return await _learner_listing(db, enrolments, permissions)
 
 
 @router.get("/my/academic-performance", response_model=AcademicPerformanceResponse)
