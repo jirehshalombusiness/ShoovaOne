@@ -126,8 +126,17 @@ export interface GradebookRow {
   percentage: number | null;
   graded_count: number;
   assignment_count: number;
+
+  // Aliases kept optional so ProgrammeGradebookPage's GradebookRowView
+  // (which reads these names) works without modification.
+  enrolment_status?: string;
+  total_score?: number;
+  total_possible?: number;
+  assignments_graded?: number;
+  assignments_total?: number;
 }
 
+/** @deprecated use GradebookResponse — kept for any caller still on the old shape. */
 export interface Gradebook {
   assignments: CourseAssignment[];
   rows: GradebookRow[];
@@ -148,6 +157,46 @@ export interface GradebookResponse {
   columns: GradebookColumn[];
   rows: GradebookRow[];
   total_points_possible: number;
+}
+
+// ============================================================
+// Backend wire shape (what the API actually returns)
+// ============================================================
+
+interface BackendGradebookCell {
+  assignment_id: string;
+  submission_id: string | null;
+  score: number | null;
+  status: GradebookCellStatus;
+  is_late: boolean;
+}
+
+interface BackendGradebookLearner {
+  enrolment_id: string;
+  person: ProgrammePersonBrief;
+  cohort_id: string;
+  cohort_name: string;
+  cells: BackendGradebookCell[];
+  earned_points: number;
+  graded_points_possible: number;
+  percentage: number | null;
+  graded_count: number;
+  assignment_count: number;
+}
+
+interface BackendGradebookAssignment {
+  id: string;
+  title: string;
+  course_title: string;
+  cohort_name: string;
+  points_possible: number;
+  due_on: string | null;
+  status: CourseworkStatus;
+}
+
+interface BackendGradebookResponse {
+  assignments: BackendGradebookAssignment[];
+  learners: BackendGradebookLearner[];
 }
 
 // ============================================================
@@ -189,20 +238,69 @@ export const courseworkService = {
   },
 
   /**
-   * Gradebook for the whole programme — matrix layout (columns = assignments,
-   * rows = learners). Feeds ProgrammeGradebookPage.
+   * Gradebook for the whole programme — matrix layout.
+   *
+   * Backend returns { assignments, learners }. This adapter pivots that into
+   * { programme_id, columns, rows, total_points_possible } so callers
+   * (ProgrammeGradebookPage) get a column-per-assignment grid directly.
    */
   async getGradebook(programmeId: string): Promise<GradebookResponse> {
-    const { data } = await api.get<GradebookResponse>(
+    const { data } = await api.get<BackendGradebookResponse>(
       `/programmes/${programmeId}/coursework/gradebook`,
     );
-    return data;
+
+    const columns: GradebookColumn[] = data.assignments.map((a) => ({
+      assignment_id: a.id,
+      title: a.title,
+      course_title: a.course_title,
+      cohort_name: a.cohort_name,
+      points_possible: a.points_possible,
+      due_on: a.due_on,
+      status: a.status,
+    }));
+
+    const rows: GradebookRow[] = data.learners.map((l) => ({
+      enrolment_id: l.enrolment_id,
+      person: l.person,
+      cohort_id: l.cohort_id,
+      cohort_name: l.cohort_name,
+      cells: l.cells.map((c) => ({
+        assignment_id: c.assignment_id,
+        submission_id: c.submission_id,
+        score: c.score,
+        status: c.status,
+        is_late: c.is_late,
+      })),
+      earned_points: l.earned_points,
+      graded_points_possible: l.graded_points_possible,
+      percentage: l.percentage,
+      graded_count: l.graded_count,
+      assignment_count: l.assignment_count,
+      // Aliases consumed by ProgrammeGradebookPage.tsx
+      enrolment_status: 'enrolled',
+      total_score: l.earned_points,
+      total_possible: l.graded_points_possible,
+      assignments_graded: l.graded_count,
+      assignments_total: l.assignment_count,
+    }));
+
+    const total_points_possible = columns.reduce(
+      (sum, c) => sum + c.points_possible,
+      0,
+    );
+
+    return {
+      programme_id: programmeId,
+      columns,
+      rows,
+      total_points_possible,
+    };
   },
 
   /**
-   * LEGACY — same shape as before, distinct endpoint, still used by any
-   * caller that depends on { assignments, rows }. Remove once no page
-   * uses it.
+   * @deprecated legacy endpoint — the current backend serves the gradebook at
+   * `/programmes/:id/coursework/gradebook` via getGradebook(). Kept only so
+   * any caller still using `gradebook()` continues to compile.
    */
   async gradebook(programmeId: string): Promise<Gradebook> {
     const { data } = await api.get(`/programmes/${programmeId}/gradebook`);

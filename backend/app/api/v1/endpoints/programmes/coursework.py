@@ -516,7 +516,7 @@ async def grade_submission(submission_id: UUID, payload: GradeRequest, db: Async
     return _submission(submission, assignment)
 
 
-@router.get("/{programme_id}/gradebook", response_model=GradebookResponse)
+@router.get("/{programme_id}/coursework/gradebook", response_model=GradebookResponse)
 async def get_gradebook(programme_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     permissions = await _permissions(db, current_user)
     _require(_staff(permissions))
