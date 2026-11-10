@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
-from typing import List, Optional
+from sqlalchemy import and_, case, select, or_, func, not_
+from typing import List, Literal, Optional
 
 from app.core.database import get_db
 from app.core.countries import resolve_country_code
 from app.core.security import require_permission, Permissions
 from app.models.sql.core.user import Person, User
+from app.models.sql.programmes.academics import CohortEnrolment
 from app.models.pydantic.core.person import (
     PersonResponse,
     PersonCreate,
@@ -19,6 +21,90 @@ from app.services.core.permission_service import PermissionService
 
 router = APIRouter()
 
+DirectoryCategory = Literal[
+    "all",
+    "staff",
+    "partners",
+    "volunteers",
+    "students",
+    "other",
+]
+
+
+class PeopleDirectoryCounts(BaseModel):
+    all: int
+    staff: int
+    partners: int
+    volunteers: int
+    students: int
+    other: int
+
+
+class PeopleDirectoryItem(PersonResponse):
+    is_student: bool
+
+
+class PeopleDirectoryResponse(BaseModel):
+    items: List[PeopleDirectoryItem]
+    total: int
+    offset: int
+    limit: int
+    counts: PeopleDirectoryCounts
+
+
+def _directory_base_query(
+    *,
+    search: Optional[str],
+    person_status: Optional[str],
+    country_code: Optional[str],
+):
+    query = select(Person).where(Person.deleted_at.is_(None))
+
+    if search and search.strip():
+        term = search.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{term}%"
+        query = query.where(
+            or_(
+                Person.first_name.ilike(pattern, escape="\\"),
+                Person.middle_name.ilike(pattern, escape="\\"),
+                Person.last_name.ilike(pattern, escape="\\"),
+                Person.preferred_name.ilike(pattern, escape="\\"),
+                Person.email.ilike(pattern, escape="\\"),
+                Person.phone.ilike(pattern, escape="\\"),
+                Person.organization.ilike(pattern, escape="\\"),
+                Person.job_title.ilike(pattern, escape="\\"),
+                Person.department.ilike(pattern, escape="\\"),
+            )
+        )
+
+    if person_status:
+        query = query.where(Person.status == person_status)
+
+    if country_code:
+        query = query.where(Person.country_code == country_code.strip().upper())
+
+    return query
+
+
+def _directory_category_query(query, category: DirectoryCategory):
+    has_enrolment = select(CohortEnrolment.id).where(
+        CohortEnrolment.person_id == Person.id
+    ).exists()
+
+    if category == "staff":
+        return query.where(Person.type == "staff")
+    if category == "partners":
+        return query.where(Person.type == "external_contact")
+    if category == "volunteers":
+        return query.where(Person.type == "volunteer")
+    if category == "students":
+        return query.where(has_enrolment)
+    if category == "other":
+        return query.where(
+            Person.type.notin_(("staff", "external_contact", "volunteer")),
+            not_(has_enrolment),
+        )
+    return query
 
 # Fields that define someone's organisational position. Altering them
 # can move a person into a privileged reporting line, change whether
@@ -130,6 +216,82 @@ async def get_people(
     people = result.scalars().all()
 
     return [PersonResponse.model_validate(p) for p in people]
+
+
+@router.get("/directory", response_model=PeopleDirectoryResponse)
+async def get_people_directory(
+    category: DirectoryCategory = "all",
+    offset: int = Query(0, ge=0),
+    limit: int = Query(25, ge=1, le=100),
+    search: Optional[str] = Query(None, max_length=200),
+    person_status: Optional[Literal["active", "inactive", "archived"]] = Query(
+        None, alias="status"
+    ),
+    country_code: Optional[str] = Query(None, min_length=2, max_length=2),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_permission(Permissions.PEOPLE_VIEW)),
+):
+    """Return a paginated, category-aware people directory with filtered counts."""
+    base = _directory_base_query(
+        search=search,
+        person_status=person_status,
+        country_code=country_code,
+    )
+    has_enrolment = select(CohortEnrolment.id).where(
+        CohortEnrolment.person_id == Person.id
+    ).exists()
+
+    count_row = (
+        await db.execute(
+            base.with_only_columns(
+                func.count(Person.id).label("all"),
+                func.count(case((Person.type == "staff", Person.id))).label("staff"),
+                func.count(
+                    case((Person.type == "external_contact", Person.id))
+                ).label("partners"),
+                func.count(case((Person.type == "volunteer", Person.id))).label(
+                    "volunteers"
+                ),
+                func.count(case((has_enrolment, Person.id))).label("students"),
+                func.count(
+                    case(
+                        (
+                            and_(
+                                Person.type.notin_(
+                                    ("staff", "external_contact", "volunteer")
+                                ),
+                                not_(has_enrolment),
+                            ),
+                            Person.id,
+                        )
+                    )
+                ).label("other"),
+            ).order_by(None)
+        )
+    ).one()
+    counts = PeopleDirectoryCounts(**dict(count_row._mapping))
+    query = (
+        _directory_category_query(base, category)
+        .add_columns(has_enrolment.label("is_student"))
+        .order_by(Person.first_name.asc(), Person.last_name.asc(), Person.id.asc())
+        .offset(offset)
+        .limit(limit)
+    )
+    rows = (await db.execute(query)).all()
+    total = getattr(counts, category)
+    return PeopleDirectoryResponse(
+        items=[
+            PeopleDirectoryItem(
+                **PersonResponse.model_validate(person).model_dump(),
+                is_student=is_student,
+            )
+            for person, is_student in rows
+        ],
+        total=total,
+        offset=offset,
+        limit=limit,
+        counts=counts,
+    )
 
 
 # ============================================

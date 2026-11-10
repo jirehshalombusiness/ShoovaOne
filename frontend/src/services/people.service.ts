@@ -36,6 +36,35 @@ export interface PeopleFilters {
   limit?: number;
 }
 
+export type PeopleDirectoryCategory =
+  | 'all'
+  | 'staff'
+  | 'partners'
+  | 'volunteers'
+  | 'students'
+  | 'other';
+
+export interface PeopleDirectoryPerson extends Person {
+  is_student: boolean;
+}
+
+export interface PeopleDirectoryResponse {
+  items: PeopleDirectoryPerson[];
+  total: number;
+  offset: number;
+  limit: number;
+  counts: Record<PeopleDirectoryCategory, number>;
+}
+
+export interface PeopleDirectoryFilters {
+  category: PeopleDirectoryCategory;
+  offset: number;
+  limit: number;
+  search?: string;
+  status?: Person['status'];
+  country_code?: string;
+}
+
 // =============================================
 // ORG CHART TYPES
 // =============================================
@@ -62,6 +91,15 @@ export interface OrgChartResponse {
 
 export const peopleService = {
   // ---------- PEOPLE CRUD ----------
+  async getDirectory(
+    params: PeopleDirectoryFilters,
+  ): Promise<PeopleDirectoryResponse> {
+    const response = await api.get<PeopleDirectoryResponse>('/people/directory', {
+      params,
+    });
+    return response.data;
+  },
+
   async getAll(params?: PeopleFilters): Promise<Person[]> {
     const response = await api.get<Person[]>('/people/', { params });
     return response.data;

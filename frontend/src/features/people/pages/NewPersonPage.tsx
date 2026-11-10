@@ -260,8 +260,9 @@ export function NewPersonPage() {
         <h1 className="text-xl font-bold text-gray-900">Add Person</h1>
         <p className="mt-0.5 max-w-2xl text-sm text-gray-500">
           Create a directory record for a staff member, volunteer, beneficiary
-          or external contact. Staff records can be placed on the org chart and
-          included in payroll.
+          or partner contact. People appear in the Students directory after
+          they are enrolled in a programme. Staff records can be placed on the
+          org chart and included in payroll.
         </p>
       </div>
 
@@ -380,6 +381,9 @@ export function NewPersonPage() {
                 <option value="beneficiary">Beneficiary</option>
                 <option value="external_contact">External contact</option>
               </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Student status comes from programme enrolment, not this person type.
+              </p>
             </Field>
 
             <Field label="Status">
