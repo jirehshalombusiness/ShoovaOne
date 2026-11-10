@@ -18,9 +18,10 @@ class FakeUser:
 
 
 class FakeClient:
-    def __init__(self, folder=None, item=None):
+    def __init__(self, folder=None, item=None, children=None):
         self.folder = folder
         self.item = item
+        self.children = children or []
         self.uploads = []
 
     async def get_item(self, item_id):
@@ -29,6 +30,9 @@ class FakeClient:
     async def upload_file(self, **kwargs):
         self.uploads.append(kwargs)
         return self.item
+
+    async def list_children(self, folder_id):
+        return self.children
 
 
 def upload_file(name="report.pdf", content=b"%PDF-1.4"):
@@ -132,3 +136,75 @@ async def test_upload_to_the_root_does_not_look_up_a_folder(monkeypatch):
 
     assert item["path"] == "/notes.txt"
     assert client.uploads[0]["folder_id"] is None
+
+
+class FakeResult:
+    def __init__(self, value):
+        self.value = value
+
+    def scalar_one_or_none(self):
+        return self.value
+
+
+class FakeDB:
+    def __init__(self, result=None):
+        self.result = result
+        self.statement = None
+
+    async def execute(self, statement):
+        self.statement = statement
+        return FakeResult(self.result)
+
+
+@pytest.mark.asyncio
+async def test_ceo_check_requires_the_exact_ceo_role_name():
+    db = FakeDB()
+
+    assert not await endpoint._is_ceo(db, "user-1")
+    assert "roles.name = 'ceo'" in str(
+        db.statement.compile(compile_kwargs={"literal_binds": True})
+    )
+
+    db = FakeDB("role-id")
+    assert await endpoint._is_ceo(db, "user-1")
+
+
+@pytest.mark.asyncio
+async def test_folder_delete_guard_rejects_non_empty_folder(monkeypatch):
+    client = FakeClient(children=[{"id": "child"}])
+    monkeypatch.setattr(endpoint, "sharepoint_client", client)
+
+    with pytest.raises(HTTPException) as exc:
+        await endpoint._require_empty_folder(
+            {"id": "folder-1", "path": "/Policies"}
+        )
+
+    assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_folder_delete_guard_rejects_library_root():
+    with pytest.raises(HTTPException) as exc:
+        await endpoint._require_empty_folder(
+            {"id": "root", "path": "/"}
+        )
+
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_folder_request_rejects_whitespace_only_reason():
+    payload = endpoint.FolderRequestIn(
+        action="create",
+        folder_name="Policies",
+        reason="     ",
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await endpoint.create_folder_request(
+            payload=payload,
+            current_user=FakeUser(),
+            db=None,
+        )
+
+    assert exc.value.status_code == 422

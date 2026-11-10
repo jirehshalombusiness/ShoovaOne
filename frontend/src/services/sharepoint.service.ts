@@ -25,10 +25,43 @@ export interface SharePointFolderRule {
 export interface SharePointStatus {
   configured: boolean;
   reachable: boolean;
+  can_manage_folders?: boolean;
   missing_settings: string[];
   error?: string;
   site?: { id: string; name: string; web_url: string };
   drive?: { id: string; name: string; web_url: string };
+}
+
+export type SharePointFolderAction = 'create' | 'delete';
+export type SharePointFolderRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface SharePointFolderRequest {
+  id: string;
+  action: SharePointFolderAction;
+  folder_name: string;
+  folder_id: string | null;
+  parent_folder_id: string | null;
+  folder_path: string;
+  reason: string;
+  status: SharePointFolderRequestStatus;
+  decision_note: string | null;
+  requested_by_id: string;
+  resolved_by_id: string | null;
+  resolved_at: string | null;
+  created_at: string;
+}
+
+export interface SharePointFolderRequestInput {
+  action: SharePointFolderAction;
+  folder_name?: string;
+  folder_id?: string;
+  parent_folder_id?: string | null;
+  reason: string;
+}
+
+export interface SharePointFolderDecisionInput {
+  decision: 'approved' | 'rejected';
+  note?: string;
 }
 
 export interface SharePointListing {
@@ -89,6 +122,64 @@ export const sharepointService = {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: UPLOAD_TIMEOUT,
       }
+    );
+    return response.data;
+  },
+
+  async createFolder(
+    name: string,
+    parentFolderId?: string | null,
+  ): Promise<SharePointItem> {
+    const response = await api.post<SharePointItem>(
+      '/integrations/sharepoint/items/folders',
+      { name, parent_folder_id: parentFolderId || null },
+      { timeout: REQUEST_TIMEOUT },
+    );
+    return response.data;
+  },
+
+  async deleteFolder(folderId: string): Promise<void> {
+    await api.delete(
+      `/integrations/sharepoint/items/folders/${encodeURIComponent(folderId)}`,
+      { timeout: REQUEST_TIMEOUT },
+    );
+  },
+
+  async createFolderRequest(
+    input: SharePointFolderRequestInput,
+  ): Promise<SharePointFolderRequest> {
+    const response = await api.post<SharePointFolderRequest>(
+      '/integrations/sharepoint/folder-requests',
+      input,
+      { timeout: REQUEST_TIMEOUT },
+    );
+    return response.data;
+  },
+
+  async listFolderRequests(): Promise<SharePointFolderRequest[]> {
+    const response = await api.get<{ requests: SharePointFolderRequest[] }>(
+      '/integrations/sharepoint/folder-requests',
+      { timeout: REQUEST_TIMEOUT },
+    );
+    return response.data.requests;
+  },
+
+  async listMyFolderRequests(): Promise<SharePointFolderRequest[]> {
+    const response = await api.get<{ requests: SharePointFolderRequest[] }>(
+      '/integrations/sharepoint/folder-requests/mine',
+      { timeout: REQUEST_TIMEOUT },
+    );
+    return response.data.requests;
+  },
+
+  async decideFolderRequest(
+    requestId: string,
+    input: SharePointFolderDecisionInput,
+  ): Promise<SharePointFolderRequest> {
+    const response = await api.post<SharePointFolderRequest>(
+      `/integrations/sharepoint/folder-requests/${encodeURIComponent(requestId)}/decision`,
+      input,
+      { timeout: REQUEST_TIMEOUT },
     );
     return response.data;
   },

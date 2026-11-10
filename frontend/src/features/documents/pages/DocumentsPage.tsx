@@ -30,6 +30,11 @@ import { toast } from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 import { usePermissions } from '@/hooks/usePermissions';
+import { DocumentNamingAssistant } from '@/features/documents/components/DocumentNamingAssistant';
+import {
+  FolderGovernance,
+  RequestFolderDeleteButton,
+} from '@/features/documents/components/FolderGovernance';
 import {
   sharepointErrorMessage,
   sharepointService,
@@ -122,6 +127,7 @@ export function DocumentsPage() {
   const [search, setSearch] = useState('');
   const [manageOpen, setManageOpen] = useState(false);
   const [ruleTarget, setRuleTarget] = useState<SharePointItem | null>(null);
+  const [namingFile, setNamingFile] = useState<File | null>(null);
   const [rulePermission, setRulePermission] = useState(
     PERMISSION_OPTIONS[0].value
   );
@@ -139,6 +145,7 @@ export function DocumentsPage() {
 
   const status = statusQuery.data;
   const canBrowse = statusQuery.isSuccess && status?.reachable === true;
+  const canManageFolders = status?.can_manage_folders === true;
   const driveName = status?.drive?.name ?? 'Documents';
 
   const itemsQuery = useQuery({
@@ -231,6 +238,7 @@ export function DocumentsPage() {
     onSuccess: (item) => {
       queryClient.invalidateQueries({ queryKey: ['sharepoint-items'] });
       toast.success(`${item.name} uploaded`);
+      setNamingFile(null);
     },
     onError: (error) => toast.error(sharepointErrorMessage(error)),
   });
@@ -248,7 +256,21 @@ export function DocumentsPage() {
       return;
     }
 
-    upload.mutate(file);
+    setNamingFile(file);
+  }
+
+  const deleteFolder = useMutation({
+    mutationFn: (item: SharePointItem) => sharepointService.deleteFolder(item.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sharepoint-items'] });
+      toast.success('Folder deleted');
+    },
+    onError: (error) => toast.error(sharepointErrorMessage(error)),
+  });
+
+  function deleteFolderDirectly(item: SharePointItem) {
+    if (!window.confirm(`Delete the empty folder "${item.name}" from SharePoint?`)) return;
+    deleteFolder.mutate(item);
   }
 
   const ruleTargetRule = ruleTarget ? exactRuleFor(ruleTarget) : undefined;
@@ -326,6 +348,14 @@ export function DocumentsPage() {
           )}
         </div>
       </div>
+
+      {statusQuery.isSuccess && (
+        <FolderGovernance
+          canManageFolders={canManageFolders}
+          currentFolderId={folder.id}
+          onFolderChanged={() => queryClient.invalidateQueries({ queryKey: ['sharepoint-items'] })}
+        />
+      )}
 
       {statusQuery.isLoading && (
         <div className="space-y-2">
@@ -725,6 +755,22 @@ export function DocumentsPage() {
                       </button>
                     )}
 
+                    {item.is_folder && canManageFolders && (
+                      <button
+                        type="button"
+                        onClick={() => deleteFolderDirectly(item)}
+                        disabled={deleteFolder.isPending}
+                        title="Delete this empty folder"
+                        aria-label={`Delete ${item.name}`}
+                        className="rounded p-1.5 text-gray-400 transition hover:bg-red-50 hover:text-red-600 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 disabled:opacity-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                    {item.is_folder && !canManageFolders && (
+                      <RequestFolderDeleteButton item={item} />
+                    )}
+
                     {item.is_folder ? (
                       <ChevronRight className="h-4 w-4 flex-shrink-0 text-gray-300" />
                     ) : (
@@ -825,6 +871,13 @@ export function DocumentsPage() {
             </div>
           </div>
         </div>
+      )}
+      {namingFile && (
+        <DocumentNamingAssistant
+          file={namingFile}
+          onClose={() => setNamingFile(null)}
+          onUpload={(file) => upload.mutate(file)}
+        />
       )}
     </div>
   );

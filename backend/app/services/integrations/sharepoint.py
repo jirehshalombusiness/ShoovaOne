@@ -53,6 +53,10 @@ class SharePointInvalidInput(SharePointError):
     """The request is malformed; Graph was not called."""
 
 
+class SharePointConflict(SharePointError):
+    """The requested folder operation conflicts with current SharePoint state."""
+
+
 def _graph_error_message(response: httpx.Response) -> str:
     try:
         payload: Any = response.json()
@@ -111,6 +115,27 @@ def _clean_file_name(name: str) -> str:
         raise SharePointInvalidInput(
             f"Files of type .{extension} cannot be uploaded"
         )
+
+    return value
+
+
+def _clean_folder_name(name: str) -> str:
+    value = (name or "").strip()
+
+    if not value or len(value) > MAX_FILE_NAME_LENGTH:
+        raise SharePointInvalidInput(
+            "Folder name is required and must be "
+            f"{MAX_FILE_NAME_LENGTH} characters or fewer"
+        )
+
+    if any(ord(char) < 32 for char in value):
+        raise SharePointInvalidInput("Folder name contains invalid characters")
+
+    if any(char in value for char in '/\\:*?"<>|#%'):
+        raise SharePointInvalidInput("Folder name contains invalid characters")
+
+    if value in (".", "..") or value.endswith("."):
+        raise SharePointInvalidInput("Folder name is invalid")
 
     return value
 
@@ -506,6 +531,67 @@ class SharePointClient:
             )
 
         return summarize_item(response.json(), drive)
+
+    async def create_folder(
+        self,
+        name: str,
+        parent_id: Optional[str] = None,
+    ) -> dict:
+        folder_name = _clean_folder_name(name)
+        drive = await self.drive()
+        parent = (
+            f"/drives/{drive['id']}/items/{_clean_item_id(parent_id)}"
+            if parent_id
+            else f"/drives/{drive['id']}/root"
+        )
+        token = await self.access_token()
+
+        async with self._new_client() as client:
+            response = await client.post(
+                f"{GRAPH_ROOT}{parent}/children",
+                headers={
+                    "Authorization": f"******",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "name": folder_name,
+                    "folder": {},
+                    "@microsoft.graph.conflictBehavior": "fail",
+                },
+            )
+
+        if response.status_code >= 400:
+            if response.status_code == 409:
+                raise SharePointConflict(
+                    "A folder with that name already exists"
+                )
+            raise SharePointError(
+                f"Microsoft Graph returned {response.status_code}: "
+                + _graph_error_message(response)
+            )
+
+        return summarize_item(response.json(), drive)
+
+    async def delete_folder(self, folder_id: str) -> None:
+        item = _clean_item_id(folder_id)
+        drive = await self.drive()
+        token = await self.access_token()
+
+        async with self._new_client() as client:
+            response = await client.delete(
+                f"{GRAPH_ROOT}/drives/{drive['id']}/items/{item}",
+                headers={"Authorization": f"******"},
+            )
+
+        if response.status_code >= 400:
+            if response.status_code == 409:
+                raise SharePointConflict(
+                    "The folder changed while the delete was being processed"
+                )
+            raise SharePointError(
+                f"Microsoft Graph returned {response.status_code}: "
+                + _graph_error_message(response)
+            )
 
 
 sharepoint_client = SharePointClient()

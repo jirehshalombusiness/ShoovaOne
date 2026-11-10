@@ -16,12 +16,14 @@ itself, not as whichever person is browsing.
 | Item | Status |
 | --- | --- |
 | Graph client (token, site, drive, listing, search, upload) | Built and tested |
-| API endpoints `/api/v1/integrations/sharepoint/*` | Built, behind `documents.view` / `documents.upload` |
+| API endpoints `/api/v1/integrations/sharepoint/*` | Built, behind Shoova permissions and the CEO role for folder operations |
 | Settings in `backend/.env` | Present locally |
 | Azure application permission | `Sites.Selected` site grant is **read**, but tenant-wide `Sites.*` roles are still granted and allow writes |
 | Settings on Render (production) | Configured — connection verified live on 2026-11-01 |
 | Documents browse / search / upload UI | Built at `/documents` (2026-11-01) |
 | Folder access rules | Built — `/Finance` and `/Human Resources` restricted by permission |
+| Naming guidance | Optional upload-time suggestion; original filenames remain allowed |
+| Folder governance | CEO-only direct create/delete; other users request CEO approval in ShoovaOne |
 
 Production check on 2026-11-01 returned `configured: true, reachable: true` for
 `Shoova Initiative Portal` / `Documents`, listed the 7 root folders, read a
@@ -177,6 +179,9 @@ This endpoint never throws. A failure is reported in the body:
 
 Browsing endpoints require `documents.view`; upload requires
 `documents.upload`; the rules endpoints require `documents.manage`.
+Direct folder creation/deletion and request decisions require the exact
+`ceo` role. Other users with `documents.view` can submit requests and see
+their own request history.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -184,6 +189,12 @@ Browsing endpoints require `documents.view`; upload requires
 | GET | `/api/v1/integrations/sharepoint/items?folder_id=&q=` | List a folder, or search |
 | GET | `/api/v1/integrations/sharepoint/items/{item_id}` | One file/folder's metadata |
 | POST | `/api/v1/integrations/sharepoint/items/upload` | Upload one file (`file`, optional `folder_id`) |
+| POST | `/api/v1/integrations/sharepoint/items/folders` | CEO creates a folder (`name`, optional `parent_folder_id`) |
+| DELETE | `/api/v1/integrations/sharepoint/items/folders/{folder_id}` | CEO deletes an empty folder |
+| POST | `/api/v1/integrations/sharepoint/folder-requests` | Submit a create/delete request with a reason |
+| GET | `/api/v1/integrations/sharepoint/folder-requests` | CEO approval queue |
+| GET | `/api/v1/integrations/sharepoint/folder-requests/mine` | Current user's request history |
+| POST | `/api/v1/integrations/sharepoint/folder-requests/{request_id}/decision` | CEO approves or declines; approval performs the operation |
 | GET | `/api/v1/integrations/sharepoint/rules` | Every folder restriction |
 | POST | `/api/v1/integrations/sharepoint/rules` | Restrict a folder (`folder_id`, `required_permission`) |
 | DELETE | `/api/v1/integrations/sharepoint/rules/{rule_id}` | Remove a restriction |
@@ -239,6 +250,29 @@ resumable session, so there is one request per file and no partial state to
 clean up. The frontend picks the file, shows `Uploading…` until the response
 and refreshes the folder listing on success.
 
+Before upload, the naming guide suggests
+`Entity_Function_DocumentType_Subject_YYYY-MM-DD_Version_Status.ext`.
+Entity options are `SHARED`, `US` and `GH`; status options are Draft,
+Review, Approved and Archived. Users can edit the suggestion or keep the
+original name. Naming is guidance only and does not block uploads.
+
+### Folder requests and CEO approval
+
+Folder requests are stored in `sharepoint_folder_requests`. A request
+records the operation, target path, requester, reason and decision history.
+Active CEOs receive an in-app notification linking to the approval queue.
+Approval performs the requested operation in SharePoint; declining only
+updates the request. The requester receives an in-app notification after
+the decision. Delete operations re-check that the target is still empty at
+execution time; the library root and non-empty folders cannot be deleted.
+
+The database migration is
+`database/migrations/020_sharepoint_folder_requests.sql`. The current
+Render build invokes `backend/migrate_postgres.py`, which does not
+automatically apply numbered SQL files. Apply migration 020 once to the
+production Supabase database using the SQL editor before deploying the
+folder-request feature; it is safe to re-run.
+
 Errors otherwise match browsing: `503` when the integration is not
 configured, `502` when Graph rejects or fails the call, `403` when the user
 lacks the required permission, `404` for restricted items.
@@ -264,6 +298,10 @@ Layers apply:
    drive-relative path and the permission needed to see that subtree.
    A path covers every descendant; no rule means visible to anyone with
    `documents.view`.
+4. **Folder structure changes** — only the exact `ceo` role can create or
+   delete folders directly or decide requests. Other users can request
+   changes, but cannot perform them. Delete checks reject the root and any
+   folder with children.
 
 Defaults seeded by migration `017`:
 
@@ -306,8 +344,9 @@ Be clear about the boundary before planning work off this guide:
 - **No attach picker.** The Documents screen browses, searches and uploads,
   but no record can yet point at a SharePoint file (contract → programme,
   policy → person). That is the next build.
-- **No rename, move or delete.** Uploads create new files; existing files
-  are never replaced, moved or removed from ShoovaOne.
+- **No file rename or move.** Folder creation and deletion are limited to
+  the CEO-governed workflow above; files are never replaced or removed
+  from ShoovaOne.
 - **No delta sync or indexing.** Searches go to SharePoint live; ShoovaOne
   does not keep a searchable copy, so results depend on Graph being
   reachable at request time.
@@ -330,13 +369,17 @@ Be clear about the boundary before planning work off this guide:
 | `backend/app/services/integrations/sharepoint_access.py` | Applies folder rules to listings, search results and upload targets |
 | `backend/app/api/v1/endpoints/integrations/sharepoint.py` | Browse, upload and rule endpoints, their error mapping |
 | `backend/app/models/sql/core/sharepoint_folder_rule.py` | `sharepoint_folder_rules` model |
+| `backend/app/models/sql/core/sharepoint_folder_request.py` | Folder request and decision history model |
 | `database/migrations/017_sharepoint_folder_rules.sql` | Table, `documents.manage`, default Finance/HR rules |
+| `database/migrations/020_sharepoint_folder_requests.sql` | Folder request table and indexes |
 | `backend/app/core/config.py` | `sharepoint_configured`, `sharepoint_missing_settings` |
-| `backend/tests/test_sharepoint_client.py` | Offline Graph tests (MockTransport): auth caching, drive selection, ordering, path resolution, id validation, upload path/body, overwrite refusal, name and size validation, error messages |
+| `backend/tests/test_sharepoint_client.py` | Offline Graph tests (MockTransport): auth caching, drive selection, ordering, path resolution, folder operations, uploads, validation and errors |
 | `backend/tests/test_sharepoint_access.py` | Rule matching: subtree boundaries, case-insensitivity, fail-closed paths |
 | `backend/tests/test_sharepoint_upload_endpoint.py` | Upload route: restricted-folder refusal, file-as-folder refusal, path fill-in |
-| `frontend/src/services/sharepoint.service.ts` | Typed calls for status, listing, search, rules and upload |
-| `frontend/src/features/documents/pages/DocumentsPage.tsx` | Browse, search, upload control, manage-access panel and per-folder rule dialog |
+| `frontend/src/services/sharepoint.service.ts` | Typed calls for browsing, uploads, rules and folder requests |
+| `frontend/src/features/documents/pages/DocumentsPage.tsx` | Browse, search, upload and access-rule UI |
+| `frontend/src/features/documents/components/DocumentNamingAssistant.tsx` | Optional standardized file-name suggestion |
+| `frontend/src/features/documents/components/FolderGovernance.tsx` | CEO approval queue and folder request UI |
 
 Run the tests with:
 

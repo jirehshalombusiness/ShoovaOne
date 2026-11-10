@@ -4,6 +4,7 @@ Every call is served by an httpx MockTransport, so the tests describe the
 Graph contract ShoovaOne depends on without needing a Microsoft 365 tenant.
 """
 
+import json
 from urllib.parse import unquote
 
 import httpx
@@ -45,6 +46,7 @@ class Recorder:
         self.requests = []
         self.uploads = []
         self.existing = set()
+        self.folder_conflict = False
         self.children = [
             item("3", "zeta", folder=True),
             item("1", "alpha.pdf", files=True),
@@ -84,8 +86,26 @@ class Recorder:
                 },
             )
 
+        if url.path.endswith("/children") and request.method == "POST":
+            if self.folder_conflict:
+                return httpx.Response(
+                    409,
+                    json={"error": {"message": "Name already exists"}},
+                )
+            body = json.loads(request.content)
+            return httpx.Response(
+                201,
+                json={
+                    **item("new-folder", body["name"], folder=True),
+                    "parentReference": {"path": "/drives/drive-docs/root:"},
+                },
+            )
+
         if url.path.endswith("/children"):
             return httpx.Response(200, json={"value": self.children})
+
+        if request.method == "DELETE" and url.path.startswith(f"{DRIVE_ROOT}/items/"):
+            return httpx.Response(204)
 
         if url.path == f"{DRIVE_ROOT}/items/1":
             return httpx.Response(200, json=item("1", "alpha.pdf", files=True))
@@ -466,3 +486,43 @@ async def test_upload_rejects_empty_and_oversized_files(client, recorder):
         await client.upload_file("big.pdf", b"x" * (sp.MAX_UPLOAD_BYTES + 1))
 
     assert recorder.requests == []
+
+
+@pytest.mark.asyncio
+async def test_create_folder_posts_non_conflicting_folder(client, recorder):
+    folder = await client.create_folder("Policies", parent_id="folder-9")
+
+    assert folder["id"] == "new-folder"
+    assert folder["name"] == "Policies"
+    create = next(request for request in recorder.requests if request.method == "POST" and request.url.path.endswith("/children"))
+    assert create.url.path == f"{DRIVE_ROOT}/items/folder-9/children"
+    assert json.loads(create.content) == {
+        "name": "Policies",
+        "folder": {},
+        "@microsoft.graph.conflictBehavior": "fail",
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_folder_maps_graph_name_conflict(client, recorder):
+    recorder.folder_conflict = True
+
+    with pytest.raises(sp.SharePointConflict, match="already exists"):
+        await client.create_folder("Policies")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_name", ["", " ", "../escape", "bad/name", "bad#name"])
+async def test_create_folder_rejects_unsafe_names_before_graph(client, recorder, bad_name):
+    with pytest.raises(sp.SharePointInvalidInput):
+        await client.create_folder(bad_name)
+
+    assert recorder.requests == []
+
+
+@pytest.mark.asyncio
+async def test_delete_folder_calls_graph_delete(client, recorder):
+    await client.delete_folder("folder-9")
+
+    request = next(request for request in recorder.requests if request.method == "DELETE")
+    assert request.url.path == f"{DRIVE_ROOT}/items/folder-9"

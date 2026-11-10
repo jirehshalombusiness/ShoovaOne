@@ -15,6 +15,7 @@ from app.models.sql.core.audit_log import AuditLog
 from app.models.sql.core.document import Document
 from app.models.sql.core.document_type import DocumentType
 from app.models.sql.core.sharepoint_folder_rule import SharePointFolderRule
+from app.models.sql.core.sharepoint_folder_request import SharePointFolderRequest
 
 from app.models.sql.hr.approval import ApprovalRequest, ApprovalComment
 from app.models.sql.hr.leave import LeaveType, LeaveBalance, LeaveRequest
@@ -121,6 +122,8 @@ __all__ = [
     "AuditLog",
     "Document",
     "DocumentType",
+    "SharePointFolderRule",
+    "SharePointFolderRequest",
     "ApprovalRequest",
     "ApprovalComment",
     "LeaveType",
