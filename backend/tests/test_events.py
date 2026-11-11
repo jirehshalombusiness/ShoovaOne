@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 import pytest_asyncio
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -19,6 +20,7 @@ from sqlalchemy.pool import StaticPool
 import app.models.sql  # noqa: F401  (register every model)
 from app.core.database import Base
 from app.models.sql.core.organisation import Department, Organisation, Programme
+from app.models.sql.core.notification import Notification
 from app.models.sql.core.role import Role, user_roles
 from app.models.sql.core.user import Person, User
 from app.models.sql.projects.project import Project
@@ -78,7 +80,12 @@ async def seed(db: AsyncSession):
         email="kofi@example.org",
         password_hash="x",
     )
-    db.add_all([organiser, attendee])
+    extra_user = User(
+        person_id=extra_person.id,
+        email="efua@example.org",
+        password_hash="x",
+    )
+    db.add_all([organiser, attendee, extra_user])
     await db.flush()
 
     ceo_role = Role(name="ceo", description="Chief Executive")
@@ -130,7 +137,26 @@ async def seed(db: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_event_lifecycle(session: AsyncSession):
+async def test_event_lifecycle(session: AsyncSession, monkeypatch):
+    email_calls = []
+
+    async def record_invitation(db, **kwargs):
+        email_calls.append(("invitation", kwargs["person_id"]))
+
+    async def record_cancellation(db, **kwargs):
+        email_calls.append(("cancellation", kwargs["person_id"]))
+
+    monkeypatch.setattr(
+        events_api.email_service,
+        "queue_event_invitation",
+        record_invitation,
+    )
+    monkeypatch.setattr(
+        events_api.email_service,
+        "queue_event_cancelled",
+        record_cancellation,
+    )
+
     data = await seed(session)
     organiser = data["organiser"]
     attendee = data["attendee"]
@@ -162,6 +188,7 @@ async def test_event_lifecycle(session: AsyncSession):
     assert created.programme_name == "Youth Skills"
     assert created.project_name == "Skills Lab"
     event_id = created.id
+    assert email_calls == []
 
     # Drafts are hidden from regular users.
     visible = await events_api.list_events(
@@ -197,6 +224,9 @@ async def test_event_lifecycle(session: AsyncSession):
     )
     assert published.status == "published"
     assert published.published_at
+    assert email_calls == [
+        ("invitation", data["attendee_person"].id),
+    ]
 
     visible = await events_api.list_events(
         window="upcoming",
@@ -235,6 +265,7 @@ async def test_event_lifecycle(session: AsyncSession):
         current_user=organiser,
     )
     assert added.attendee_count == 2
+    assert email_calls[-1] == ("invitation", data["extra_person"].id)
 
     removed = await events_api.remove_attendee(
         event_id=event_id,
@@ -253,6 +284,14 @@ async def test_event_lifecycle(session: AsyncSession):
     )
     assert cancelled.status == "cancelled"
     assert cancelled.cancellation_reason == "Venue unavailable"
+    assert email_calls[-1] == ("cancellation", data["attendee_person"].id)
+
+    notifications = (
+        await session.execute(select(Notification))
+    ).scalars().all()
+    assert sorted(notification.title for notification in notifications) == sorted(
+        ["Added to an event", "Added to an event", "Event cancelled"]
+    )
 
     with pytest.raises(HTTPException) as exc:
         await events_api.rsvp_event(

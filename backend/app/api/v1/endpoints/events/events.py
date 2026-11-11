@@ -11,10 +11,12 @@ from app.core.database import get_db
 from app.core.security import Permissions, require_permission
 from app.models.sql.core.organisation import Department, Organisation, Programme
 from app.models.sql.core.user import Person, User
+from app.models.sql.core.notification import Notification
 from app.models.sql.events.event import Event, EventAttendee
 from app.models.sql.projects.project import Project
 from app.services.core.audit_service import AuditService
 from app.services.core.permission_service import PermissionService
+from app.services.core import email_service
 
 router = APIRouter()
 
@@ -204,6 +206,64 @@ def _person_brief(person: Optional[Person]) -> PersonBrief:
         email=person.email,
         profile_image_url=person.profile_image_url,
     )
+
+
+async def _notify_event_attendee(
+    db: AsyncSession,
+    *,
+    event: Event,
+    person_id: str,
+    cancelled: bool = False,
+) -> None:
+    if person_id == event.organiser_id:
+        return
+
+    user_result = await db.execute(
+        select(User).where(
+            User.person_id == person_id,
+            User.is_active.is_(True),
+        )
+    )
+    user = user_result.scalar_one_or_none()
+    if not user:
+        return
+
+    if cancelled:
+        title = "Event cancelled"
+        body = f"{event.title} has been cancelled."
+        if event.cancellation_reason:
+            body += f" Reason: {event.cancellation_reason}"
+    else:
+        title = "Added to an event"
+        body = f"You have been added to {event.title}."
+
+    db.add(
+        Notification(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            title=title,
+            body=body,
+            type="event",
+            link=f"/events/{event.id}",
+        )
+    )
+    if cancelled:
+        await email_service.queue_event_cancelled(
+            db,
+            person_id=person_id,
+            event_id=str(event.id),
+            event_title=event.title,
+            reason=event.cancellation_reason,
+        )
+    else:
+        await email_service.queue_event_invitation(
+            db,
+            person_id=person_id,
+            event_id=str(event.id),
+            event_title=event.title,
+            starts_at=event.starts_at,
+            location=event.location,
+        )
 
 
 def _summary(event: Event, *, actor_person_id: Optional[str]) -> EventSummary:
@@ -695,6 +755,7 @@ async def update_event(
         ) else (str(value) if value is not None else None)
         setattr(event, key, value)
 
+    newly_added_attendee_ids = []
     if new_attendee_ids is not None:
         existing = {
             str(attendee.person_id): attendee
@@ -714,6 +775,15 @@ async def update_event(
                         person_id=person_id,
                         role=_attendee_role(attendee_roles, person_id),
                     )
+                )
+                newly_added_attendee_ids.append(person_id)
+
+        if event.status == "published":
+            for person_id in newly_added_attendee_ids:
+                await _notify_event_attendee(
+                    db,
+                    event=event,
+                    person_id=person_id,
                 )
 
     if changes or new_attendee_ids is not None:
@@ -759,6 +829,13 @@ async def publish_event(
         event.status = "published"
         event.published_at = datetime.now(timezone.utc)
 
+        for attendee in event.attendees:
+            await _notify_event_attendee(
+                db,
+                event=event,
+                person_id=str(attendee.person_id),
+            )
+
         await AuditService.log(
             db=db,
             actor=current_user,
@@ -787,11 +864,21 @@ async def cancel_event(
     event = await _load_event(db, event_id)
 
     if event.status != "cancelled":
+        was_published = event.status == "published"
         person = await _require_person(db, current_user)
         event.status = "cancelled"
         event.cancelled_at = datetime.now(timezone.utc)
         event.cancelled_by_id = person.id
         event.cancellation_reason = payload.reason
+
+        if was_published:
+            for attendee in event.attendees:
+                await _notify_event_attendee(
+                    db,
+                    event=event,
+                    person_id=str(attendee.person_id),
+                    cancelled=True,
+                )
 
         await AuditService.log(
             db=db,
@@ -836,7 +923,7 @@ async def add_attendees(
     person_ids = await _valid_attendee_ids(db, payload.person_ids)
     existing = {str(attendee.person_id) for attendee in event.attendees}
 
-    added = 0
+    added_person_ids = []
     for person_id in person_ids:
         if person_id in existing:
             continue
@@ -847,17 +934,24 @@ async def add_attendees(
                 role=payload.role,
             )
         )
-        added += 1
+        added_person_ids.append(person_id)
 
-    if added:
+    if added_person_ids:
+        if event.status == "published":
+            for person_id in added_person_ids:
+                await _notify_event_attendee(
+                    db,
+                    event=event,
+                    person_id=person_id,
+                )
         await AuditService.log(
             db=db,
             actor=current_user,
             action="EVENT_ATTENDEES_ADDED",
             entity_type="event",
             entity_id=event.id,
-            description=f"Added {added} attendee(s) to {event.title}",
-            new_values={"person_ids": person_ids},
+            description=f"Added {len(added_person_ids)} attendee(s) to {event.title}",
+            new_values={"person_ids": added_person_ids},
         )
         await db.commit()
         event = await _reload(db, event.id)

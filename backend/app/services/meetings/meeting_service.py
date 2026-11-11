@@ -11,6 +11,7 @@ from app.models.sql.meetings.meeting import Meeting, MeetingAttendee, MeetingAge
 from app.models.sql.core.notification import Notification
 from app.models.sql.core.user import Person, User
 from app.services.core.audit_service import AuditService
+from app.services.core import email_service
 
 
 # ============================================================
@@ -41,6 +42,7 @@ async def _notify_attendee(
     attendee_person_id: str,
     meeting: Meeting,
     organizer_name: str,
+    rescheduled: bool = False,
 ) -> None:
     """
     Create a notification for one attendee. Best-effort — the meeting
@@ -48,7 +50,10 @@ async def _notify_attendee(
     """
     # Find the user account for that person
     user_result = await db.execute(
-        select(User).where(User.person_id == attendee_person_id)
+        select(User).where(
+            User.person_id == attendee_person_id,
+            User.is_active.is_(True),
+        )
     )
     user = user_result.scalar_one_or_none()
     if not user:
@@ -58,12 +63,25 @@ async def _notify_attendee(
     notification = Notification(
         id=str(uuid.uuid4()),
         user_id=user.id,
-        title="You've been invited to a meeting",
-        body=f"{organizer_name} invited you: {meeting.title} — {starts}",
+        title="Meeting updated" if rescheduled else "You've been invited to a meeting",
+        body=(
+            f"{organizer_name} rescheduled {meeting.title} — {starts}"
+            if rescheduled
+            else f"{organizer_name} invited you: {meeting.title} — {starts}"
+        ),
         type="meeting",
         link=f"/meetings/{meeting.id}",
     )
     db.add(notification)
+    await email_service.queue_meeting_invitation(
+        db,
+        person_id=attendee_person_id,
+        meeting_id=str(meeting.id),
+        meeting_title=meeting.title,
+        starts_at=meeting.starts_at,
+        organizer_name=organizer_name,
+        rescheduled=rescheduled,
+    )
 
 
 # ============================================================
@@ -390,7 +408,8 @@ async def update_meeting(
                 db,
                 attendee_person_id=att.person_id,
                 meeting=meeting,
-                organizer_name=f"{organizer_name} (rescheduled)",
+                organizer_name=organizer_name,
+                rescheduled=True,
             )
 
     await AuditService.log(
@@ -458,7 +477,10 @@ async def cancel_meeting(
             continue
 
         user_result = await db.execute(
-            select(User).where(User.person_id == att.person_id)
+            select(User).where(
+                User.person_id == att.person_id,
+                User.is_active.is_(True),
+            )
         )
         user = user_result.scalar_one_or_none()
         if not user:
@@ -476,6 +498,14 @@ async def cancel_meeting(
                 type="meeting",
                 link=f"/meetings/{meeting.id}",
             )
+        )
+        await email_service.queue_meeting_cancelled(
+            db,
+            person_id=att.person_id,
+            meeting_id=str(meeting.id),
+            meeting_title=meeting.title,
+            organizer_name=organizer_name,
+            reason=reason,
         )
 
     await AuditService.log(

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from html import escape
 from typing import Any, Optional
@@ -395,6 +395,203 @@ async def queue_request_rejected(
     )
 
 
+async def queue_request_approved(
+    db: AsyncSession,
+    *,
+    person_id,
+    title: str,
+    actor_name: str,
+    link: str,
+) -> None:
+    email, first_name, _ = await person_contact(db, person_id)
+    if not email:
+        return
+
+    body = (
+        _greeting(first_name)
+        + _paragraph(
+            f"{escape(actor_name)} approved your request: {escape(title)}."
+        )
+        + _button(_app_link(link), "View request")
+    )
+    queue_email(
+        db,
+        to=email,
+        subject=f"Request approved: {title}",
+        html=render_layout(
+            title="Your request was approved",
+            body_html=body,
+            preheader=f"{title} was approved",
+        ),
+    )
+
+
+async def queue_project_added(
+    db: AsyncSession,
+    *,
+    person_id,
+    project_id: str,
+    project_name: str,
+    role: str,
+) -> None:
+    email, first_name, _ = await person_contact(db, person_id)
+    if not email:
+        return
+
+    body = (
+        _greeting(first_name)
+        + _paragraph(f"You have been added to the project {escape(project_name)}.")
+        + _details([("Your role", escape(role.replace("_", " ").title()))])
+        + _button(_app_link(f"/projects/{project_id}"), "Open project")
+    )
+    queue_email(
+        db,
+        to=email,
+        subject=f"Added to project: {project_name}",
+        html=render_layout(
+            title="You have been added to a project",
+            body_html=body,
+            preheader=f"You are now a member of {project_name}",
+        ),
+    )
+
+
+async def queue_event_invitation(
+    db: AsyncSession,
+    *,
+    person_id,
+    event_id: str,
+    event_title: str,
+    starts_at: Optional[datetime],
+    location: Optional[str],
+) -> None:
+    email, first_name, _ = await person_contact(db, person_id)
+    if not email:
+        return
+
+    details = []
+    if starts_at:
+        details.append(("When", escape(starts_at.strftime("%a, %d %b %Y at %H:%M %Z").strip())))
+    if location:
+        details.append(("Location", escape(location)))
+    body = (
+        _greeting(first_name)
+        + _paragraph(f"You have been added to {escape(event_title)}.")
+        + _details(details)
+        + _button(_app_link(f"/events/{event_id}"), "View event")
+    )
+    queue_email(
+        db,
+        to=email,
+        subject=f"You're invited: {event_title}",
+        html=render_layout(
+            title="You have been added to an event",
+            body_html=body,
+            preheader=f"Event details for {event_title}",
+        ),
+    )
+
+
+async def queue_event_cancelled(
+    db: AsyncSession,
+    *,
+    person_id,
+    event_id: str,
+    event_title: str,
+    reason: Optional[str],
+) -> None:
+    email, first_name, _ = await person_contact(db, person_id)
+    if not email:
+        return
+
+    body = (
+        _greeting(first_name)
+        + _paragraph(f"{escape(event_title)} has been cancelled.")
+        + (_paragraph(f"Reason: {escape(reason)}") if reason else "")
+        + _button(_app_link(f"/events/{event_id}"), "View event")
+    )
+    queue_email(
+        db,
+        to=email,
+        subject=f"Event cancelled: {event_title}",
+        html=render_layout(
+            title="An event has been cancelled",
+            body_html=body,
+            preheader=f"{event_title} has been cancelled",
+        ),
+    )
+
+
+async def queue_meeting_invitation(
+    db: AsyncSession,
+    *,
+    person_id,
+    meeting_id: str,
+    meeting_title: str,
+    starts_at: Optional[datetime],
+    organizer_name: str,
+    rescheduled: bool = False,
+) -> None:
+    email, first_name, _ = await person_contact(db, person_id)
+    if not email:
+        return
+
+    details = [("Organizer", escape(organizer_name))]
+    if starts_at:
+        details.append(("When", escape(starts_at.strftime("%a, %d %b %Y at %H:%M %Z").strip())))
+    body = (
+        _greeting(first_name)
+        + _paragraph(
+            f"{escape(organizer_name)} "
+            f"{'rescheduled' if rescheduled else 'invited you to'} "
+            f"{escape(meeting_title)}."
+        )
+        + _details(details)
+        + _button(_app_link(f"/meetings/{meeting_id}"), "View meeting")
+    )
+    queue_email(
+        db,
+        to=email,
+        subject=f"{'Meeting updated' if rescheduled else 'Meeting invitation'}: {meeting_title}",
+        html=render_layout(
+            title="A meeting was updated" if rescheduled else "You are invited to a meeting",
+            body_html=body,
+            preheader=f"Meeting details for {meeting_title}",
+        ),
+    )
+
+
+async def queue_meeting_cancelled(
+    db: AsyncSession,
+    *,
+    person_id,
+    meeting_id: str,
+    meeting_title: str,
+    organizer_name: str,
+    reason: Optional[str],
+) -> None:
+    email, first_name, _ = await person_contact(db, person_id)
+    if not email:
+        return
+
+    body = (
+        _greeting(first_name)
+        + _paragraph(f"{escape(organizer_name)} cancelled {escape(meeting_title)}.")
+        + (_paragraph(f"Reason: {escape(reason)}") if reason else "")
+        + _button(_app_link(f"/meetings/{meeting_id}"), "View meeting")
+    )
+    queue_email(
+        db,
+        to=email,
+        subject=f"Meeting cancelled: {meeting_title}",
+        html=render_layout(
+            title="A meeting has been cancelled",
+            body_html=body,
+            preheader=f"{meeting_title} has been cancelled",
+        ),
+    )
+
+
 async def queue_leave_approved(
     db: AsyncSession,
     *,
@@ -750,8 +947,6 @@ async def queue_payment_made(
     db: AsyncSession,
     *,
     person_id,
-    amount: Any,
-    currency: str,
     period_name: Optional[str],
     pay_date: Optional[date],
 ) -> None:
@@ -759,7 +954,8 @@ async def queue_payment_made(
     if not email:
         return
 
-    rows = [("Amount paid", escape(_fmt_money(amount, currency)))]
+    # Keep pay amounts in the authenticated payslip, not in email.
+    rows = []
     if period_name:
         rows.append(("Pay period", escape(period_name)))
     if pay_date:

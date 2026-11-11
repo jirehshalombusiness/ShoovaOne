@@ -54,8 +54,6 @@ async def _queue_payment_emails(
         await email_service.queue_payment_made(
             db,
             person_id=item.person_id,
-            amount=item.amount,
-            currency=batch.currency,
             period_name=period_name,
             pay_date=batch.pay_date,
         )

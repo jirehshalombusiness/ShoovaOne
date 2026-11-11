@@ -740,6 +740,7 @@ async def approve_request(
                 request_id=request_id,
                 actor=current_user,
                 note=payload.note,
+                notify_requester_email=False,
             )
 
     elif request.entity_type == "fund_request":
@@ -813,6 +814,7 @@ async def approve_request(
             request_id=request_id,
             actor=current_user,
             note=payload.note,
+            notify_requester_email=True,
         )
 
     elif request.entity_type == "compensation_change":
@@ -822,6 +824,7 @@ async def approve_request(
             request_id=request_id,
             actor=current_user,
             note=payload.note,
+            notify_requester_email=True,
         )
         from app.api.v1.endpoints.hr.compensation import (
             finalize_compensation_change,
@@ -838,6 +841,7 @@ async def approve_request(
             request_id=request_id,
             actor=current_user,
             note=payload.note,
+            notify_requester_email=True,
         )
 
     await db.commit()

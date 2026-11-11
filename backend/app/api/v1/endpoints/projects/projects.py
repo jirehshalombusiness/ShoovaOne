@@ -12,7 +12,8 @@ from app.models.sql.timekeeping.timesheet import Timesheet, TimesheetEntry, Time
 from app.core.database import get_db
 from app.core.security import require_permission, Permissions
 from app.models.sql.projects.project import Project, ProjectMember, Milestone, Task
-from app.models.sql.core.user import Person
+from app.models.sql.core.user import Person, User
+from app.models.sql.core.notification import Notification
 from app.models.pydantic.projects.project import (
     ProjectCreate, ProjectUpdate, ProjectResponse,
     MilestoneCreate, MilestoneUpdate, MilestoneResponse,
@@ -21,8 +22,45 @@ from app.models.pydantic.projects.project import (
 from app.models.pydantic.projects.task import (
     TaskCreate, TaskUpdate, TaskResponse,
 )
+from app.services.core import email_service
 
 router = APIRouter()
+
+
+async def _notify_project_member(
+    db: AsyncSession,
+    *,
+    project: Project,
+    person_id: str,
+    role: str,
+) -> None:
+    user_result = await db.execute(
+        select(User).where(
+            User.person_id == person_id,
+            User.is_active.is_(True),
+        )
+    )
+    user = user_result.scalar_one_or_none()
+    if not user:
+        return
+
+    db.add(
+        Notification(
+            id=str(uuid.uuid4()),
+            user_id=user.id,
+            title="Added to a project",
+            body=f"You have been added to {project.name} as {role.replace('_', ' ')}.",
+            type="project",
+            link=f"/projects/{project.id}",
+        )
+    )
+    await email_service.queue_project_added(
+        db,
+        person_id=person_id,
+        project_id=str(project.id),
+        project_name=project.name,
+        role=role,
+    )
 
 
 # ============================================
@@ -248,6 +286,13 @@ async def create_project(
             role="manager",
         )
         db.add(member)
+        await db.flush()
+        await _notify_project_member(
+            db,
+            project=project,
+            person_id=project.manager_id,
+            role="manager",
+        )
         await db.commit()
 
     await log_action(
@@ -397,6 +442,23 @@ async def add_member(
     current_user = Depends(require_permission(Permissions.PROJECTS_EDIT)),
 ):
     """Add a member to a project."""
+    project_result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    project = project_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    person_result = await db.execute(
+        select(Person).where(
+            Person.id == payload.person_id,
+            Person.deleted_at.is_(None),
+        )
+    )
+    person = person_result.scalar_one_or_none()
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+
     # Check if member exists
     existing = await db.execute(
         select(ProjectMember).where(
@@ -414,14 +476,15 @@ async def add_member(
         role=payload.role,
     )
     db.add(member)
+    await db.flush()
+    await _notify_project_member(
+        db,
+        project=project,
+        person_id=payload.person_id,
+        role=payload.role,
+    )
     await db.commit()
     await db.refresh(member)
-
-    # Get person data
-    person_result = await db.execute(
-        select(Person).where(Person.id == payload.person_id)
-    )
-    person = person_result.scalar_one_or_none()
 
     return ProjectMemberResponse(
         id=str(member.id),

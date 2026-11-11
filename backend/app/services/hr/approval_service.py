@@ -530,6 +530,7 @@ async def approve(
     actor: User,
     note: Optional[str] = None,
     notify_requester: bool = True,
+    notify_requester_email: bool = False,
 ) -> ApprovalRequest:
     """
     Approve a request.
@@ -591,6 +592,14 @@ async def approve(
             person_id=request.requested_by_id,
             title="Request approved",
             body=f"{actor_name} approved: {request.title}",
+            link=f"/me/approvals/{request.id}",
+        )
+    if notify_requester and notify_requester_email:
+        await email_service.queue_request_approved(
+            db,
+            person_id=request.requested_by_id,
+            title=request.title,
+            actor_name=actor_name,
             link=f"/me/approvals/{request.id}",
         )
 
