@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from uuid import UUID
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -184,7 +185,7 @@ async def statutory_report(
 
 @router.get("/reports/department-cost")
 async def department_cost_report(
-    run_id: str,
+    run_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(reports_access),
 ):

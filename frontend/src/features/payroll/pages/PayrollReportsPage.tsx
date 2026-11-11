@@ -125,9 +125,9 @@ export function PayrollReportsPage() {
         <button
           type="button"
           onClick={() => {
-            summaryQuery.refetch();
-            statutoryQuery.refetch();
-            departmentQuery.refetch();
+            if (tab === 'summary') summaryQuery.refetch();
+            if (tab === 'statutory') statutoryQuery.refetch();
+            if (tab === 'department' && activeRunId) departmentQuery.refetch();
           }}
           className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
         >
@@ -496,7 +496,15 @@ export function PayrollReportsPage() {
             <ErrorBanner message={getErrorMessage(departmentQuery.error)} />
           )}
 
-          {departmentQuery.isLoading ? (
+          {!reportRuns.length ? (
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <Empty
+                icon={<Building2 className="h-5 w-5" />}
+                title="No finalized payroll runs"
+                message="Department costs become available after a payroll run is finalized."
+              />
+            </div>
+          ) : departmentQuery.isLoading ? (
             <Loading label="Loading department cost..." />
           ) : (
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
