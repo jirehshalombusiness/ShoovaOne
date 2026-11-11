@@ -72,6 +72,22 @@ export interface ActivityItem {
   metadata: Record<string, any> | null;
 }
 
+export interface MyMeeting {
+  id: string;
+  title: string;
+  description: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  duration_minutes: number | null;
+  location_type: string | null;
+  location: string | null;
+  meeting_url: string | null;
+  status: string;
+  attendee_count: number;
+  my_response: string | null;
+  organizer_name: string | null;
+}
+
 export const myWorkService = {
   async getSummary(): Promise<MyWorkSummary> {
     const response = await api.get<MyWorkSummary>('/my-work/summary');
@@ -99,8 +115,10 @@ export const myWorkService = {
     return response.data;
   },
 
-  async getMeetings(): Promise<any[]> {
-    const response = await api.get<any[]>('/my-work/meetings');
+  async getMeetings(): Promise<MyMeeting[]> {
+    const response = await api.get<MyMeeting[]>('/my-work/meetings', {
+      params: { window: 'upcoming', limit: 50 },
+    });
     return response.data;
   },
 

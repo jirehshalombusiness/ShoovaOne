@@ -135,7 +135,7 @@ async def get_my_tasks(
 
     if status:
         query = query.where(Task.status == status)
-    else:
+    elif filter != "all":
         query = query.where(Task.status.notin_(["done", "cancelled"]))
 
     if filter == "today":

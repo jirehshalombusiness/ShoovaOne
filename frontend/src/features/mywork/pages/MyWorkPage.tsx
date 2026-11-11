@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   myWorkService,
   MyTask,
   MyProject,
   MyTimesheet,
+  MyMeeting,
 } from '@/services/mywork.service';
 import { useAuth } from '@/lib/auth';
 import { Avatar } from '@/components/ui/Avatar';
@@ -26,6 +27,8 @@ import {
   PlayCircle,
   PauseCircle,
   XCircle,
+  MapPin,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -49,7 +52,12 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
 
 export function MyWorkPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<Tab>('overview');
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const tab: Tab = TABS.some((item) => item.id === requestedTab)
+    ? (requestedTab as Tab)
+    : 'overview';
 
   const greeting = (() => {
     const h = new Date().getHours();
@@ -59,39 +67,39 @@ export function MyWorkPage() {
   })();
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Work</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {greeting}, {user?.first_name}. Here's your personal workspace.
-          </p>
+    <div className="flex gap-6 -m-4 lg:-m-6 min-h-[calc(100vh-56px)] lg:h-[calc(100vh-56px)] lg:min-h-0 lg:overflow-hidden">
+      <aside className="hidden lg:flex flex-col w-[220px] flex-shrink-0 border-r border-gray-200 bg-white">
+        <div className="px-4 py-5 border-b border-gray-100">
+          <h2 className="text-[15px] font-bold text-gray-900 tracking-tight">My Work</h2>
+          <p className="text-[11px] text-gray-500 mt-0.5">Personal workspace</p>
+          <button
+            onClick={() => navigate('/timesheets')}
+            className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-md text-[12px] font-medium hover:bg-primary-dark transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Log Time
+          </button>
         </div>
-        <button
-          onClick={() => navigate_to_timesheets()}
-          className="hidden sm:flex items-center gap-2 px-3.5 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-dark transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Log Time
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex gap-1 overflow-x-auto">
+        <nav className="flex-1 overflow-y-auto py-3 px-2">
           {TABS.map((t) => {
             const Icon = t.icon;
             const active = tab === t.id;
             return (
               <button
                 key={t.id}
-                onClick={() => setTab(t.id)}
+                type="button"
+                onClick={() => {
+                  if (t.id === 'overview') {
+                    setSearchParams({});
+                  } else {
+                    setSearchParams({ tab: t.id });
+                  }
+                }}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 whitespace-nowrap',
+                  'w-full flex items-center gap-2.5 px-3 py-[7px] rounded-md text-[13px] font-medium transition-colors',
                   active
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300'
+                    ? 'bg-gray-100 text-gray-900'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
                 )}
               >
                 <Icon className="w-4 h-4" strokeWidth={1.75} />
@@ -100,38 +108,84 @@ export function MyWorkPage() {
             );
           })}
         </nav>
-      </div>
+        <div className="border-t border-gray-100 px-4 py-3">
+          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+            {greeting}
+          </div>
+          <div className="mt-1 truncate text-xs font-medium text-gray-700">
+            {user?.first_name} {user?.last_name}
+          </div>
+        </div>
+      </aside>
 
-      {/* Content */}
-      {tab === 'overview' && <OverviewTab />}
-      {tab === 'tasks' && <TasksTab />}
-      {tab === 'projects' && <ProjectsTab />}
-      {tab === 'timesheet' && <TimesheetTab />}
-      {tab === 'meetings' && <MeetingsTab />}
-      {tab === 'activity' && <ActivityTab />}
+      <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 lg:p-6">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{TABS.find((item) => item.id === tab)?.label ?? 'My Work'}</h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {greeting}, {user?.first_name}. Here's your personal workspace.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/timesheets')}
+            className="hidden sm:flex lg:hidden items-center gap-2 px-3.5 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-dark transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Log Time
+          </button>
+        </div>
+
+        <nav aria-label="My Work sections" className="mb-5 flex gap-1 overflow-x-auto border-b border-gray-200 lg:hidden">
+          {TABS.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                aria-current={tab === item.id ? 'page' : undefined}
+                onClick={() => item.id === 'overview'
+                  ? setSearchParams({})
+                  : setSearchParams({ tab: item.id })}
+                className={cn(
+                  'flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors',
+                  tab === item.id
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900',
+                )}
+              >
+                <Icon className="h-4 w-4" strokeWidth={1.75} />
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {tab === 'overview' && <OverviewTab />}
+        {tab === 'tasks' && <TasksTab />}
+        {tab === 'projects' && <ProjectsTab />}
+        {tab === 'timesheet' && <TimesheetTab />}
+        {tab === 'meetings' && <MeetingsTab />}
+        {tab === 'activity' && <ActivityTab />}
+      </main>
     </div>
   );
-}
-
-function navigate_to_timesheets() {
-  window.location.href = '/timesheets';
 }
 
 /* ==================== OVERVIEW ==================== */
 
 function OverviewTab() {
   const navigate = useNavigate();
-  const { data: summary, isLoading } = useQuery({
+  const { data: summary, isLoading, isError, refetch } = useQuery({
     queryKey: ['my-work', 'summary'],
     queryFn: () => myWorkService.getSummary(),
   });
 
-  const { data: todayTasks } = useQuery({
+  const { data: todayTasks, isError: tasksError, refetch: refetchTasks } = useQuery({
     queryKey: ['my-work', 'tasks', 'today'],
     queryFn: () => myWorkService.getTasks('today'),
   });
 
-  const { data: projects } = useQuery({
+  const { data: projects, isError: projectsError, refetch: refetchProjects } = useQuery({
     queryKey: ['my-work', 'projects'],
     queryFn: () => myWorkService.getProjects(),
   });
@@ -143,6 +197,18 @@ function OverviewTab() {
           <div key={i} className="h-28 bg-gray-100 rounded-lg animate-pulse" />
         ))}
       </div>
+    );
+  }
+
+  if (isError || tasksError || projectsError) {
+    return (
+      <LoadError
+        onRetry={() => {
+          if (isError) void refetch();
+          if (tasksError) void refetchTasks();
+          if (projectsError) void refetchProjects();
+        }}
+      />
     );
   }
 
@@ -436,7 +502,7 @@ function TasksTab() {
   );
   const navigate = useNavigate();
 
-  const { data: tasks, isLoading } = useQuery({
+  const { data: tasks, isLoading, isError, refetch } = useQuery({
     queryKey: ['my-work', 'tasks', filter],
     queryFn: () => myWorkService.getTasks(filter === 'all' ? 'all' : filter),
   });
@@ -467,7 +533,9 @@ function TasksTab() {
         ))}
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <LoadError onRetry={() => refetch()} />
+      ) : isLoading ? (
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map((i) => (
             <div key={i} className="h-16 bg-gray-100 rounded-lg animate-pulse" />
@@ -539,10 +607,14 @@ function TasksTab() {
 
 function ProjectsTab() {
   const navigate = useNavigate();
-  const { data: projects, isLoading } = useQuery({
+  const { data: projects, isLoading, isError, refetch } = useQuery({
     queryKey: ['my-work', 'projects'],
     queryFn: () => myWorkService.getProjects(),
   });
+
+  if (isError) {
+    return <LoadError onRetry={() => refetch()} />;
+  }
 
   if (isLoading) {
     return (
@@ -695,10 +767,14 @@ function ProjectCard({ project }: { project: MyProject }) {
 
 function TimesheetTab() {
   const navigate = useNavigate();
-  const { data: timesheet, isLoading } = useQuery({
+  const { data: timesheet, isLoading, isError, refetch } = useQuery({
     queryKey: ['my-work', 'timesheet'],
     queryFn: () => myWorkService.getTimesheet(),
   });
+
+  if (isError) {
+    return <LoadError onRetry={() => refetch()} />;
+  }
 
   if (isLoading) {
     return <div className="h-64 bg-gray-100 rounded-lg animate-pulse" />;
@@ -820,27 +896,103 @@ function TimesheetTab() {
 /* ==================== MEETINGS ==================== */
 
 function MeetingsTab() {
+  const { data: meetings, isLoading, isError, refetch } = useQuery({
+    queryKey: ['my-work', 'meetings'],
+    queryFn: () => myWorkService.getMeetings(),
+    refetchInterval: 60_000,
+  });
+
+  if (isError) {
+    return <LoadError onRetry={() => refetch()} />;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        {[0, 1, 2].map((item) => (
+          <div key={item} className="h-20 animate-pulse rounded-lg bg-gray-100" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!meetings?.length) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg text-center py-16">
+        <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" strokeWidth={1.5} />
+        <p className="text-sm font-medium text-gray-700">No upcoming meetings</p>
+        <p className="text-xs text-gray-400 mt-1">
+          Meetings where you are an organizer or attendee will appear here.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-white border border-gray-200 rounded-lg text-center py-16">
-      <Calendar
-        className="w-12 h-12 text-gray-300 mx-auto mb-3"
-        strokeWidth={1.5}
-      />
-      <p className="text-sm font-medium text-gray-700">No meetings yet</p>
-      <p className="text-xs text-gray-400 mt-1">
-        Meetings will appear here once the module is available
-      </p>
+    <div className="space-y-2">
+      {meetings.map((meeting) => (
+        <MeetingRow key={meeting.id} meeting={meeting} />
+      ))}
     </div>
+  );
+}
+
+function MeetingRow({ meeting }: { meeting: MyMeeting }) {
+  const navigate = useNavigate();
+  const startsAt = meeting.starts_at ? new Date(meeting.starts_at) : null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(`/meetings/${meeting.id}`)}
+      className="flex w-full items-start gap-3 rounded-lg border border-gray-200 bg-white p-4 text-left transition-colors hover:border-primary/40 hover:bg-gray-50"
+    >
+      <div className="flex h-10 w-10 shrink-0 flex-col items-center justify-center rounded-md bg-primary/5 text-primary">
+        <span className="text-[10px] font-semibold uppercase">
+          {startsAt ? format(startsAt, 'MMM') : '—'}
+        </span>
+        <span className="text-sm font-bold leading-4">
+          {startsAt ? format(startsAt, 'd') : '—'}
+        </span>
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold text-gray-900">{meeting.title}</div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+          {startsAt && (
+            <span className="flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" />
+              {format(startsAt, 'EEE, h:mm a')}
+            </span>
+          )}
+          {meeting.location && (
+            <span className="flex items-center gap-1 truncate">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              {meeting.location}
+            </span>
+          )}
+        </div>
+        {meeting.organizer_name && (
+          <p className="mt-1 text-[11px] text-gray-400">Organized by {meeting.organizer_name}</p>
+        )}
+      </div>
+      {meeting.my_response && (
+        <StatusBadge status={meeting.my_response} />
+      )}
+    </button>
   );
 }
 
 /* ==================== ACTIVITY ==================== */
 
 function ActivityTab() {
-  const { data: activity, isLoading } = useQuery({
+  const { data: activity, isLoading, isError, refetch } = useQuery({
     queryKey: ['my-work', 'activity'],
     queryFn: () => myWorkService.getActivity(),
   });
+
+  if (isError) {
+    return <LoadError onRetry={() => refetch()} />;
+  }
 
   if (isLoading) {
     return <div className="h-64 bg-gray-100 rounded-lg animate-pulse" />;
@@ -889,6 +1041,24 @@ function ActivityTab() {
 }
 
 /* ==================== SHARED HELPERS ==================== */
+
+function LoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="rounded-lg border border-amber-200 bg-white px-5 py-10 text-center">
+      <AlertCircle className="mx-auto mb-2 h-8 w-8 text-amber-500" strokeWidth={1.5} />
+      <p className="text-sm font-medium text-gray-800">Could not load this section</p>
+      <p className="mt-1 text-xs text-gray-500">Check your connection and try again.</p>
+      <button
+        type="button"
+        onClick={() => onRetry()}
+        className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+      >
+        <RefreshCw className="h-3.5 w-3.5" />
+        Retry
+      </button>
+    </div>
+  );
+}
 
 function PriorityBadge({ priority }: { priority: string }) {
   if (!priority) return null;
