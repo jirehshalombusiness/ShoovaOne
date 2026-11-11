@@ -25,6 +25,11 @@ const DashboardPage = lazy(() =>
     default: module.DashboardPage,
   }))
 );
+const ReportsPage = lazy(() =>
+  import('@/features/reports/pages/ReportsPage').then((module) => ({
+    default: module.ReportsPage,
+  }))
+);
 const MyWorkPage = lazy(() =>
   import('@/features/mywork/pages/MyWorkPage').then((module) => ({
     default: module.MyWorkPage,
@@ -1618,9 +1623,7 @@ export function AppRouter() {
 
           <Route
             path="reports"
-            element={
-              <Placeholder title="Reports" />
-            }
+            element={<ReportsPage />}
           />
 
           <Route

@@ -213,7 +213,6 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: BarChart3,
         label: 'Reports',
         path: '/reports',
-        permission: 'reports.view',
       },
       {
         icon: Settings,
