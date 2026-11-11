@@ -77,21 +77,21 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      {/* ── Form column ─────────────────────────────────────── */}
-      <div className="relative flex w-full flex-col bg-white lg:w-[54%] xl:w-[48%]">
-        <div className="flex items-center justify-between px-6 py-5 lg:px-10">
+    <div className="login-page-enter flex min-h-screen items-center justify-center bg-[#f2f5f3] lg:p-5 xl:p-7">
+      <div className="relative flex min-h-screen w-full overflow-hidden bg-white shadow-2xl shadow-gray-900/[0.08] lg:min-h-[calc(100vh-2.5rem)] lg:max-w-[1600px] lg:rounded-[28px] xl:min-h-[calc(100vh-3.5rem)]">
+        <div className="relative z-10 flex w-full flex-col bg-white lg:w-[46%] xl:w-[44%]">
+        <div className="flex items-center justify-between px-6 py-5 sm:px-8 lg:px-10 xl:px-12">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center shadow-sm">
-              <span className="text-white font-bold text-base leading-none">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20">
+              <span className="text-base font-bold leading-none text-white">
                 S
               </span>
             </div>
             <div className="leading-tight">
-              <div className="text-sm font-bold text-gray-900 tracking-tight">
+              <div className="text-sm font-bold tracking-tight text-gray-900">
                 SHOOVA ONE
               </div>
-              <div className="text-[10px] text-gray-500 font-medium tracking-wide">
+              <div className="text-[10px] font-medium tracking-wide text-gray-500">
                 Management &amp; Impact Platform
               </div>
             </div>
@@ -100,37 +100,37 @@ export function LoginPage() {
           <ThemeToggle />
         </div>
 
-        <div className="flex flex-1 items-center justify-center px-6 pb-10 pt-4 lg:px-10">
-          <div className="w-full max-w-[400px]">
+        <div className="flex flex-1 items-center justify-center px-6 pb-10 pt-4 sm:px-8 lg:px-10 xl:px-12">
+          <div className="login-content-enter w-full max-w-[400px]">
             <div className="mb-8">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/5 border border-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
-                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                Sign in
+              <span className="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">
+                <span className="login-pulse h-1.5 w-1.5 rounded-full bg-primary" />
+                Secure team access
               </span>
-              <h1 className="mt-4 text-2xl font-bold tracking-tight text-gray-900">
+              <h1 className="mt-5 text-3xl font-semibold tracking-[-0.04em] text-gray-900 sm:text-[2.1rem]">
                 Welcome back
               </h1>
-              <p className="mt-1.5 text-sm text-gray-500">
-                Enter your work credentials to continue to your workspace.
+              <p className="mt-2 max-w-sm text-sm leading-6 text-gray-500">
+                Sign in with your work account to pick up where you left off.
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <form onSubmit={handleSubmit} className="space-y-5" noValidate>
               <div>
                 <label
                   htmlFor="email"
-                  className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-gray-600"
+                  className="mb-2 block text-xs font-semibold tracking-wide text-gray-700"
                 >
                   Email address
                 </label>
                 <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-gray-400 transition-colors" />
                   <input
                     id="email"
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-400 transition-shadow focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50/70 py-3 pl-11 pr-4 text-sm text-gray-900 placeholder-gray-400 transition duration-200 focus:border-primary/60 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary/10"
                     placeholder="you@shoova.org"
                     required
                     autoComplete="email"
@@ -143,7 +143,7 @@ export function LoginPage() {
                 <div className="mb-1.5 flex items-center justify-between">
                   <label
                     htmlFor="password"
-                    className="block text-xs font-semibold uppercase tracking-wider text-gray-600"
+                    className="block text-xs font-semibold tracking-wide text-gray-700"
                   >
                     Password
                   </label>
@@ -156,13 +156,13 @@ export function LoginPage() {
                   </button>
                 </div>
                 <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-gray-400" />
                   <input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-11 text-sm text-gray-900 placeholder-gray-400 transition-shadow focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50/70 py-3 pl-11 pr-12 text-sm text-gray-900 placeholder-gray-400 transition duration-200 focus:border-primary/60 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary/10"
                     placeholder="Enter your password"
                     required
                     autoComplete="current-password"
@@ -170,7 +170,7 @@ export function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((value) => !value)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                     aria-label={
                       showPassword ? 'Hide password' : 'Show password'
                     }
@@ -184,7 +184,7 @@ export function LoginPage() {
                 </div>
               </div>
 
-              <label className="flex w-fit cursor-pointer items-center gap-2 select-none">
+              <label className="flex w-fit cursor-pointer select-none items-center gap-2.5">
                 <input
                   type="checkbox"
                   checked={rememberEmail}
@@ -197,7 +197,7 @@ export function LoginPage() {
               {error && (
                 <div
                   role="alert"
-                  className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3"
+                  className="animate-fade-in flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3.5"
                 >
                   <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
                   <p className="text-xs leading-relaxed text-red-700">
@@ -211,7 +211,7 @@ export function LoginPage() {
                 disabled={loading}
                 className={cn(
                   'group flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white',
-                  'shadow-lg shadow-primary/20 transition-all hover:bg-primary-dark',
+                  'rounded-xl shadow-lg shadow-primary/20 transition duration-200 hover:-translate-y-0.5 hover:bg-primary-dark hover:shadow-xl hover:shadow-primary/20 active:translate-y-0',
                   'focus:outline-none focus:ring-4 focus:ring-primary/20',
                   'disabled:cursor-not-allowed disabled:opacity-60',
                 )}
@@ -230,9 +230,9 @@ export function LoginPage() {
               </button>
             </form>
 
-            <div className="mt-8 flex items-start gap-2.5 rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400" />
-              <p className="text-[11px] leading-relaxed text-gray-500">
+            <div className="mt-8 flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+              <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary/70" />
+              <p className="text-[11px] leading-[1.65] text-gray-500">
                 Access is limited to authorised staff. Don&apos;t have an
                 account? Contact your system administrator or HR team.
               </p>
@@ -240,77 +240,82 @@ export function LoginPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 px-6 py-5 lg:px-10">
-          <p className="text-[11px] text-gray-400">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 px-6 py-5 sm:px-8 lg:px-10 xl:px-12">
+          <p className="text-[10px] text-gray-400">
             © {new Date().getFullYear()} Shoova Initiative. All rights
             reserved.
           </p>
-          <p className="text-[11px] text-gray-400">
+          <p className="text-[10px] text-gray-400">
             Secure workspace · Shoova ONE
           </p>
         </div>
       </div>
 
-      {/* ── Brand column ────────────────────────────────────── */}
-      <div className="relative hidden flex-1 overflow-hidden bg-[#07231a] lg:flex">
+      <div className="login-brand-enter relative hidden flex-1 overflow-hidden bg-[#061d16] lg:flex">
         <div
           className="absolute inset-0"
           style={{
             background:
-              'radial-gradient(120% 90% at 100% 0%, rgba(28,107,79,0.85) 0%, rgba(7,35,26,0) 60%), radial-gradient(90% 80% at 0% 100%, rgba(199,154,53,0.18) 0%, rgba(7,35,26,0) 55%)',
+              'radial-gradient(110% 90% at 100% 0%, rgba(36,125,89,0.72) 0%, rgba(6,29,22,0) 58%), radial-gradient(90% 80% at 0% 100%, rgba(199,154,53,0.16) 0%, rgba(6,29,22,0) 55%)',
           }}
         />
+        <div className="login-orb login-orb-one absolute -right-36 top-12 h-[30rem] w-[30rem] rounded-full bg-emerald-400/10 blur-3xl" />
+        <div className="login-orb login-orb-two absolute -bottom-48 -left-36 h-[28rem] w-[28rem] rounded-full bg-amber-300/[0.08] blur-3xl" />
         <div
-          className="absolute inset-0 opacity-[0.35]"
+          className="absolute inset-0 opacity-[0.23]"
           style={{
             backgroundImage:
-              'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
-            backgroundSize: '48px 48px',
+              'linear-gradient(rgba(255,255,255,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.055) 1px, transparent 1px)',
+            backgroundSize: '56px 56px',
             maskImage:
-              'radial-gradient(120% 100% at 50% 0%, black 20%, transparent 75%)',
+              'radial-gradient(100% 90% at 50% 35%, black 10%, transparent 78%)',
             WebkitMaskImage:
-              'radial-gradient(120% 100% at 50% 0%, black 20%, transparent 75%)',
+              'radial-gradient(100% 90% at 50% 35%, black 10%, transparent 78%)',
           }}
         />
-        <div className="absolute -right-24 top-24 h-72 w-72 rounded-full border border-white/10" />
-        <div className="absolute -right-10 top-40 h-48 w-48 rounded-full border border-white/10" />
-        <div className="absolute right-16 top-32 h-2 w-2 rounded-full bg-[#c79a35]" />
+        <div className="absolute -right-32 top-20 h-[30rem] w-[30rem] rounded-full border border-white/[0.08]" />
+        <div className="absolute -right-8 top-44 h-[22rem] w-[22rem] rounded-full border border-white/[0.08]" />
+        <div className="login-pulse absolute right-[22%] top-[24%] h-2 w-2 rounded-full bg-[#d7b55c]" />
 
-        <div className="relative z-10 flex w-full flex-col justify-between p-12 xl:p-16">
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">
+        <div className="relative z-10 flex w-full flex-col justify-between p-10 xl:p-14 2xl:p-16">
+          <div className="flex items-center gap-2.5 text-[10px] font-medium uppercase tracking-[0.18em] text-white/45">
             <span className="h-1.5 w-1.5 rounded-full bg-[#c79a35]" />
-            Shoova ONE · Impact Platform
+            Built around your mission
           </div>
 
-          <div className="max-w-lg">
-            <h2 className="text-[2.25rem] font-bold leading-[1.15] tracking-tight text-white xl:text-4xl">
-              Where your people,
+          <div className="my-12 max-w-xl">
+            <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#c5e7d8]/70">
+              A clearer view of your organisation
+            </p>
+            <h2 className="max-w-lg text-[2.5rem] font-semibold leading-[1.12] tracking-[-0.04em] text-white xl:text-5xl">
+              Bring your people,
               <br />
-              projects and impact
+              projects and purpose
               <br />
-              <span className="text-[#7ee0bb]">come together.</span>
+              <span className="text-[#91e0bd]">together.</span>
             </h2>
-            <p className="mt-5 max-w-md text-sm leading-relaxed text-white/70">
-              One connected operating system for the whole organisation —
-              from the first hire to measurable, lasting change in the
-              communities you serve.
+            <p className="mt-5 max-w-md text-sm leading-7 text-white/60">
+              The essential work of your organisation, connected in one
+              thoughtful workspace — so your teams can focus on the impact
+              they came to make.
             </p>
 
-            <div className="mt-9 grid grid-cols-2 gap-3">
-              {HIGHLIGHTS.map((highlight) => {
+            <div className="mt-9 grid max-w-lg grid-cols-2 gap-3">
+              {HIGHLIGHTS.map((highlight, index) => {
                 const Icon = highlight.icon;
                 return (
                   <div
                     key={highlight.label}
-                    className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3.5 backdrop-blur-sm"
+                    className="login-feature-enter flex items-center gap-3 rounded-xl border border-white/[0.1] bg-white/[0.055] px-3.5 py-3.5 backdrop-blur-sm transition duration-200 hover:border-white/20 hover:bg-white/[0.09] sm:px-4"
+                    style={{ animationDelay: `${180 + index * 90}ms` }}
                   >
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/10">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.08]">
                       <Icon
-                        className="h-4 w-4 text-[#8ce5c3]"
+                        className="h-4 w-4 text-[#91e0bd]"
                         strokeWidth={1.75}
                       />
                     </div>
-                    <span className="text-xs font-medium text-white/90">
+                    <span className="text-xs font-medium text-white/80">
                       {highlight.label}
                     </span>
                   </div>
@@ -320,20 +325,21 @@ export function LoginPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-white/10 pt-6">
-            <span className="flex items-center gap-2 text-[11px] font-medium text-white/55">
-              <ShieldCheck className="h-3.5 w-3.5 text-[#8ce5c3]" />
+            <span className="flex items-center gap-2 text-[10px] font-medium text-white/50">
+              <ShieldCheck className="h-3.5 w-3.5 text-[#91e0bd]" />
               Role-based access
             </span>
-            <span className="flex items-center gap-2 text-[11px] font-medium text-white/55">
+            <span className="flex items-center gap-2 text-[10px] font-medium text-white/50">
               <span className="h-1 w-1 rounded-full bg-white/30" />
               Single source of truth
             </span>
-            <span className="flex items-center gap-2 text-[11px] font-medium text-white/55">
+            <span className="flex items-center gap-2 text-[10px] font-medium text-white/50">
               <span className="h-1 w-1 rounded-full bg-white/30" />
               Built for institutions
             </span>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
