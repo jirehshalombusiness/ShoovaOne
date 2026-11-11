@@ -309,6 +309,47 @@ export function DocumentsPage() {
     }
   }
 
+  async function openDocument(item: SharePointItem) {
+    const previewableTypes = new Set([
+      'application/pdf',
+      'image/bmp',
+      'image/gif',
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+    ]);
+    const previewWindow = previewableTypes.has(item.mime_type ?? '')
+      ? window.open('', '_blank')
+      : null;
+
+    if (previewableTypes.has(item.mime_type ?? '') && !previewWindow) {
+      toast.error('Allow pop-ups to preview this document');
+      return;
+    }
+
+    try {
+      const file = await sharepointService.download(item.id);
+      const fileUrl = URL.createObjectURL(file);
+
+      if (previewWindow) {
+        previewWindow.opener = null;
+        previewWindow.location.href = fileUrl;
+        window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60_000);
+      } else {
+        const link = document.createElement('a');
+        link.href = fileUrl;
+        link.download = item.name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60_000);
+      }
+    } catch (error) {
+      previewWindow?.close();
+      toast.error(sharepointErrorMessage(error));
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -716,14 +757,13 @@ export function DocumentsPage() {
                         {content}
                       </button>
                     ) : (
-                      <a
-                        href={item.web_url ?? '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => openDocument(item)}
                         className="flex min-w-0 flex-1 items-center gap-3"
                       >
                         {content}
-                      </a>
+                      </button>
                     )}
 
                     {!item.is_folder && (
@@ -783,8 +823,8 @@ export function DocumentsPage() {
           )}
 
           <div className="border-t border-gray-100 px-4 py-2.5 text-[11px] text-gray-400">
-            Uploads go straight into SharePoint. Files open there, where the
-            original stays up to date.
+            Files stay in SharePoint and open through your ShoovaOne access.
+            PDFs and images preview here; other formats download.
           </div>
         </div>
       )}

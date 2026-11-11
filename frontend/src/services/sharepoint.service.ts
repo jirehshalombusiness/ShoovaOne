@@ -72,6 +72,7 @@ export interface SharePointListing {
 
 const REQUEST_TIMEOUT = 45_000;
 const UPLOAD_TIMEOUT = 120_000;
+const DOWNLOAD_TIMEOUT = 120_000;
 
 export const sharepointService = {
   async status(): Promise<SharePointStatus> {
@@ -188,6 +189,14 @@ export const sharepointService = {
     const response = await api.get<SharePointItem>(
       `/integrations/sharepoint/items/${encodeURIComponent(itemId)}`,
       { timeout: REQUEST_TIMEOUT }
+    );
+    return response.data;
+  },
+
+  async download(itemId: string): Promise<Blob> {
+    const response = await api.get<Blob>(
+      `/integrations/sharepoint/items/${encodeURIComponent(itemId)}/content`,
+      { responseType: 'blob', timeout: DOWNLOAD_TIMEOUT }
     );
     return response.data;
   },

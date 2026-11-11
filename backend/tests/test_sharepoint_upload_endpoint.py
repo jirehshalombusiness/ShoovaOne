@@ -208,3 +208,83 @@ async def test_folder_request_rejects_whitespace_only_reason():
         )
 
     assert exc.value.status_code == 422
+
+
+class FakeDownloadResponse:
+    headers = {"content-length": "3"}
+
+    def __init__(self):
+        self.closed = False
+
+    async def aiter_bytes(self):
+        yield b"pdf"
+
+    async def aclose(self):
+        self.closed = True
+
+
+class FakeDownloadClient:
+    def __init__(self):
+        self.closed = False
+
+    async def aclose(self):
+        self.closed = True
+
+
+class FakeDocumentClient:
+    def __init__(self, path="/Policies/report.pdf"):
+        self.item = {
+            "id": "doc-1",
+            "name": "report #1.pdf",
+            "path": path,
+            "is_folder": False,
+            "mime_type": "application/pdf",
+        }
+        self.download_response = FakeDownloadResponse()
+        self.download_client = FakeDownloadClient()
+        self.open_calls = 0
+
+    async def get_item(self, item_id):
+        return self.item
+
+    async def open_file(self, item_id):
+        self.open_calls += 1
+        return self.download_client, self.download_response
+
+
+@pytest.mark.asyncio
+async def test_document_download_streams_only_after_access_check(monkeypatch):
+    client = FakeDocumentClient()
+    patch(monkeypatch, denied_paths={"/Finance"}, client=client)
+
+    response = await endpoint.download_sharepoint_item(
+        item_id="doc-1",
+        current_user=FakeUser(),
+        db=None,
+    )
+    content = b"".join([chunk async for chunk in response.body_iterator])
+
+    assert content == b"pdf"
+    assert response.media_type == "application/pdf"
+    assert response.headers["content-disposition"] == (
+        "inline; filename*=UTF-8''report%20%231.pdf"
+    )
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert client.download_response.closed
+    assert client.download_client.closed
+
+
+@pytest.mark.asyncio
+async def test_document_download_refuses_restricted_item(monkeypatch):
+    client = FakeDocumentClient(path="/Finance/report.pdf")
+    patch(monkeypatch, denied_paths={"/Finance"}, client=client)
+
+    with pytest.raises(HTTPException) as exc:
+        await endpoint.download_sharepoint_item(
+            item_id="doc-1",
+            current_user=FakeUser(),
+            db=None,
+        )
+
+    assert exc.value.status_code == 404
+    assert client.open_calls == 0

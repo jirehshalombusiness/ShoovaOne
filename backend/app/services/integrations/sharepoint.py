@@ -463,6 +463,38 @@ class SharePointClient:
 
         return summarize_item(raw, drive)
 
+    async def open_file(self, item_id: str) -> tuple[httpx.AsyncClient, httpx.Response]:
+        item = _clean_item_id(item_id)
+        drive = await self.drive()
+        token = await self.access_token()
+        client = self._new_client()
+
+        try:
+            request = client.build_request(
+                "GET",
+                f"{GRAPH_ROOT}/drives/{drive['id']}/items/{item}/content",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            response = await client.send(
+                request,
+                follow_redirects=True,
+                stream=True,
+            )
+        except httpx.HTTPError as exc:
+            await client.aclose()
+            raise SharePointError("Could not retrieve the SharePoint file") from exc
+
+        if response.status_code >= 400:
+            await response.aread()
+            message = _graph_error_message(response)
+            await response.aclose()
+            await client.aclose()
+            raise SharePointError(
+                f"Microsoft Graph returned {response.status_code}: {message}"
+            )
+
+        return client, response
+
     async def upload_file(
         self,
         filename: str,

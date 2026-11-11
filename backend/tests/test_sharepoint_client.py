@@ -86,6 +86,15 @@ class Recorder:
                 },
             )
 
+        if url.path == f"{DRIVE_ROOT}/items/1/content":
+            return httpx.Response(
+                302,
+                headers={"Location": "https://download.example/file"},
+            )
+
+        if url.host == "download.example":
+            return httpx.Response(200, content=b"%PDF-1.4 document")
+
         if url.path.endswith("/children") and request.method == "POST":
             if self.folder_conflict:
                 return httpx.Response(
@@ -526,3 +535,25 @@ async def test_delete_folder_calls_graph_delete(client, recorder):
 
     request = next(request for request in recorder.requests if request.method == "DELETE")
     assert request.url.path == f"{DRIVE_ROOT}/items/folder-9"
+
+
+@pytest.mark.asyncio
+async def test_open_file_follows_graph_download_redirect(client, recorder):
+    download_client, response = await client.open_file("1")
+
+    assert await response.aread() == b"%PDF-1.4 document"
+    await response.aclose()
+    await download_client.aclose()
+
+    graph_request = next(
+        request
+        for request in recorder.requests
+        if request.url.path == f"{DRIVE_ROOT}/items/1/content"
+    )
+    download_request = next(
+        request
+        for request in recorder.requests
+        if request.url.host == "download.example"
+    )
+    assert graph_request.headers["Authorization"] == "Bearer token-1"
+    assert "Authorization" not in download_request.headers

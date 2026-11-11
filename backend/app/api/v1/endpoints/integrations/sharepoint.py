@@ -14,6 +14,7 @@ permission before a response is built, and also block uploads into them.
 import json
 from datetime import datetime, timezone
 from typing import Literal, Optional
+from urllib.parse import quote
 
 from fastapi import (
     APIRouter,
@@ -26,6 +27,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from starlette.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -405,6 +407,71 @@ async def get_sharepoint_item(
         )
 
     return item
+
+
+@router.get("/items/{item_id}/content")
+async def download_sharepoint_item(
+    item_id: str,
+    current_user: User = Depends(
+        require_permission(Permissions.DOCUMENTS_VIEW)
+    ),
+    db: AsyncSession = Depends(get_db),
+):
+    """Stream a permitted SharePoint file through the authenticated app."""
+
+    denied_paths, denied_ids = await restricted_locations(
+        db,
+        current_user.id,
+    )
+
+    try:
+        item = await sharepoint_client.get_item(item_id)
+        if item.get("is_folder"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The selected item is not a file",
+            )
+        if item_is_restricted(item, denied_paths, denied_ids):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Item not found",
+            )
+        download_client, upstream = await sharepoint_client.open_file(item_id)
+    except SharePointError as exc:
+        raise _graph_http_error(exc)
+
+    mime_type = item.get("mime_type") or "application/octet-stream"
+    previewable_types = {
+        "application/pdf",
+        "image/bmp",
+        "image/gif",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+    }
+    disposition = "inline" if mime_type in previewable_types else "attachment"
+    filename = quote(item.get("name") or "document", safe="")
+
+    async def stream_content():
+        try:
+            async for chunk in upstream.aiter_bytes():
+                yield chunk
+        finally:
+            await upstream.aclose()
+            await download_client.aclose()
+
+    headers = {
+        "Content-Disposition": f"{disposition}; filename*=UTF-8''{filename}",
+        "X-Content-Type-Options": "nosniff",
+    }
+    if upstream.headers.get("content-length"):
+        headers["Content-Length"] = upstream.headers["content-length"]
+
+    return StreamingResponse(
+        stream_content(),
+        media_type=mime_type,
+        headers=headers,
+    )
 
 
 @router.post("/items/upload", status_code=status.HTTP_201_CREATED)
