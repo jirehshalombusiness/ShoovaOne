@@ -11,7 +11,7 @@ DEFAULT_JWT_SECRET = "dev-jwt-secret-key-change-in-production-123456789"
 DEFAULT_APP_SECRET = "dev-secret-key-change-in-production-123456789"
 
 PRODUCTION_FRONTEND_ORIGINS = [
-    "https://shoovaone.vercel.app",
+    "https://shoovainitiative.com",
 ]
 
 DEV_FRONTEND_ORIGINS = [
