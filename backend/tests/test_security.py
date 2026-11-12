@@ -84,7 +84,8 @@ async def test_sliding_window_blocks_after_limit():
 
 def test_cors_origins_always_include_frontend():
     origins = settings.allowed_cors_origins
-    assert "https://shoovaone.vercel.app" in origins
+    assert "https://shoovainitiative.com" in origins
+    assert "https://www.shoovainitiative.com" in origins
     assert "*" not in origins
 
 

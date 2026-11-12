@@ -19,7 +19,7 @@ services:
       - key: JWT_EXPIRATION_MINUTES
         value: "720"
       - key: BACKEND_CORS_ORIGINS
-        value: https://shoovaone.vercel.app
+        value: https://shoovaone.vercel.app,https://www.shoovainitiative.com
       - key: SECRET_KEY
         generateValue: true
       - key: JWT_SECRET_KEY

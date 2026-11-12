@@ -40,7 +40,7 @@ Shoova ONE is the internal digital operating system for Shoova Initiative. Its c
 - Provide a scalable technical foundation for future programmes
 
 **Production URLs:**
-- Frontend: https://shoovaone.vercel.app
+- Frontend: https://www.shoovainitiative.com
 - Backend API: https://shoovaone.onrender.com
 - API Docs: https://shoovaone.onrender.com/docs
 - Database: Supabase (PostgreSQL)
