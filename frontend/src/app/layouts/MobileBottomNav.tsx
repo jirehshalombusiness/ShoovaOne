@@ -31,7 +31,7 @@ export function MobileBottomNav({ onMoreClick }: MobileBottomNavProps) {
   );
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-gray-200 z-30 flex items-stretch safe-area-inset-bottom">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 min-h-14 bg-white border-t border-gray-200 z-30 flex items-stretch safe-bottom">
       {tabs.map((tab) => (
         <NavLink
           key={tab.path}

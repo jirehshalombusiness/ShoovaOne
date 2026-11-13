@@ -49,7 +49,7 @@ export function TopBar({ onMenuClick }: TopBarProps) {
   return (
     <header
       className={cn(
-        'h-14 bg-white flex items-center px-3 lg:px-5 gap-2 lg:gap-3 flex-shrink-0 sticky top-0 z-20',
+        'min-h-14 bg-white flex items-center px-3 lg:px-5 gap-2 lg:gap-3 flex-shrink-0 sticky top-0 z-20 safe-top',
         'border-b transition-shadow duration-200',
         scrolled ? 'shadow-sm border-gray-200' : 'border-gray-100'
       )}

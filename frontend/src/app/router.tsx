@@ -55,21 +55,23 @@ const HelpPage = lazy(() =>
     default: module.HelpPage,
   }))
 );
-const ProgramsPreviewPage = import.meta.env.DEV
+const MOBILE_PREVIEWS_ENABLED =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_PREVIEWS === 'true';
+const ProgramsPreviewPage = MOBILE_PREVIEWS_ENABLED
   ? lazy(() =>
       import('@/features/programs-preview/ProgramsPreviewPage').then((module) => ({
         default: module.ProgramsPreviewPage,
       }))
     )
   : null;
-const ERPAppPreviewPage = import.meta.env.DEV
+const ERPAppPreviewPage = MOBILE_PREVIEWS_ENABLED
   ? lazy(() =>
       import('@/features/erp-mobile-preview/ERPAppPreviewPage').then((module) => ({
         default: module.ERPAppPreviewPage,
       }))
     )
   : null;
-const UnifiedMobileAppPreviewPage = import.meta.env.DEV
+const UnifiedMobileAppPreviewPage = MOBILE_PREVIEWS_ENABLED
   ? lazy(() =>
       import('@/features/unified-mobile-preview/UnifiedMobileAppPreviewPage').then(
         (module) => ({

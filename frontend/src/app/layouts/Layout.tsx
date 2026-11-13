@@ -142,7 +142,7 @@ export function Layout() {
         <TopBar onMenuClick={() => setDrawerOpen(true)} />
 
         <main className="flex-1 overflow-y-auto overscroll-contain">
-          <div className="p-4 lg:p-6 pb-20 lg:pb-6 max-w-[1600px] mx-auto">
+          <div className="p-4 lg:p-6 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-6 max-w-[1600px] mx-auto">
             <Outlet />
           </div>
         </main>
