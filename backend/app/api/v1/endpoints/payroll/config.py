@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -35,6 +35,7 @@ from app.models.sql.payroll.config import (
     StatutoryScheme,
     TaxBand,
 )
+from app.models.sql.payroll.employee import EmployeePayProfile
 from app.services.core.audit_service import AuditService
 
 router = APIRouter()
@@ -420,6 +421,24 @@ async def update_pay_group(
         and changes["proration_basis"] not in PRORATION_BASES
     ):
         raise HTTPException(status_code=400, detail="Invalid proration_basis")
+
+    if changes.get("is_active") is False and group.is_active:
+        assigned = await db.scalar(
+            select(func.count())
+            .select_from(EmployeePayProfile)
+            .where(
+                EmployeePayProfile.pay_group_id == group.id,
+                EmployeePayProfile.is_active.is_(True),
+            )
+        )
+        if assigned:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"{assigned} active employee pay profile(s) still use this "
+                    "group. Reassign them before deactivating."
+                ),
+            )
 
     for key, value in changes.items():
         setattr(group, key, value)

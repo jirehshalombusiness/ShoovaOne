@@ -94,6 +94,21 @@ export const payrollService = {
     return data;
   },
 
+  async updatePayGroup(
+    id: string,
+    payload: {
+      description?: string;
+      pay_type?: string;
+      currency?: string;
+      overtime_eligible?: boolean;
+      proration_basis?: string;
+      is_active?: boolean;
+    },
+  ): Promise<PayGroup> {
+    const { data } = await api.patch<PayGroup>(`/payroll/pay-groups/${id}`, payload);
+    return data;
+  },
+
   async getStatutorySchemes(includeInactive = false): Promise<StatutoryScheme[]> {
     const { data } = await api.get<StatutoryScheme[]>('/payroll/statutory-schemes', {
       params: { include_inactive: includeInactive },

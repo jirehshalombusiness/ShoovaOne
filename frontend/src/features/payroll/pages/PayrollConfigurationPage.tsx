@@ -7,7 +7,9 @@ import {
   Layers,
   Landmark,
   Loader2,
+  Pencil,
   Plus,
+  Power,
   RefreshCcw,
   Settings2,
   X,
@@ -25,7 +27,7 @@ import {
   titleCase,
 } from '../payroll.utils';
 import { useHRAccess } from '@/hooks/useHRAccess';
-import type { StatutoryScheme, TaxBand } from '../payroll.types';
+import type { PayGroup, StatutoryScheme, TaxBand } from '../payroll.types';
 
 type ConfigTab = 'periods' | 'groups' | 'schemes' | 'components';
 
@@ -43,6 +45,7 @@ export function PayrollConfigurationPage() {
   const access = useHRAccess();
   const [tab, setTab] = useState<ConfigTab>('periods');
   const [dialog, setDialog] = useState<ConfigTab | 'generate' | null>(null);
+  const [editGroup, setEditGroup] = useState<PayGroup | null>(null);
 
   const periodsQuery = useQuery({
     queryKey: ['payroll', 'periods'],
@@ -161,7 +164,14 @@ export function PayrollConfigurationPage() {
               <GroupsPanel
                 groups={groupsQuery.data ?? []}
                 canConfigure={canConfigure}
-                onAdd={() => setDialog('groups')}
+                onAdd={() => {
+                  setEditGroup(null);
+                  setDialog('groups');
+                }}
+                onEdit={(group) => {
+                  setEditGroup(group);
+                  setDialog('groups');
+                }}
               />
             )}
             {tab === 'schemes' && (
@@ -189,7 +199,13 @@ export function PayrollConfigurationPage() {
         <GeneratePeriodsDialog onClose={() => setDialog(null)} />
       )}
       {dialog === 'groups' && (
-        <CreateGroupDialog onClose={() => setDialog(null)} />
+        <GroupDialog
+          group={editGroup}
+          onClose={() => {
+            setDialog(null);
+            setEditGroup(null);
+          }}
+        />
       )}
       {dialog === 'schemes' && (
         <CreateSchemeDialog onClose={() => setDialog(null)} />
@@ -294,11 +310,39 @@ function GroupsPanel({
   groups,
   canConfigure,
   onAdd,
+  onEdit,
 }: {
   groups: Awaited<ReturnType<typeof payrollService.getPayGroups>>;
   canConfigure: boolean;
   onAdd: () => void;
+  onEdit: (group: PayGroup) => void;
 }) {
+  const queryClient = useQueryClient();
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
+      payrollService.updatePayGroup(id, { is_active }),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['payroll', 'groups'] });
+      toast.success(
+        updated.is_active ? 'Pay group reactivated' : 'Pay group deactivated',
+      );
+    },
+    onError: (error) =>
+      toast.error(getErrorMessage(error, 'Could not update the group')),
+  });
+
+  const toggleGroup = (group: PayGroup) => {
+    if (
+      group.is_active &&
+      !window.confirm(
+        `Deactivate "${group.name}"? It stays in payroll history, but cannot be used by new profiles or runs.`,
+      )
+    ) {
+      return;
+    }
+    toggleMutation.mutate({ id: group.id, is_active: !group.is_active });
+  };
+
   return (
     <div>
       <PanelHeader
@@ -334,6 +378,7 @@ function GroupsPanel({
                 <Th>Overtime</Th>
                 <Th>Proration</Th>
                 <Th>Status</Th>
+                {canConfigure && <Th align="right">Actions</Th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -358,6 +403,33 @@ function GroupsPanel({
                   <td className="px-5 py-3">
                     <PayrollStatusBadge status={group.is_active ? 'active' : 'inactive'} />
                   </td>
+                  {canConfigure && (
+                    <td className="px-5 py-3">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onEdit(group)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          disabled={toggleMutation.isPending}
+                          onClick={() => toggleGroup(group)}
+                          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium disabled:opacity-50 ${
+                            group.is_active
+                              ? 'border-red-200 bg-white text-red-600 hover:bg-red-50'
+                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Power className="h-3.5 w-3.5" />
+                          {group.is_active ? 'Deactivate' : 'Reactivate'}
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -845,39 +917,64 @@ function GeneratePeriodsDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-function CreateGroupDialog({ onClose }: { onClose: () => void }) {
+function GroupDialog({
+  group,
+  onClose,
+}: {
+  group: PayGroup | null;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
+  const isEdit = Boolean(group);
   const [form, setForm] = useState({
-    name: '',
-    description: '',
-    pay_type: 'salaried',
-    currency: 'GHS',
-    overtime_eligible: false,
-    proration_basis: 'working_days',
+    name: group?.name ?? '',
+    description: group?.description ?? '',
+    pay_type: group?.pay_type ?? 'salaried',
+    currency: group?.currency ?? 'GHS',
+    overtime_eligible: group?.overtime_eligible ?? false,
+    proration_basis: group?.proration_basis ?? 'working_days',
   });
 
   const mutation = useMutation({
     mutationFn: () =>
-      payrollService.createPayGroup({
-        name: form.name,
-        description: form.description || undefined,
-        pay_type: form.pay_type,
-        currency: form.currency.toUpperCase(),
-        overtime_eligible: form.overtime_eligible,
-        proration_basis: form.proration_basis,
-      }),
+      group
+        ? payrollService.updatePayGroup(group.id, {
+            description: form.description || undefined,
+            pay_type: form.pay_type,
+            currency: form.currency.toUpperCase(),
+            overtime_eligible: form.overtime_eligible,
+            proration_basis: form.proration_basis,
+          })
+        : payrollService.createPayGroup({
+            name: form.name,
+            description: form.description || undefined,
+            pay_type: form.pay_type,
+            currency: form.currency.toUpperCase(),
+            overtime_eligible: form.overtime_eligible,
+            proration_basis: form.proration_basis,
+          }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payroll', 'groups'] });
-      toast.success('Pay group created');
+      toast.success(isEdit ? 'Pay group updated' : 'Pay group created');
       onClose();
     },
-    onError: (error) => toast.error(getErrorMessage(error, 'Could not create the group')),
+    onError: (error) =>
+      toast.error(
+        getErrorMessage(
+          error,
+          isEdit ? 'Could not update the group' : 'Could not create the group',
+        ),
+      ),
   });
 
   return (
     <BaseDialog
-      title="Add pay group"
-      description="Choose the dominant pay type. Individual profiles can still override it."
+      title={isEdit ? 'Edit pay group' : 'Add pay group'}
+      description={
+        isEdit
+          ? 'Changes apply to future runs and draft runs only. Finalized runs keep their stored figures.'
+          : 'Choose the dominant pay type. Individual profiles can still override it.'
+      }
       onClose={onClose}
     >
       <form
@@ -891,11 +988,17 @@ function CreateGroupDialog({ onClose }: { onClose: () => void }) {
           <Field label="Name">
             <input
               required
+              disabled={isEdit}
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
-              className={inputClasses()}
+              className={`${inputClasses()} disabled:bg-slate-50 disabled:text-slate-500`}
               placeholder="Core staff"
             />
+            {isEdit && (
+              <p className="mt-1 text-xs text-slate-500">
+                The name is fixed because payroll history references it.
+              </p>
+            )}
           </Field>
           <Field label="Currency">
             <input
@@ -957,7 +1060,11 @@ function CreateGroupDialog({ onClose }: { onClose: () => void }) {
           Overtime is payable for this group
         </label>
 
-        <DialogActions onClose={onClose} pending={mutation.isPending} label="Create group" />
+        <DialogActions
+          onClose={onClose}
+          pending={mutation.isPending}
+          label={isEdit ? 'Save changes' : 'Create group'}
+        />
       </form>
     </BaseDialog>
   );
