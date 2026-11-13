@@ -1,6 +1,7 @@
 import asyncio
 import os
 import uuid
+from pathlib import Path
 
 import asyncpg
 
@@ -883,6 +884,18 @@ async def migrate():
         )
 
         print("✅ attendance columns verified")
+
+        # =========================================================
+        # 13. PUBLIC PROGRAMME APPLICATIONS
+        # =========================================================
+        migration_file = (
+            Path(__file__).resolve().parent.parent
+            / "database"
+            / "migrations"
+            / "021_public_programme_applications.sql"
+        )
+        await conn.execute(migration_file.read_text(encoding="utf-8"))
+        print("✅ Public programme application schema verified")
 
         # =========================================================
         # COMPLETE
