@@ -918,6 +918,10 @@ function CreateGroupDialog({ onClose }: { onClose: () => void }) {
               <option value="hourly">Hourly</option>
               <option value="mixed">Mixed</option>
             </select>
+            <p className="mt-1 text-xs text-slate-500">
+              Default for new employee pay profiles in this group. Hourly pays
+              approved timesheet hours; salaried pays the base amount.
+            </p>
           </Field>
           <Field label="Proration basis">
             <select

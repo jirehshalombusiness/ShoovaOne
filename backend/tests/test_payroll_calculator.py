@@ -106,6 +106,38 @@ def test_hourly_employee_is_paid_only_for_hours():
     assert "BASIC" not in codes
 
 
+def test_hourly_employee_without_rate_flags_unpaid_hours():
+    result = calculate_pay(
+        PayCalculationInput(
+            pay_type="hourly",
+            base_amount=Decimal("0"),
+            hourly_rate=Decimal("0"),
+            regular_hours=Decimal("160"),
+            period_start=date(2026, 10, 1),
+            period_end=date(2026, 10, 31),
+            pay_date=date(2026, 10, 28),
+        )
+    )
+
+    assert result.gross_pay == Decimal("0.00")
+    assert any(
+        "no hourly rate" in message.lower() for message in result.exceptions
+    )
+
+
+def test_salaried_employee_ignores_timesheet_hours():
+    result = calculate_pay(
+        salaried_payload(
+            regular_hours=Decimal("160"),
+            hourly_rate=Decimal("40"),
+        )
+    )
+
+    codes = {line.code for line in result.lines}
+    assert "HOURLY_REGULAR" not in codes
+    assert result.gross_pay == Decimal("5000.00")
+
+
 def test_salary_is_prorated_for_a_mid_month_start():
     result = calculate_pay(
         salaried_payload(

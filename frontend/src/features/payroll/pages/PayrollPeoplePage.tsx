@@ -1298,6 +1298,10 @@ function ProfileDialog({
               toast.error('Select an employee');
               return;
             }
+            if (form.pay_type === 'hourly' && Number(form.hourly_rate || 0) <= 0) {
+              toast.error('Set an hourly rate for hourly pay');
+              return;
+            }
             mutation.mutate();
           }}
           className="space-y-4 overflow-y-auto p-5"
@@ -1324,9 +1328,17 @@ function ProfileDialog({
             <Field label="Pay group">
               <select
                 value={form.pay_group_id}
-                onChange={(event) =>
-                  setForm({ ...form, pay_group_id: event.target.value })
-                }
+                onChange={(event) => {
+                  const groupId = event.target.value;
+                  const group = groups.find((item) => item.id === groupId);
+                  setForm({
+                    ...form,
+                    pay_group_id: groupId,
+                    ...(knownProfile || !group
+                      ? {}
+                      : { pay_type: group.pay_type, currency: group.currency }),
+                  });
+                }}
                 className={inputClasses()}
               >
                 <option value="">No group</option>
@@ -1348,6 +1360,10 @@ function ProfileDialog({
                 <option value="hourly">Hourly</option>
                 <option value="mixed">Mixed</option>
               </select>
+              <p className="mt-1 text-xs text-slate-500">
+                Hourly pays approved timesheet hours × hourly rate. Salaried pays the
+                base amount and skips hours.
+              </p>
             </Field>
 
             <Field label="Currency">
@@ -1373,6 +1389,9 @@ function ProfileDialog({
                 }
                 className={inputClasses()}
               />
+              <p className="mt-1 text-xs text-slate-500">
+                Monthly salary for salaried/mixed pay. Prorated for mid-month starts.
+              </p>
             </Field>
 
             <Field label="Hourly rate (overtime / hourly pay)">
@@ -1386,6 +1405,9 @@ function ProfileDialog({
                 }
                 className={inputClasses()}
               />
+              <p className="mt-1 text-xs text-slate-500">
+                Required when pay type is hourly; also prices overtime.
+              </p>
             </Field>
 
             <Field label="Overtime multiplier">

@@ -269,7 +269,13 @@ def calculate_pay(payload: PayCalculationInput) -> PayCalculationResult:
     regular_hours = dec(payload.regular_hours)
     overtime_hours = dec(payload.overtime_hours)
     hourly_rate_value = dec(payload.hourly_rate)
-    regular_hourly_pay = money(regular_hours * hourly_rate_value)
+    # Salaried pay is driven by the base amount; timesheet hours only price
+    # regular pay for hourly/mixed employees.
+    regular_hourly_pay = (
+        money(regular_hours * hourly_rate_value)
+        if pay_type in {"hourly", "mixed"}
+        else ZERO
+    )
 
     overtime_pay = ZERO
     if overtime_hours > ZERO:
@@ -315,6 +321,11 @@ def calculate_pay(payload: PayCalculationInput) -> PayCalculationResult:
 
     if pay_type == "hourly" and regular_hours <= ZERO and overtime_hours <= ZERO:
         exceptions.append("No approved hours were found for this hourly employee.")
+
+    if pay_type == "hourly" and regular_hours > ZERO and hourly_rate_value <= ZERO:
+        exceptions.append(
+            "Hourly employee has approved hours but no hourly rate is configured."
+        )
 
     if pay_type == "hourly" and overtime_hours > ZERO and hourly_rate_value <= ZERO:
         exceptions.append(
