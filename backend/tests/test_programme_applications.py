@@ -15,7 +15,10 @@ import app.models.sql  # noqa: F401
 from app.core.database import Base
 from app.models.sql.core.organisation import Organisation, Programme
 from app.models.sql.core.user import Person, User
-from app.models.sql.programmes.academics import ProgrammeCohort
+from app.models.sql.programmes.academics import (
+    CohortEnrolment,
+    ProgrammeCohort,
+)
 from app.models.sql.programmes.public_application import ProgrammeApplication
 from app.api.v1.endpoints.programmes import applications as api
 
@@ -264,3 +267,208 @@ async def test_review_writes_an_audit_entry(session: AsyncSession):
         )
     ).scalar_one()
     assert entry.entity_id == application.id
+
+
+@pytest.mark.asyncio
+async def test_enrol_creates_learner_and_cohort_placement(
+    session: AsyncSession,
+):
+    programme, cohort, application, reviewer = await seed_inbox(session)
+    application.status = "accepted"
+    await session.commit()
+
+    reviewed = await api.enrol_accepted_application(
+        programme_id=programme.id,
+        application_id=application.id,
+        db=session,
+        current_user=reviewer,
+    )
+
+    assert reviewed.status == "enrolled"
+
+    person = (
+        await session.execute(
+            select(Person).where(Person.email == "ama.mensah@example.org")
+        )
+    ).scalar_one()
+    assert person.first_name == "Ama"
+    assert person.last_name == "Mensah"
+    assert person.phone == "+233 20 000 0000"
+    assert person.type == "learner"
+
+    enrolment = (
+        await session.execute(
+            select(CohortEnrolment).where(
+                CohortEnrolment.cohort_id == cohort.id,
+                CohortEnrolment.person_id == person.id,
+            )
+        )
+    ).scalar_one()
+    assert enrolment.status == "enrolled"
+    assert enrolment.enrolled_on is not None
+
+    with pytest.raises(HTTPException) as exc:
+        await api.enrol_accepted_application(
+            programme_id=programme.id,
+            application_id=application.id,
+            db=session,
+            current_user=reviewer,
+        )
+    assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_enrol_reuses_an_existing_person_with_the_same_email(
+    session: AsyncSession,
+):
+    programme, cohort, application, reviewer = await seed_inbox(session)
+    application.status = "accepted"
+    existing = Person(
+        first_name="Ama",
+        last_name="Mensah",
+        email="AMA.MENSAH@example.org",
+        type="volunteer",
+    )
+    session.add(existing)
+    await session.commit()
+
+    await api.enrol_accepted_application(
+        programme_id=programme.id,
+        application_id=application.id,
+        db=session,
+        current_user=reviewer,
+    )
+
+    people = (
+        await session.execute(
+            select(Person).where(
+                Person.email.in_(
+                    ("ama.mensah@example.org", "AMA.MENSAH@example.org")
+                )
+            )
+        )
+    ).scalars().all()
+    enrolment = (
+        await session.execute(
+            select(CohortEnrolment).where(
+                CohortEnrolment.cohort_id == cohort.id
+            )
+        )
+    ).scalar_one()
+
+    assert len(people) == 1
+    assert enrolment.person_id == existing.id
+    assert existing.type == "volunteer"
+
+
+@pytest.mark.asyncio
+async def test_enrol_requires_an_accepted_application(session: AsyncSession):
+    programme, _, application, reviewer = await seed_inbox(session)
+
+    with pytest.raises(HTTPException) as exc:
+        await api.enrol_accepted_application(
+            programme_id=programme.id,
+            application_id=application.id,
+            db=session,
+            current_user=reviewer,
+        )
+
+    assert exc.value.status_code == 409
+    assert (
+        await session.execute(select(CohortEnrolment))
+    ).scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_enrol_rejects_an_existing_active_placement(
+    session: AsyncSession,
+):
+    programme, cohort, application, reviewer = await seed_inbox(session)
+    application.status = "accepted"
+    person = Person(
+        first_name="Ama",
+        last_name="Mensah",
+        email="ama.mensah@example.org",
+    )
+    session.add(person)
+    await session.flush()
+    session.add(
+        CohortEnrolment(
+            cohort_id=cohort.id,
+            person_id=person.id,
+            status="enrolled",
+            enrolled_on=date.today(),
+        )
+    )
+    await session.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await api.enrol_accepted_application(
+            programme_id=programme.id,
+            application_id=application.id,
+            db=session,
+            current_user=reviewer,
+        )
+
+    assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_enrol_respects_cohort_capacity(session: AsyncSession):
+    programme, cohort, application, reviewer = await seed_inbox(session)
+    application.status = "accepted"
+    cohort.capacity = 0
+    await session.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        await api.enrol_accepted_application(
+            programme_id=programme.id,
+            application_id=application.id,
+            db=session,
+            current_user=reviewer,
+        )
+
+    assert exc.value.status_code == 409
+    assert "capacity" in exc.value.detail.lower()
+
+
+@pytest.mark.asyncio
+async def test_enrol_reactivates_a_withdrawn_placement(
+    session: AsyncSession,
+):
+    programme, cohort, application, reviewer = await seed_inbox(session)
+    application.status = "accepted"
+    person = Person(
+        first_name="Ama",
+        last_name="Mensah",
+        email="ama.mensah@example.org",
+    )
+    session.add(person)
+    await session.flush()
+    session.add(
+        CohortEnrolment(
+            cohort_id=cohort.id,
+            person_id=person.id,
+            status="withdrawn",
+        )
+    )
+    await session.commit()
+
+    reviewed = await api.enrol_accepted_application(
+        programme_id=programme.id,
+        application_id=application.id,
+        db=session,
+        current_user=reviewer,
+    )
+
+    enrolment = (
+        await session.execute(
+            select(CohortEnrolment).where(
+                CohortEnrolment.cohort_id == cohort.id
+            )
+        )
+    ).scalar_one()
+
+    assert reviewed.status == "enrolled"
+    assert enrolment.status == "enrolled"
+    assert enrolment.enrolled_on is not None

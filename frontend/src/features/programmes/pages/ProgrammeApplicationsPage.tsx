@@ -17,6 +17,7 @@ const STATUS_ORDER: ApplicationStatus[] = [
   'submitted',
   'in_review',
   'accepted',
+  'enrolled',
   'declined',
 ];
 
@@ -78,6 +79,27 @@ export function ProgrammeApplicationsPage() {
     },
   });
 
+  const enrolMutation = useMutation({
+    mutationFn: (applicationId: string) =>
+      programmesService.enrolApplication(programme.id, applicationId),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<ProgrammeApplication[]>(queryKey, (current) =>
+        current
+          ? current.map((item) => (item.id === updated.id ? updated : item))
+          : current,
+      );
+      queryClient.invalidateQueries({ queryKey: ['programmes'] });
+      toast.success(
+        `Enrolled ${updated.applicant_name} on ${updated.cohort_name}`,
+      );
+    },
+    onError: (err: any) => {
+      toast.error(
+        err?.response?.data?.detail ?? 'Failed to enrol this applicant',
+      );
+    },
+  });
+
   const applications = data ?? [];
   const visible = filter
     ? applications.filter((item) => item.status === filter)
@@ -90,6 +112,17 @@ export function ProgrammeApplicationsPage() {
   const decide = (applicationId: string, status: ApplicationStatus) =>
     reviewMutation.mutate({ applicationId, status });
 
+  const enrol = (application: ProgrammeApplication) => {
+    const confirmed = window.confirm(
+      `Enrol ${application.applicant_name} on ${application.cohort_name}?\n\n` +
+        'This adds them to the cohort roster, creating a learner record if ' +
+        'their email is not in the system yet.',
+    );
+    if (confirmed) {
+      enrolMutation.mutate(application.id);
+    }
+  };
+
   return (
     <div className="bg-white border border-gray-200 rounded-lg">
       <div className="px-5 py-4 border-b border-gray-100">
@@ -97,8 +130,8 @@ export function ProgrammeApplicationsPage() {
           Applications ({applications.length})
         </h3>
         <p className="text-xs text-gray-500 mt-0.5">
-          Submissions from the public program pages. Accepting records the
-          decision; enrol accepted applicants from the cohort roster.
+          Submissions from the public program pages. Accept an application,
+          then enrol the applicant onto the cohort from here.
         </p>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {FILTERS.map((option) => (
@@ -157,11 +190,15 @@ export function ProgrammeApplicationsPage() {
           {visible.map((application) => {
             const expanded = expandedId === application.id;
             const pendingRow =
-              reviewMutation.isPending &&
-              reviewMutation.variables?.applicationId === application.id;
+              (reviewMutation.isPending &&
+                reviewMutation.variables?.applicationId ===
+                  application.id) ||
+              (enrolMutation.isPending &&
+                enrolMutation.variables === application.id);
             const canDecide =
               application.status === 'submitted' ||
               application.status === 'in_review';
+            const canEnrol = application.status === 'accepted';
 
             return (
               <div key={application.id} className="px-5 py-4">
@@ -195,7 +232,7 @@ export function ProgrammeApplicationsPage() {
                     </div>
                   </div>
 
-                  {canManage && (
+                  {canManage && application.status !== 'enrolled' && (
                     <div className="flex flex-wrap items-center gap-1.5">
                       {application.status === 'submitted' && (
                         <button
@@ -205,6 +242,19 @@ export function ProgrammeApplicationsPage() {
                           className="px-2.5 py-1.5 rounded-md text-[11px] font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 disabled:opacity-50"
                         >
                           Start review
+                        </button>
+                      )}
+                      {canEnrol && (
+                        <button
+                          type="button"
+                          disabled={pendingRow}
+                          onClick={() => enrol(application)}
+                          className="px-2.5 py-1.5 rounded-md text-[11px] font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {enrolMutation.isPending &&
+                          enrolMutation.variables === application.id
+                            ? 'Enrolling…'
+                            : 'Enrol learner'}
                         </button>
                       )}
                       {canDecide ? (

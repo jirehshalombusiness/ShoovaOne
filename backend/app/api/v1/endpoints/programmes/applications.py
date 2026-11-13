@@ -1,28 +1,39 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import Permissions, require_permission
 from app.models.sql.core.organisation import Programme
-from app.models.sql.core.user import User
-from app.models.sql.programmes.academics import ProgrammeCohort
+from app.models.sql.core.user import Person, User
+from app.models.sql.programmes.academics import (
+    CohortEnrolment,
+    ProgrammeCohort,
+)
 from app.models.sql.programmes.public_application import ProgrammeApplication
 from app.services.core.audit_service import AuditService
 from app.services.core.permission_service import PermissionService
 
 router = APIRouter()
 
-APPLICATION_STATUSES = {"submitted", "in_review", "accepted", "declined"}
+APPLICATION_STATUSES = {
+    "submitted",
+    "in_review",
+    "accepted",
+    "declined",
+    "enrolled",
+}
 APPLICATION_STATUS_TRANSITIONS = {
     "submitted": {"in_review", "accepted", "declined"},
     "in_review": {"submitted", "accepted", "declined"},
-    "accepted": {"in_review"},
+    "accepted": {"in_review", "enrolled"},
     "declined": {"in_review"},
+    "enrolled": set(),
 }
 
 
@@ -212,3 +223,140 @@ async def review_programme_application(
         programme.name,
         cohort.name if cohort else "Unknown cohort",
     )
+
+
+def _split_name(full_name: str) -> tuple[str, str]:
+    parts = full_name.strip().split()
+    if not parts:
+        return "Applicant", ""
+    if len(parts) == 1:
+        return parts[0], ""
+    return parts[0], " ".join(parts[1:])
+
+
+@router.post(
+    "/{programme_id}/applications/{application_id}/enrol",
+    response_model=ProgrammeApplicationItem,
+)
+async def enrol_accepted_application(
+    programme_id: str,
+    application_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(Permissions.PROGRAMMES_EDIT)),
+):
+    programme = await _load_programme(db, programme_id)
+    application = await _load_application(db, application_id, programme.id)
+
+    if application.status != "accepted":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only accepted applications can be enrolled",
+        )
+
+    cohort = await db.scalar(
+        select(ProgrammeCohort).where(
+            ProgrammeCohort.id == application.cohort_id
+        )
+    )
+    if cohort is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cohort not found",
+        )
+    if cohort.status in {"completed", "cancelled"}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This cohort is closed for enrolment",
+        )
+
+    email = application.applicant_email.strip().lower()
+    person = await db.scalar(
+        select(Person).where(func.lower(Person.email) == email)
+    )
+    person_created = False
+    if person is None:
+        first_name, last_name = _split_name(application.applicant_name)
+        person = Person(
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            phone=application.applicant_phone,
+            type="learner",
+            status="active",
+        )
+        db.add(person)
+        await db.flush()
+        person_created = True
+
+    existing = await db.scalar(
+        select(CohortEnrolment).where(
+            CohortEnrolment.cohort_id == cohort.id,
+            CohortEnrolment.person_id == person.id,
+        )
+    )
+    if existing is not None:
+        if existing.status != "withdrawn":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This applicant is already enrolled on the cohort",
+            )
+        existing.status = "enrolled"
+        existing.enrolled_on = date.today()
+    else:
+        occupied = await db.scalar(
+            select(func.count(CohortEnrolment.id)).where(
+                CohortEnrolment.cohort_id == cohort.id,
+                CohortEnrolment.status != "withdrawn",
+            )
+        )
+        if cohort.capacity is not None and (occupied or 0) >= cohort.capacity:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Cohort capacity is {cohort.capacity}; "
+                    f"{occupied} place(s) already taken"
+                ),
+            )
+        db.add(
+            CohortEnrolment(
+                cohort_id=cohort.id,
+                person_id=person.id,
+                status="enrolled",
+                enrolled_on=date.today(),
+            )
+        )
+
+    application.status = "enrolled"
+
+    await AuditService.log(
+        db=db,
+        actor=current_user,
+        action="PROGRAMME_APPLICATION_ENROLLED",
+        entity_type="programme_application",
+        entity_id=application.id,
+        description=(
+            f"Enrolled {application.applicant_name} on {cohort.name} from "
+            f"application {application.reference}"
+        ),
+        new_values={
+            "status": "enrolled",
+            "person_id": str(person.id),
+            "person_created": person_created,
+        },
+    )
+
+    try:
+        await db.commit()
+    except IntegrityError as error:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Could not enrol this applicant — they may already be "
+                "enrolled or the email address is already in use"
+            ),
+        ) from error
+
+    await db.refresh(application)
+
+    return _item(application, programme.name, cohort.name)

@@ -132,7 +132,8 @@ export type ApplicationStatus =
   | 'submitted'
   | 'in_review'
   | 'accepted'
-  | 'declined';
+  | 'declined'
+  | 'enrolled';
 
 export interface ProgrammeApplication {
   id: string;
@@ -345,6 +346,16 @@ export const programmesService = {
     const { data } = await api.patch<ProgrammeApplication>(
       `/programmes/${programmeId}/applications/${applicationId}`,
       { status },
+    );
+    return data;
+  },
+
+  async enrolApplication(
+    programmeId: string,
+    applicationId: string,
+  ): Promise<ProgrammeApplication> {
+    const { data } = await api.post<ProgrammeApplication>(
+      `/programmes/${programmeId}/applications/${applicationId}/enrol`,
     );
     return data;
   },
@@ -597,6 +608,7 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   in_review: 'In review',
   accepted: 'Accepted',
   declined: 'Declined',
+  enrolled: 'Enrolled',
 };
 
 export const DELIVERY_MODE_LABELS: Record<DeliveryMode, string> = {
