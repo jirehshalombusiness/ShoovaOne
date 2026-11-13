@@ -56,19 +56,19 @@ export function Layout() {
     staleTime: 10_000,
   });
 
-  // Show modal on first meaningful session-status read.
+  // Show the check-in prompt once per app load. Logging out and back in
+  // remounts the layout, so the user is asked again — even if a session is
+  // still open from earlier in the day (e.g. switching office → field).
   useEffect(() => {
     if (authLoading || sessionLoading || sessionFetching) return;
     if (!isAuthenticated) return;
     if (!sessionStatus) return;
 
-    // Only prompt when tracking is not already running. Prompting on every
-    // reload while a session is active nags the user for no reason.
-    const needsSession =
-      !sessionStatus.has_attendance ||
-      (!sessionStatus.check_out && sessionStatus.status !== 'active');
-
-    if (canCheckIn && !checkInDismissed && needsSession) {
+    if (
+      canCheckIn &&
+      !checkInDismissed &&
+      (!sessionStatus.has_attendance || !sessionStatus.check_out)
+    ) {
       setShowCheckInModal(true);
     }
   }, [

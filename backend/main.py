@@ -17,7 +17,11 @@ from app.services.core.permission_service import PermissionService
 
 # Import ALL models so they register with SQLAlchemy
 import app.models.sql  # noqa: F401
-from app.services.meetings.meeting_scheduler import start_scheduler, stop_scheduler
+from app.services.meetings.meeting_scheduler import (
+    close_expired_attendance,
+    start_scheduler,
+    stop_scheduler,
+)
 
 
 def _validate_security_settings() -> None:
@@ -87,7 +91,17 @@ async def lifespan(app: FastAPI):
 
     # Start the meeting reminder scheduler
     start_scheduler()
-    
+
+    # Close any attendance left open on a previous day. Doing this on boot as
+    # well as at midnight means a restart at the day boundary cannot leave last
+    # night's records open until the next run.
+    try:
+        closed = await close_expired_attendance()
+        if closed:
+            print(f"✅ Auto-checked out {closed} past-day attendance record(s)")
+    except Exception as e:
+        print(f"⚠️ Past-day attendance sweep skipped: {e}")
+
     yield
     
     # Stop the scheduler

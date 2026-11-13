@@ -160,13 +160,15 @@ async def close_idle_sessions() -> None:
             )
 
 
-async def close_expired_attendance() -> None:
+async def close_expired_attendance() -> int:
     """Check out previous-day attendance at the organization day boundary."""
     async with AsyncSessionLocal() as db:
         count = await timekeeping.auto_checkout_expired_attendance(db)
 
     if count:
         print(f"[scheduler] Auto-checked out {count} expired attendance record(s)")
+
+    return count
 
 
 async def send_meeting_reminders() -> None:

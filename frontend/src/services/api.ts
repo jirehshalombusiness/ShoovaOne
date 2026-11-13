@@ -28,12 +28,18 @@ api.interceptors.response.use(
     const isAuthRequest = AUTH_PATHS.some((path) => requestUrl?.endsWith(path));
 
     if (error.response?.status === 401 && !isAuthRequest) {
+      const currentToken = localStorage.getItem('access_token');
+
+      // Already signed out (or a request fired during logout) — nothing to
+      // expire and no reason to force a navigation.
+      if (!currentToken) {
+        return Promise.reject(error);
+      }
+
       // A password change revokes older tokens. Requests already in flight
       // with the previous token must not sign the user out of the new one.
       const sentToken = error.config?.headers?.Authorization;
-      const currentToken = localStorage.getItem('access_token');
-      const staleRequest =
-        sentToken && currentToken && sentToken !== `Bearer ${currentToken}`;
+      const staleRequest = sentToken && sentToken !== `Bearer ${currentToken}`;
 
       if (!staleRequest) {
         localStorage.removeItem('access_token');

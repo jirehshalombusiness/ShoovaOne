@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { authService } from '@/services/auth.service';
 import { User } from '@/types/user.types';
 
@@ -35,6 +36,7 @@ function normalizeUser(raw: any): User | null {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   // Guard: prevent the boot effect from clobbering a fresh login
   const bootAbortedRef = useRef(false);
@@ -100,6 +102,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const response = await authService.login(email, password);
     const normalized = normalizeUser(response.user);
+
+    // Drop anything cached for the previous session so the new login never
+    // renders another user's data or its stale session status.
+    queryClient.clear();
+
     setUser(normalized);
 
     if (normalized) {
@@ -129,6 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
     setUser(null);
+    queryClient.clear();
   };
 
   return (
