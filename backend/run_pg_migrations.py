@@ -1,6 +1,6 @@
+import argparse
 import asyncio
 import os
-import sys
 from pathlib import Path
 
 import asyncpg
@@ -25,6 +25,36 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 MIGRATIONS_DIR = BASE_DIR / "database" / "migrations"
 
 
+def migration_files():
+    return sorted(MIGRATIONS_DIR.glob("*.sql"))
+
+
+def select_files(versions):
+    """Return the migration files for the given version prefixes."""
+    files = migration_files()
+    if not versions:
+        return files
+
+    wanted = {version.zfill(3) for version in versions}
+    known = {file.name.split("_", 1)[0] for file in files}
+    missing = wanted - known
+    if missing:
+        raise SystemExit(
+            f"Unknown migration version(s): {', '.join(sorted(missing))}"
+        )
+    return [file for file in files if file.name.split("_", 1)[0] in wanted]
+
+
+def strip_transaction_control(sql):
+    """Remove a file's own BEGIN/COMMIT so it can run inside one transaction."""
+    stripped = sql.strip()
+    if stripped[:6].upper() == "BEGIN;":
+        stripped = stripped[6:].lstrip()
+    if stripped[-7:].upper() == "COMMIT;":
+        stripped = stripped[:-7].rstrip()
+    return stripped
+
+
 async def ensure_migration_table(conn):
     await conn.execute(
         """
@@ -35,6 +65,11 @@ async def ensure_migration_table(conn):
         )
         """
     )
+
+
+async def applied_versions(conn):
+    rows = await conn.fetch("SELECT version FROM schema_migrations")
+    return {row["version"] for row in rows}
 
 
 async def baseline(version, filename):
@@ -54,7 +89,7 @@ async def baseline(version, filename):
 
         if existing:
             print(
-                f"⏭️  Migration {version} is already "
+                f"[skip]  Migration {version} is already "
                 f"recorded as applied."
             )
             return
@@ -70,7 +105,7 @@ async def baseline(version, filename):
         )
 
         print(
-            f"✅ Baseline recorded: "
+            f"[ok] Baseline recorded: "
             f"{version} -> {filename}"
         )
 
@@ -78,41 +113,45 @@ async def baseline(version, filename):
         await conn.close()
 
 
-async def run_migrations():
+async def migration_status():
+    """Print applied/pending state without writing anything."""
+    conn = await asyncpg.connect(DATABASE_URL)
+
+    try:
+        await ensure_migration_table(conn)
+        applied = await applied_versions(conn)
+
+        for migration_file in migration_files():
+            version = migration_file.name.split("_", 1)[0]
+            state = "applied" if version in applied else "PENDING"
+            print(f"{state:8} {migration_file.name}")
+
+    finally:
+        await conn.close()
+
+
+async def run_migrations(versions=None, force=False):
     conn = await asyncpg.connect(DATABASE_URL)
 
     try:
         await ensure_migration_table(conn)
 
-        migration_files = sorted(
-            MIGRATIONS_DIR.glob("*.sql")
-        )
-
-        for migration_file in migration_files:
+        for migration_file in select_files(versions):
             version = migration_file.name.split("_", 1)[0]
 
-            already_applied = await conn.fetchval(
-                """
-                SELECT 1
-                FROM schema_migrations
-                WHERE version = $1
-                """,
-                version,
-            )
-
-            if already_applied:
+            if not force and version in await applied_versions(conn):
                 print(
-                    f"⏭️  Skipping {migration_file.name} "
+                    f"[skip]  Skipping {migration_file.name} "
                     f"(already applied)"
                 )
                 continue
 
             print(
-                f"▶️  Applying {migration_file.name}"
+                f"[run]  Applying {migration_file.name}"
             )
 
-            sql = migration_file.read_text(
-                encoding="utf-8"
+            sql = strip_transaction_control(
+                migration_file.read_text(encoding="utf-8")
             )
 
             async with conn.transaction():
@@ -123,45 +162,61 @@ async def run_migrations():
                     INSERT INTO schema_migrations
                         (version, filename)
                     VALUES ($1, $2)
+                    ON CONFLICT (version) DO UPDATE
+                    SET filename = EXCLUDED.filename,
+                        applied_at = NOW()
                     """,
                     version,
                     migration_file.name,
                 )
 
             print(
-                f"✅ Applied {migration_file.name}"
+                f"[ok] Applied {migration_file.name}"
             )
 
-        print("\n✅ PostgreSQL migrations completed.")
+        print("\n[ok] PostgreSQL migrations completed.")
 
     finally:
         await conn.close()
 
 
 def main():
-    if len(sys.argv) == 1:
-        asyncio.run(run_migrations())
-        return
-
-    if sys.argv[1] == "--baseline":
-        if len(sys.argv) != 4:
-            raise SystemExit(
-                "Usage: python run_pg_migrations.py "
-                "--baseline VERSION FILENAME"
-            )
-
-        version = sys.argv[2]
-        filename = sys.argv[3]
-
-        asyncio.run(
-            baseline(version, filename)
-        )
-        return
-
-    raise SystemExit(
-        "Unknown command. "
-        "Use --baseline or run without arguments."
+    parser = argparse.ArgumentParser(
+        description="Apply ShoovaONE SQL migrations to DATABASE_URL.",
     )
+    parser.add_argument(
+        "--status",
+        action="store_true",
+        help="List applied/pending migrations without writing.",
+    )
+    parser.add_argument(
+        "--only",
+        nargs="+",
+        metavar="VERSION",
+        help="Apply only these version prefixes, e.g. --only 012 021.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-run selected migrations even when already recorded.",
+    )
+    parser.add_argument(
+        "--baseline",
+        nargs=2,
+        metavar=("VERSION", "FILENAME"),
+        help="Record an already-applied migration without running it.",
+    )
+    args = parser.parse_args()
+
+    if args.baseline:
+        asyncio.run(baseline(args.baseline[0], args.baseline[1]))
+        return
+
+    if args.status:
+        asyncio.run(migration_status())
+        return
+
+    asyncio.run(run_migrations(args.only, args.force))
 
 
 if __name__ == "__main__":

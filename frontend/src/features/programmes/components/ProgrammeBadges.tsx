@@ -1,5 +1,14 @@
-import type { CohortStatus, EnrolmentStatus, ProgrammeStatus } from '@/services/programmes.service';
-import { COHORT_STATUS_LABELS, PROGRAMME_STATUS_LABELS } from '@/services/programmes.service';
+import type {
+  ApplicationStatus,
+  CohortStatus,
+  EnrolmentStatus,
+  ProgrammeStatus,
+} from '@/services/programmes.service';
+import {
+  APPLICATION_STATUS_LABELS,
+  COHORT_STATUS_LABELS,
+  PROGRAMME_STATUS_LABELS,
+} from '@/services/programmes.service';
 import { cn } from '@/lib/utils';
 
 const programmeStyles: Record<ProgrammeStatus, string> = {
@@ -52,6 +61,25 @@ export function EnrolmentStatusBadge({ status }: { status: EnrolmentStatus }) {
   return (
     <span className={cn(badgeClass, enrolmentStyles[status])}>
       {ENROLMENT_STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+const applicationStyles: Record<ApplicationStatus, string> = {
+  submitted: 'bg-amber-50 text-amber-700 border-amber-200',
+  in_review: 'bg-blue-50 text-blue-700 border-blue-200',
+  accepted: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  declined: 'bg-red-50 text-red-700 border-red-200',
+};
+
+export function ApplicationStatusBadge({
+  status,
+}: {
+  status: ApplicationStatus;
+}) {
+  return (
+    <span className={cn(badgeClass, applicationStyles[status])}>
+      {APPLICATION_STATUS_LABELS[status]}
     </span>
   );
 }

@@ -128,6 +128,27 @@ export interface PublicApplicationReceipt {
   submitted_at: string;
 }
 
+export type ApplicationStatus =
+  | 'submitted'
+  | 'in_review'
+  | 'accepted'
+  | 'declined';
+
+export interface ProgrammeApplication {
+  id: string;
+  reference: string;
+  programme_id: string;
+  programme_name: string;
+  cohort_id: string;
+  cohort_name: string;
+  applicant_name: string;
+  applicant_email: string;
+  applicant_phone: string | null;
+  motivation: string;
+  status: ApplicationStatus;
+  submitted_at: string;
+}
+
 export interface EnrolmentResult {
   course_id: string;
   course_title: string;
@@ -301,6 +322,29 @@ export const programmesService = {
   async myAcademicPerformance(): Promise<AcademicPerformanceReport> {
     const { data } = await api.get<AcademicPerformanceReport>(
       '/programmes/my/academic-performance',
+    );
+    return data;
+  },
+
+  async listApplications(
+    programmeId: string,
+    params?: { status?: ApplicationStatus; cohort_id?: string },
+  ): Promise<ProgrammeApplication[]> {
+    const { data } = await api.get<ProgrammeApplication[]>(
+      `/programmes/${programmeId}/applications`,
+      { params },
+    );
+    return data;
+  },
+
+  async reviewApplication(
+    programmeId: string,
+    applicationId: string,
+    status: ApplicationStatus,
+  ): Promise<ProgrammeApplication> {
+    const { data } = await api.patch<ProgrammeApplication>(
+      `/programmes/${programmeId}/applications/${applicationId}`,
+      { status },
     );
     return data;
   },
@@ -546,6 +590,13 @@ export const COHORT_STATUS_LABELS: Record<CohortStatus, string> = {
   active: 'In progress',
   completed: 'Completed',
   cancelled: 'Cancelled',
+};
+
+export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
+  submitted: 'Submitted',
+  in_review: 'In review',
+  accepted: 'Accepted',
+  declined: 'Declined',
 };
 
 export const DELIVERY_MODE_LABELS: Record<DeliveryMode, string> = {

@@ -616,6 +616,11 @@ const ProgrammeCohortsSection = lazy(() =>
     default: module.ProgrammeCohortsSection,
   }))
 );
+const ProgrammeApplicationsPage = lazy(() =>
+  import('@/features/programmes/pages/ProgrammeApplicationsPage').then((module) => ({
+    default: module.ProgrammeApplicationsPage,
+  }))
+);
 const ProgrammeReportsPage = lazy(() =>
   import('@/features/programmes/pages/ProgrammeReportsPage').then((module) => ({
     default: module.ProgrammeReportsPage,
@@ -1481,6 +1486,7 @@ export function AppRouter() {
             <Route path="curriculum" element={<ProgrammeCurriculumPage />} />
             <Route path="learners" element={<ProgrammeLearnersSection />} />
             <Route path="cohorts" element={<ProgrammeCohortsSection />} />
+            <Route path="applications" element={<ProgrammeApplicationsPage />} />
             <Route path="assessments" element={<ProgrammeAssessmentsPage />} />
             <Route path="assessments/:assignmentId" element={
               <PermissionRoute permission={['programmes.edit', 'programmes.assess']}>
