@@ -3,7 +3,7 @@ import { ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { ERPAppPreviewPage } from '@/features/erp-mobile-preview/ERPAppPreviewPage';
-import { ProgramsPreviewPage } from '@/features/programs-preview/ProgramsPreviewPage';
+import { PublicProgrammesPage } from '@/features/public-programmes/PublicProgrammesPage';
 
 type AppView = 'programs' | 'staff-sign-in' | 'staff';
 
@@ -57,8 +57,17 @@ export function UnifiedMobileAppPreviewPage() {
 
   return (
     <>
-      <div className={view === 'programs' ? '' : 'hidden'}>
-        <ProgramsPreviewPage onStaffSignIn={() => setView('staff-sign-in')} />
+      <div className={view === 'programs' ? 'relative' : 'hidden'}>
+        <button
+          type="button"
+          onClick={() => setView('staff-sign-in')}
+          className="fixed right-4 top-4 z-40 rounded-full bg-white/95 px-3 py-2 text-xs font-semibold text-[#176b4d] shadow-md"
+        >
+          Staff sign in
+        </button>
+        <div className="mx-auto max-w-6xl px-5 py-6">
+          <PublicProgrammesPage />
+        </div>
       </div>
       <div className={view === 'staff-sign-in' ? '' : 'hidden'}>
         <StaffSignInPreview

@@ -1,5 +1,11 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { Layout } from '@/app/layouts/Layout';
 import { MeLayout } from '@/app/layouts/MeLayout';
@@ -57,13 +63,36 @@ const HelpPage = lazy(() =>
 );
 const MOBILE_PREVIEWS_ENABLED =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_PREVIEWS === 'true';
-const ProgramsPreviewPage = MOBILE_PREVIEWS_ENABLED
-  ? lazy(() =>
-      import('@/features/programs-preview/ProgramsPreviewPage').then((module) => ({
-        default: module.ProgramsPreviewPage,
-      }))
-    )
-  : null;
+const PublicProgrammesLayout = lazy(() =>
+  import('@/features/public-programmes/PublicProgrammesLayout').then(
+    (module) => ({ default: module.PublicProgrammesLayout })
+  )
+);
+const PublicProgrammesPage = lazy(() =>
+  import('@/features/public-programmes/PublicProgrammesPage').then((module) => ({
+    default: module.PublicProgrammesPage,
+  }))
+);
+const PublicProgrammePage = lazy(() =>
+  import('@/features/public-programmes/PublicProgrammePage').then((module) => ({
+    default: module.PublicProgrammePage,
+  }))
+);
+const PublicApplicationPage = lazy(() =>
+  import('@/features/public-programmes/PublicApplicationPage').then(
+    (module) => ({ default: module.PublicApplicationPage })
+  )
+);
+const PublicApplicationSuccessPage = lazy(() =>
+  import('@/features/public-programmes/PublicApplicationSuccessPage').then(
+    (module) => ({ default: module.PublicApplicationSuccessPage })
+  )
+);
+const PublicSubmissionsPage = lazy(() =>
+  import('@/features/public-programmes/PublicSubmissionsPage').then(
+    (module) => ({ default: module.PublicSubmissionsPage })
+  )
+);
 const ERPAppPreviewPage = MOBILE_PREVIEWS_ENABLED
   ? lazy(() =>
       import('@/features/erp-mobile-preview/ERPAppPreviewPage').then((module) => ({
@@ -693,6 +722,36 @@ function PrivateRoute({
   return <>{children}</>;
 }
 
+/**
+ * The app root is public on mobile: signed-out visitors see the
+ * programme catalogue, everyone else gets the authenticated shell.
+ * Other authenticated deep links still fall back to login.
+ */
+function RootRoute() {
+  const { isAuthenticated, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return <PageLoader />;
+  }
+
+  if (!isAuthenticated) {
+    return location.pathname === '/' ? (
+      <PublicProgrammesLayout>
+        <PublicProgrammesPage />
+      </PublicProgrammesLayout>
+    ) : (
+      <Navigate to="/login" replace />
+    );
+  }
+
+  return (
+    <PrivateRoute>
+      <Layout />
+    </PrivateRoute>
+  );
+}
+
 // ============================================================
 // AUTHENTICATED ROUTE
 // ============================================================
@@ -841,12 +900,6 @@ export function AppRouter() {
           element={<ResetPasswordPage />}
         />
 
-        {ProgramsPreviewPage && (
-          <Route
-            path="/programs-preview"
-            element={<ProgramsPreviewPage />}
-          />
-        )}
         {ERPAppPreviewPage && (
           <Route
             path="/erp-mobile-preview"
@@ -859,6 +912,30 @@ export function AppRouter() {
             element={<UnifiedMobileAppPreviewPage />}
           />
         )}
+
+        {/* ========================================================= */}
+        {/* PUBLIC PROGRAMMES — NO ACCOUNT REQUIRED                    */}
+        {/* ========================================================= */}
+
+        <Route element={<PublicProgrammesLayout />}>
+          <Route path="/apply" element={<PublicProgrammesPage />} />
+          <Route
+            path="/apply/submissions"
+            element={<PublicSubmissionsPage />}
+          />
+          <Route
+            path="/apply/success"
+            element={<PublicApplicationSuccessPage />}
+          />
+          <Route
+            path="/apply/:programmeId"
+            element={<PublicProgrammePage />}
+          />
+          <Route
+            path="/apply/:programmeId/apply"
+            element={<PublicApplicationPage />}
+          />
+        </Route>
 
         {/* ========================================================= */}
         {/* AUTHENTICATED — PRE-APP                                    */}
@@ -879,11 +956,7 @@ export function AppRouter() {
 
         <Route
           path="/"
-          element={
-            <PrivateRoute>
-              <Layout />
-            </PrivateRoute>
-          }
+          element={<RootRoute />}
         >
 
           {/* ======================================================= */}
