@@ -2,10 +2,12 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.sql.meetings.meeting import Meeting, MeetingAttendee
 from app.models.sql.core.notification import Notification
@@ -54,7 +56,11 @@ def start_scheduler() -> AsyncIOScheduler:
     )
     _scheduler.add_job(
         close_expired_attendance,
-        trigger=IntervalTrigger(minutes=1),
+        trigger=CronTrigger(
+            hour=0,
+            minute=5,
+            timezone=settings.ORG_TIMEZONE,
+        ),
         id="midnight_attendance_checkout",
         replace_existing=True,
         max_instances=1,
@@ -62,7 +68,8 @@ def start_scheduler() -> AsyncIOScheduler:
     _scheduler.start()
     print(
         "[scheduler] Meeting reminders (60s), approval SLA sweep (5m), "
-        "idle session sweep (5m) and midnight attendance checkout (1m) started"
+        "idle session sweep (5m) and past-day attendance checkout "
+        f"(daily 00:05 {settings.ORG_TIMEZONE}) started"
     )
     return _scheduler
 

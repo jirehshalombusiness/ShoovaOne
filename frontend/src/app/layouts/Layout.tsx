@@ -62,11 +62,13 @@ export function Layout() {
     if (!isAuthenticated) return;
     if (!sessionStatus) return;
 
-    if (
-      canCheckIn &&
-      !checkInDismissed &&
-      (!sessionStatus.has_attendance || !sessionStatus.check_out)
-    ) {
+    // Only prompt when tracking is not already running. Prompting on every
+    // reload while a session is active nags the user for no reason.
+    const needsSession =
+      !sessionStatus.has_attendance ||
+      (!sessionStatus.check_out && sessionStatus.status !== 'active');
+
+    if (canCheckIn && !checkInDismissed && needsSession) {
       setShowCheckInModal(true);
     }
   }, [

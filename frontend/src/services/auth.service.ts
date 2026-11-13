@@ -47,7 +47,13 @@ export const authService = {
     try {
       const response = await api.get<User>('/auth/me');
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // Never keep a session alive on an authentication failure — the cached
+      // user would be stale and every subsequent request would 401 too.
+      if (error?.response?.status === 401) {
+        throw error;
+      }
+
       const storedUser = localStorage.getItem('user');
 
       if (storedUser) {

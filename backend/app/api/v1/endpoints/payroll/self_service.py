@@ -48,10 +48,15 @@ async def get_my_pay_profile(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(self_access),
 ):
+    """Return the caller's pay profile, or null when HR has not set one up.
+
+    A missing profile is a normal state for new joiners, not an error, so it
+    must not surface as a 404 in the browser console.
+    """
     person_id = _require_person(current_user)
     profile = await resolve_pay_profile(db, person_id, date.today())
     if not profile:
-        raise HTTPException(status_code=404, detail="No pay profile is configured")
+        return None
 
     bank_result = await db.execute(
         select(EmployeeBankAccount)

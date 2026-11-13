@@ -93,11 +93,23 @@ export function MePayslipsPage() {
 
       {profile && <PaySetupCard profile={profile} />}
 
-      {profileQuery.isError && (
+      {profileQuery.isSuccess && !profile && (
         <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <div>
             <p className="font-semibold">No pay profile on file</p>
+            <p className="mt-0.5 text-xs leading-5">
+              Contact HR to complete your pay setup.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {profileQuery.isError && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <div>
+            <p className="font-semibold">Unable to load your pay setup</p>
             <p className="mt-0.5 text-xs leading-5">
               {getErrorMessage(profileQuery.error, 'Contact HR to complete your pay setup.')}
             </p>

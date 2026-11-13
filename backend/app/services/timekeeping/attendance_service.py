@@ -486,18 +486,25 @@ async def auto_checkout_expired_attendance(
     )
     expired_attendance = list(result.scalars().all())
 
+    closed = 0
     for attendance in expired_attendance:
         day_end = datetime.combine(
             attendance.date + timedelta(days=1),
             time.min,
             tzinfo=org_timezone,
         ).astimezone(timezone.utc)
-        await checkout_day(
-            db,
-            person_id=attendance.person_id,
-            actor=None,
-            day=attendance.date,
-            now=day_end,
-        )
+        try:
+            await checkout_day(
+                db,
+                person_id=attendance.person_id,
+                actor=None,
+                day=attendance.date,
+                now=day_end,
+            )
+            closed += 1
+        except HTTPException:
+            # The person checked out after the query but before this call.
+            # Skip that record instead of aborting the whole sweep.
+            await db.rollback()
 
-    return len(expired_attendance)
+    return closed

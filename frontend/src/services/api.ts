@@ -19,15 +19,29 @@ api.interceptors.request.use((config) => {
 });
 
 // Response interceptor for error handling
+const AUTH_PATHS = ['/auth/login', '/auth/forgot-password', '/auth/reset-password'];
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     const requestUrl = error.config?.url?.replace(/\/+$/, '');
-    const isLoginRequest = requestUrl?.endsWith('/auth/login');
+    const isAuthRequest = AUTH_PATHS.some((path) => requestUrl?.endsWith(path));
 
-    if (error.response?.status === 401 && !isLoginRequest) {
-      localStorage.removeItem('access_token');
-      window.location.href = '/login';
+    if (error.response?.status === 401 && !isAuthRequest) {
+      // A password change revokes older tokens. Requests already in flight
+      // with the previous token must not sign the user out of the new one.
+      const sentToken = error.config?.headers?.Authorization;
+      const currentToken = localStorage.getItem('access_token');
+      const staleRequest =
+        sentToken && currentToken && sentToken !== `Bearer ${currentToken}`;
+
+      if (!staleRequest) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user');
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      }
     }
     return Promise.reject(error);
   }

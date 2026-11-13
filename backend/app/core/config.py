@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
+    # SQL logging is opt-in. Leaving it on in DEBUG floods the console with
+    # every query and the parameter values (which include personal data).
+    SQL_ECHO: bool = False
     SECRET_KEY: str = DEFAULT_APP_SECRET
 
     # Database

@@ -526,8 +526,8 @@ export const payrollService = {
   // ----------------------------------------------------------
   // SELF SERVICE
   // ----------------------------------------------------------
-  async getMyPayProfile(): Promise<MyPayProfile> {
-    const { data } = await api.get<MyPayProfile>('/payroll/me/profile');
+  async getMyPayProfile(): Promise<MyPayProfile | null> {
+    const { data } = await api.get<MyPayProfile | null>('/payroll/me/profile');
     return data;
   },
 
