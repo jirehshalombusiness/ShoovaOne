@@ -113,6 +113,7 @@ class ProgrammeSummary(BaseModel):
 
 class ProgrammeDetail(ProgrammeSummary):
     learning_outcomes: Optional[str] = None
+    eligibility_requirements: Optional[str] = None
     courses: List[CourseItem] = []
     cohorts: List[CohortSummary] = []
 
@@ -159,6 +160,7 @@ class ProgrammeCreateRequest(BaseModel):
     level: Optional[str] = Field(None, max_length=30)
     duration_weeks: Optional[int] = Field(None, ge=1, le=520)
     learning_outcomes: Optional[str] = None
+    eligibility_requirements: Optional[str] = None
     lead_id: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
@@ -179,6 +181,7 @@ class ProgrammeUpdateRequest(BaseModel):
     level: Optional[str] = Field(None, max_length=30)
     duration_weeks: Optional[int] = Field(None, ge=1, le=520)
     learning_outcomes: Optional[str] = None
+    eligibility_requirements: Optional[str] = None
     lead_id: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
@@ -701,6 +704,7 @@ async def _programme_detail(
     return ProgrammeDetail(
         **base.model_dump(),
         learning_outcomes=programme.learning_outcomes,
+        eligibility_requirements=programme.eligibility_requirements,
         courses=[_course_item(course) for course in courses],
         cohorts=cohort_items,
     )
@@ -1013,6 +1017,7 @@ async def create_programme(
         level=payload.level,
         duration_weeks=payload.duration_weeks,
         learning_outcomes=payload.learning_outcomes,
+        eligibility_requirements=payload.eligibility_requirements,
         lead_id=lead_id,
         start_date=payload.start_date,
         end_date=payload.end_date,

@@ -52,10 +52,17 @@ def start_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
         max_instances=1,
     )
+    _scheduler.add_job(
+        close_expired_attendance,
+        trigger=IntervalTrigger(minutes=1),
+        id="midnight_attendance_checkout",
+        replace_existing=True,
+        max_instances=1,
+    )
     _scheduler.start()
     print(
-        "[scheduler] Meeting reminders (60s), approval SLA sweep (5m) "
-        "and idle session sweep (5m) started"
+        "[scheduler] Meeting reminders (60s), approval SLA sweep (5m), "
+        "idle session sweep (5m) and midnight attendance checkout (1m) started"
     )
     return _scheduler
 
@@ -144,6 +151,15 @@ async def close_idle_sessions() -> None:
                 f"[scheduler] Auto-closed {len(sessions)} idle "
                 "work session(s)"
             )
+
+
+async def close_expired_attendance() -> None:
+    """Check out previous-day attendance at the organization day boundary."""
+    async with AsyncSessionLocal() as db:
+        count = await timekeeping.auto_checkout_expired_attendance(db)
+
+    if count:
+        print(f"[scheduler] Auto-checked out {count} expired attendance record(s)")
 
 
 async def send_meeting_reminders() -> None:

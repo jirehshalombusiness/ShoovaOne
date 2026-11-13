@@ -4,6 +4,7 @@ import uuid
 
 from app.core.database import get_db
 from app.core.security import get_current_active_user
+from app.models.sql.projects.project import Task
 from app.models.sql.timekeeping.work_session import WorkSession
 from app.services.timekeeping import attendance_service as timekeeping
 
@@ -114,10 +115,11 @@ async def get_session_status(
 
 @router.post("/start")
 async def start_session(
+    payload: dict | None = None,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_active_user),
 ):
-    """Start a new work session for today."""
+    """Start or resume a session, optionally recording a new work focus."""
     attendance = await timekeeping.get_today_attendance(
         db,
         current_user.person_id,
@@ -130,6 +132,49 @@ async def start_session(
             status_code=400,
             detail="Already checked out today",
         )
+
+    if payload is not None:
+        planned_task_ids = payload.get("planned_task_ids") or []
+        if planned_task_ids:
+            valid_result = await db.execute(
+                select(Task.id).where(
+                    Task.id.in_(planned_task_ids),
+                    Task.assignee_id == current_user.person_id,
+                )
+            )
+            planned_task_ids = [
+                str(row[0]) for row in valid_result.all()
+            ]
+
+        created_adhoc = []
+        for item in payload.get("adhoc_tasks") or []:
+            title = (item.get("title") or "").strip()
+            if not title:
+                continue
+            task = Task(
+                id=str(uuid.uuid4()),
+                project_id=None,
+                title=title,
+                description=item.get("description"),
+                status="todo",
+                priority=item.get("priority", "medium"),
+                assignee_id=current_user.person_id,
+                reporter_id=current_user.person_id,
+                due_date=attendance.date,
+            )
+            db.add(task)
+            created_adhoc.append(
+                {
+                    "id": str(task.id),
+                    "title": task.title,
+                    "priority": task.priority,
+                }
+            )
+            planned_task_ids.append(str(task.id))
+
+        attendance.planned_task_ids = planned_task_ids
+        attendance.adhoc_tasks = created_adhoc
+        attendance.work_type = payload.get("work_type") or attendance.work_type
 
     now = timekeeping.utcnow()
 

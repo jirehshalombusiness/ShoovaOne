@@ -40,6 +40,7 @@ export function Layout() {
   const {
     data: sessionStatus,
     isLoading: sessionLoading,
+    isFetching: sessionFetching,
   } = useQuery({
     queryKey: ['session', 'status'],
     queryFn: () => sessionService.getStatus(),
@@ -57,19 +58,22 @@ export function Layout() {
 
   // Show modal on first meaningful session-status read.
   useEffect(() => {
-    if (authLoading || sessionLoading) return;
+    if (authLoading || sessionLoading || sessionFetching) return;
     if (!isAuthenticated) return;
     if (!sessionStatus) return;
 
-    if (sessionStatus.has_attendance) {
-      setShowCheckInModal(false);
-    } else if (canCheckIn && !checkInDismissed) {
+    if (
+      canCheckIn &&
+      !checkInDismissed &&
+      (!sessionStatus.has_attendance || !sessionStatus.check_out)
+    ) {
       setShowCheckInModal(true);
     }
   }, [
     sessionStatus,
     authLoading,
     sessionLoading,
+    sessionFetching,
     isAuthenticated,
     canCheckIn,
     checkInDismissed,
@@ -146,9 +150,13 @@ export function Layout() {
 
       {showCheckInModal && (
         <CheckInModal
+          hasAttendance={!!sessionStatus?.has_attendance}
+          initialWorkType={sessionStatus?.work_type}
           onCheckedIn={() => {
+            setCheckInDismissed(true);
             setShowCheckInModal(false);
             queryClient.invalidateQueries({ queryKey: ['session', 'status'] });
+            queryClient.invalidateQueries({ queryKey: ['attendance', 'today'] });
           }}
           onDismiss={() => {
             setCheckInDismissed(true);

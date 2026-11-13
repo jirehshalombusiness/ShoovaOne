@@ -22,7 +22,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const requestUrl = error.config?.url?.replace(/\/+$/, '');
+    const isLoginRequest = requestUrl?.endsWith('/auth/login');
+
+    if (error.response?.status === 401 && !isLoginRequest) {
       localStorage.removeItem('access_token');
       window.location.href = '/login';
     }

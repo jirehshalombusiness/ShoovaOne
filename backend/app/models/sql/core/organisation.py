@@ -83,6 +83,7 @@ class Programme(BaseModel):
     level = Column(String(30), nullable=True)
     duration_weeks = Column(Integer, nullable=True)
     learning_outcomes = Column(Text, nullable=True)
+    eligibility_requirements = Column(Text, nullable=True)
     lead_id = Column(
         GUID,
         ForeignKey("people.id", ondelete="SET NULL"),

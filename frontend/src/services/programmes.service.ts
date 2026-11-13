@@ -81,8 +81,51 @@ export interface ProgrammeSummary {
 
 export interface ProgrammeDetail extends ProgrammeSummary {
   learning_outcomes: string | null;
+  eligibility_requirements: string | null;
   courses: ProgrammeCourse[];
   cohorts: CohortSummary[];
+}
+
+export interface PublicProgrammeCohort {
+  id: string;
+  name: string;
+  code: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  enrolment_opens_on: string | null;
+  enrolment_closes_on: string | null;
+  delivery_mode: DeliveryMode;
+  location: string | null;
+}
+
+export interface PublicProgramme {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  department_name: string | null;
+  level: ProgrammeLevel | null;
+  duration_weeks: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  learning_outcomes: string | null;
+  eligibility_requirements: string | null;
+  cohorts: PublicProgrammeCohort[];
+}
+
+export interface PublicApplicationPayload {
+  full_name: string;
+  email: string;
+  phone?: string | null;
+  cohort_id: string;
+  motivation: string;
+}
+
+export interface PublicApplicationReceipt {
+  reference: string;
+  programme_name: string;
+  cohort_name: string;
+  submitted_at: string;
 }
 
 export interface EnrolmentResult {
@@ -198,6 +241,7 @@ export interface ProgrammePayload {
   level?: ProgrammeLevel | null;
   duration_weeks?: number | null;
   learning_outcomes?: string | null;
+  eligibility_requirements?: string | null;
   lead_id?: string | null;
   start_date?: string | null;
   end_date?: string | null;
@@ -238,6 +282,22 @@ export interface ResultPayload {
 // ============================================================
 
 export const programmesService = {
+  async listPublic(): Promise<PublicProgramme[]> {
+    const { data } = await api.get<PublicProgramme[]>('/programmes/public');
+    return data;
+  },
+
+  async submitPublicApplication(
+    programmeId: string,
+    payload: PublicApplicationPayload,
+  ): Promise<PublicApplicationReceipt> {
+    const { data } = await api.post<PublicApplicationReceipt>(
+      `/programmes/public/${programmeId}/applications`,
+      payload,
+    );
+    return data;
+  },
+
   async myAcademicPerformance(): Promise<AcademicPerformanceReport> {
     const { data } = await api.get<AcademicPerformanceReport>(
       '/programmes/my/academic-performance',

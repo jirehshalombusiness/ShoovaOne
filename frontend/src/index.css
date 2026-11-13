@@ -506,6 +506,8 @@
 html.dark .bg-white { background-color: var(--card); }
 html.dark .hover\:bg-white:hover { background-color: var(--card); }
 html.dark .bg-white.rounded-full.shadow { background-color: #f8fafc; }
+html.dark .programs-preview-page .bg-white { background-color: #ffffff; }
+html.dark .erp-mobile-preview-page .bg-white { background-color: #ffffff; }
 
 /* White call-to-action on coloured brand surfaces keeps a light treatment. */
 html.dark .bg-white.text-primary {

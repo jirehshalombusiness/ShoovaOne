@@ -33,7 +33,7 @@ async def get_today_attendance(
     Get today's attendance status and tasks the user should work on.
     """
 
-    today = date.today()
+    today = timekeeping.organization_date()
 
     result = await db.execute(
         select(Attendance)
@@ -204,7 +204,7 @@ async def check_in(
     }
     """
 
-    today = date.today()
+    today = timekeeping.organization_date()
 
     existing_result = await db.execute(
         select(Attendance)

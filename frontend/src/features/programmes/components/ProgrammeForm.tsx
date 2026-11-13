@@ -46,6 +46,7 @@ export function ProgrammeForm({
     startDate: initial?.start_date ?? '',
     endDate: initial?.end_date ?? '',
     learningOutcomes: initial?.learning_outcomes ?? '',
+    eligibilityRequirements: initial?.eligibility_requirements ?? '',
   });
 
   const [lead, setLead] = useState<ProgrammePersonBrief | null>(
@@ -81,6 +82,8 @@ export function ProgrammeForm({
       level: form.level || null,
       duration_weeks: duration ? Number(duration) : null,
       learning_outcomes: form.learningOutcomes.trim() || null,
+      eligibility_requirements:
+        form.eligibilityRequirements.trim() || null,
       lead_id: lead?.id ?? null,
       start_date: form.startDate || null,
       end_date: form.endDate || null,
@@ -201,6 +204,24 @@ export function ProgrammeForm({
               placeholder="What graduates will be able to do"
               className={cn(inputClass, 'resize-none')}
             />
+          </div>
+
+          <div className="sm:col-span-3">
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+              Eligibility and required documents
+            </label>
+            <textarea
+              value={form.eligibilityRequirements}
+              onChange={(e) =>
+                update({ eligibilityRequirements: e.target.value })
+              }
+              rows={4}
+              placeholder="Who can apply, and what they should prepare"
+              className={cn(inputClass, 'resize-y')}
+            />
+            <p className="mt-1.5 text-xs text-gray-500">
+              This information is shown publicly to applicants.
+            </p>
           </div>
         </div>
       </section>

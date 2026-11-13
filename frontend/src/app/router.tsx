@@ -55,6 +55,29 @@ const HelpPage = lazy(() =>
     default: module.HelpPage,
   }))
 );
+const ProgramsPreviewPage = import.meta.env.DEV
+  ? lazy(() =>
+      import('@/features/programs-preview/ProgramsPreviewPage').then((module) => ({
+        default: module.ProgramsPreviewPage,
+      }))
+    )
+  : null;
+const ERPAppPreviewPage = import.meta.env.DEV
+  ? lazy(() =>
+      import('@/features/erp-mobile-preview/ERPAppPreviewPage').then((module) => ({
+        default: module.ERPAppPreviewPage,
+      }))
+    )
+  : null;
+const UnifiedMobileAppPreviewPage = import.meta.env.DEV
+  ? lazy(() =>
+      import('@/features/unified-mobile-preview/UnifiedMobileAppPreviewPage').then(
+        (module) => ({
+          default: module.UnifiedMobileAppPreviewPage,
+        })
+      )
+    )
+  : null;
 const PeoplePage = lazy(() =>
   import('@/features/people/pages/PeoplePage').then((module) => ({
     default: module.PeoplePage,
@@ -815,6 +838,25 @@ export function AppRouter() {
           path="/reset-password/:token"
           element={<ResetPasswordPage />}
         />
+
+        {ProgramsPreviewPage && (
+          <Route
+            path="/programs-preview"
+            element={<ProgramsPreviewPage />}
+          />
+        )}
+        {ERPAppPreviewPage && (
+          <Route
+            path="/erp-mobile-preview"
+            element={<ERPAppPreviewPage />}
+          />
+        )}
+        {UnifiedMobileAppPreviewPage && (
+          <Route
+            path="/mobile-app-preview"
+            element={<UnifiedMobileAppPreviewPage />}
+          />
+        )}
 
         {/* ========================================================= */}
         {/* AUTHENTICATED — PRE-APP                                    */}

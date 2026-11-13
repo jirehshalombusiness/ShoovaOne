@@ -6,14 +6,16 @@ laptop, idle tab, overnight break) contributes at most
 ``HEARTBEAT_CAP_MINUTES`` to the session.
 """
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 import uuid
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.sql.projects.project import Task
 from app.models.sql.timekeeping.attendance import Attendance
 from app.models.sql.timekeeping.timesheet import Timesheet, TimesheetEntry
@@ -36,6 +38,15 @@ AUTO_END_AFTER_MINUTES = 15
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def organization_timezone() -> ZoneInfo:
+    return ZoneInfo(settings.ORG_TIMEZONE)
+
+
+def organization_date(now: datetime | None = None) -> date:
+    now = aware(now) or utcnow()
+    return now.astimezone(organization_timezone()).date()
 
 
 def aware(value: datetime | None) -> datetime | None:
@@ -156,7 +167,7 @@ async def get_today_attendance(
     person_id,
     day: date | None = None,
 ) -> Attendance | None:
-    day = day or date.today()
+    day = day or organization_date()
     result = await db.execute(
         select(Attendance)
         .where(
@@ -216,14 +227,15 @@ async def checkout_day(
     task_breakdown: list[dict] | None = None,
     notes: str | None = None,
     day: date | None = None,
+    now: datetime | None = None,
 ) -> dict:
     """Close the day and write the timesheet from effective minutes.
 
     This is the single checkout implementation for both the attendance and
     session endpoints, so they can never disagree again.
     """
-    day = day or date.today()
-    now = utcnow()
+    day = day or organization_date(now)
+    now = aware(now) or utcnow()
 
     attendance = await get_today_attendance(db, person_id, day)
     if not attendance:
@@ -453,3 +465,39 @@ async def checkout_day(
         "completed_task_ids": completed_task_ids,
         "entries": created_entries,
     }
+
+
+async def auto_checkout_expired_attendance(
+    db: AsyncSession,
+    now: datetime | None = None,
+) -> int:
+    """Close unchecked attendance records at their organization's midnight."""
+    now = aware(now) or utcnow()
+    org_timezone = organization_timezone()
+    today = now.astimezone(org_timezone).date()
+
+    result = await db.execute(
+        select(Attendance)
+        .where(
+            Attendance.date < today,
+            Attendance.check_out.is_(None),
+        )
+        .order_by(Attendance.date, Attendance.created_at)
+    )
+    expired_attendance = list(result.scalars().all())
+
+    for attendance in expired_attendance:
+        day_end = datetime.combine(
+            attendance.date + timedelta(days=1),
+            time.min,
+            tzinfo=org_timezone,
+        ).astimezone(timezone.utc)
+        await checkout_day(
+            db,
+            person_id=attendance.person_id,
+            actor=None,
+            day=attendance.date,
+            now=day_end,
+        )
+
+    return len(expired_attendance)

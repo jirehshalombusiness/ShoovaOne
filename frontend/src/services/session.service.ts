@@ -28,8 +28,12 @@ export const sessionService = {
     return response.data;
   },
 
-  async start(): Promise<{ session_id: string; started_at: string }> {
-    const response = await api.post('/sessions/start');
+  async start(payload?: {
+    work_type?: string;
+    planned_task_ids?: string[];
+    adhoc_tasks?: { title: string; priority?: string }[];
+  }): Promise<{ session_id: string; started_at: string }> {
+    const response = await api.post('/sessions/start', payload);
     return response.data;
   },
 

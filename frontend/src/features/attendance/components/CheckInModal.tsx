@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { attendanceService } from '@/services/attendance.service';
+import { sessionService } from '@/services/session.service';
 import {
   Building2,
   MapPin,
@@ -37,12 +38,17 @@ const WORK_TYPES = [
 export function CheckInModal({
   onCheckedIn,
   onDismiss,
+  hasAttendance = false,
+  initialWorkType,
 }: {
   onCheckedIn: () => void;
   onDismiss: () => void;
+  hasAttendance?: boolean;
+  initialWorkType?: string;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
-  const [workType, setWorkType] = useState('office');
+  const [workType, setWorkType] = useState(initialWorkType || 'office');
+  const [startNewWork, setStartNewWork] = useState(false);
   const [adhocTasks, setAdhocTasks] = useState<{ title: string; priority: string }[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState('medium');
@@ -61,18 +67,36 @@ export function CheckInModal({
   });
 
   const checkInMutation = useMutation({
-    mutationFn: () =>
-      attendanceService.checkIn({
+    mutationFn: () => {
+      const work = {
         planned_task_ids: selected,
         adhoc_tasks: adhocTasks,
         work_type: workType,
-      }),
+      };
+      return hasAttendance
+        ? sessionService.start(work)
+        : attendanceService.checkIn(work);
+    },
     onSuccess: () => {
-      toast.success('Checked in — your day has started');
+      toast.success(
+        hasAttendance
+          ? 'New work session started — today’s tracked time is preserved'
+          : 'Checked in — your day has started'
+      );
       onCheckedIn();
     },
     onError: (err: any) =>
       toast.error(err.response?.data?.detail || 'Check-in failed'),
+  });
+
+  const continueMutation = useMutation({
+    mutationFn: () => sessionService.start(),
+    onSuccess: () => {
+      toast.success('Previous work resumed — time tracking is active again');
+      onCheckedIn();
+    },
+    onError: (err: any) =>
+      toast.error(err.response?.data?.detail || 'Could not resume work'),
   });
 
   const assignedTasks = today?.assigned_tasks || [];
@@ -100,9 +124,13 @@ export function CheckInModal({
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">Welcome back</h2>
+            <h2 className="text-lg font-bold text-gray-900">
+              {hasAttendance ? 'Welcome back' : 'Start your day'}
+            </h2>
             <p className="text-sm text-gray-500 mt-1">
-              Start your day. Your time will be tracked while you're active.
+              {hasAttendance
+                ? 'Are you continuing your previous work, or doing something new?'
+                : "Choose what you're working on. Your time is tracked while you're active."}
             </p>
           </div>
           <button
@@ -115,6 +143,47 @@ export function CheckInModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          {hasAttendance && !startNewWork ? (
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => continueMutation.mutate()}
+                disabled={continueMutation.isPending}
+                className="w-full rounded-md border border-primary bg-primary/5 p-4 text-left transition-colors hover:bg-primary/10 disabled:opacity-50"
+              >
+                <span className="block text-sm font-semibold text-gray-900">
+                  {continueMutation.isPending
+                    ? 'Resuming...'
+                    : 'Continue previous work'}
+                </span>
+                <span className="mt-1 block text-xs text-gray-500">
+                  Keep working on the same activities.
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStartNewWork(true)}
+                className="w-full rounded-md border border-gray-200 p-4 text-left transition-colors hover:bg-gray-50"
+              >
+                <span className="block text-sm font-semibold text-gray-900">
+                  Do something new
+                </span>
+                <span className="mt-1 block text-xs text-gray-500">
+                  Choose a new work type and activities for this session.
+                </span>
+              </button>
+            </div>
+          ) : (
+            <>
+          {hasAttendance && (
+            <button
+              type="button"
+              onClick={() => setStartNewWork(false)}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Back to work options
+            </button>
+          )}
           {/* Work type */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-2">
@@ -268,6 +337,8 @@ export function CheckInModal({
               </button>
             </div>
           </div>
+            </>
+          )}
         </div>
 
         {/* Footer */}
@@ -276,13 +347,19 @@ export function CheckInModal({
             <CheckCircle2 className="w-3 h-3" />
             Time tracked automatically
           </div>
-          <button
-            onClick={() => checkInMutation.mutate()}
-            disabled={checkInMutation.isPending}
-            className="px-5 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
-          >
-            {checkInMutation.isPending ? 'Starting...' : 'Start My Day'}
-          </button>
+          {(!hasAttendance || startNewWork) && (
+            <button
+              onClick={() => checkInMutation.mutate()}
+              disabled={checkInMutation.isPending}
+              className="px-5 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary-dark transition-colors disabled:opacity-50"
+            >
+              {checkInMutation.isPending
+                ? 'Starting...'
+                : hasAttendance
+                  ? 'Start New Work Session'
+                  : 'Start My Day'}
+            </button>
+          )}
         </div>
       </div>
     </div>

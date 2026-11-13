@@ -13,8 +13,8 @@ driven live in the browser. With --full the journey is completed through
 evidence, mentor assessment and outcome.
 
 Demo accounts (password: DEMO_PASSWORD env var, default "DemoPass123!"):
-    demo.manager@shoova.local  programmes view/edit/assess/view_baseline, people.view
-    demo.mentor@shoova.local   programmes view/assess only — cannot see baselines
+    demo.manager@example.com  programmes view/edit/assess/view_baseline, people.view
+    demo.mentor@example.com   programmes view/assess only — cannot see baselines
 """
 import argparse
 import asyncio
@@ -53,12 +53,11 @@ from app.services.core.permission_service import PermissionService
 
 DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "DemoPass123!")
 
-MANAGER_EMAIL = "demo.manager@shoova.local"
-MENTOR_EMAIL = "demo.mentor@shoova.local"
-LEARNER_EMAIL = "efua.nyarko.demo@shoova.local"
+MANAGER_EMAIL = "demo.manager@example.com"
+MENTOR_EMAIL = "demo.mentor@example.com"
+LEARNER_EMAIL = "efua.nyarko.demo@example.com"
 
 PROGRAMME_CODE = "ENV-STEW"
-COHORT_CODE = "ENV-2026-PILOT"
 
 MANAGER_PERMISSIONS = [
     ("programmes", "view"),
@@ -138,6 +137,14 @@ async def main(full: bool) -> None:
             "DATABASE_URL=sqlite:///./demo_learner.db"
         )
 
+    today = dt.date.today()
+    cohort_start = today + dt.timedelta(days=30)
+    cohort_end = cohort_start + dt.timedelta(weeks=7)
+    cohort_code = f"ENV-{cohort_start.year}-PILOT"
+    cohort_name = f"Pilot Cohort — {cohort_start:%B %Y}"
+    enrolment_opens_on = today - dt.timedelta(days=7)
+    enrolment_closes_on = today + dt.timedelta(days=21)
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -213,18 +220,31 @@ async def main(full: bool) -> None:
                     "Fictional demo programme."
                 ),
                 status="active",
-                start_date=dt.date(2026, 11, 2),
-                end_date=dt.date(2026, 12, 18),
+                start_date=cohort_start,
+                end_date=cohort_end,
                 level="Certificate",
                 duration_weeks=7,
                 learning_outcomes=(
                     "Learners conduct a community environmental audit, capture "
                     "geo-tagged evidence and present findings to a mentor."
                 ),
+                eligibility_requirements=(
+                    "Open to community members in Accra. No prior environmental "
+                    "experience is required. Applicants should be available for "
+                    "weekly sessions and field activities."
+                ),
                 lead_id=manager_person.id,
             )
             db.add(programme)
             await db.flush()
+        else:
+            programme.start_date = cohort_start
+            programme.end_date = cohort_end
+            programme.eligibility_requirements = (
+                "Open to community members in Accra. No prior environmental "
+                "experience is required. Applicants should be available for "
+                "weekly sessions and field activities."
+            )
 
         course_specs = [
             (
@@ -263,25 +283,32 @@ async def main(full: bool) -> None:
             courses[code] = course
 
         cohort = await one(
-            db, ProgrammeCohort, programme_id=programme.id, code=COHORT_CODE
+            db, ProgrammeCohort, programme_id=programme.id, code=cohort_code
         )
         if cohort is None:
             cohort = ProgrammeCohort(
                 programme_id=programme.id,
-                name="Pilot Cohort — November 2026",
-                code=COHORT_CODE,
-                start_date=dt.date(2026, 11, 2),
-                end_date=dt.date(2026, 12, 18),
-                enrolment_opens_on=dt.date(2026, 10, 19),
-                enrolment_closes_on=dt.date(2026, 10, 30),
+                name=cohort_name,
+                code=cohort_code,
+                start_date=cohort_start,
+                end_date=cohort_end,
+                enrolment_opens_on=enrolment_opens_on,
+                enrolment_closes_on=enrolment_closes_on,
                 capacity=15,
                 delivery_mode="in_person",
                 location="Osu Community Hub, Accra",
-                status="active",
+                status="enrolling",
                 notes="Fictional pilot cohort for the learner workflow demo.",
             )
             db.add(cohort)
             await db.flush()
+        else:
+            cohort.name = cohort_name
+            cohort.start_date = cohort_start
+            cohort.end_date = cohort_end
+            cohort.enrolment_opens_on = enrolment_opens_on
+            cohort.enrolment_closes_on = enrolment_closes_on
+            cohort.status = "enrolling"
 
         instructor = await one(
             db, CohortInstructor, cohort_id=cohort.id, person_id=mentor_person.id
@@ -302,10 +329,12 @@ async def main(full: bool) -> None:
                 cohort_id=cohort.id,
                 person_id=learner.id,
                 status="enrolled",
-                enrolled_on=dt.date(2026, 11, 2),
+                enrolled_on=cohort_start,
             )
             db.add(enrolment)
             await db.flush()
+        else:
+            enrolment.enrolled_on = cohort_start
 
         baseline = await one(db, LearnerBaseline, enrolment_id=enrolment.id)
         if baseline is None:
@@ -464,7 +493,7 @@ async def main(full: bool) -> None:
 
         print("\nDemo seed complete (local SQLite only — all records fictional).")
         print(f"  Programme : {programme.name} [{PROGRAMME_CODE}]")
-        print(f"  Cohort    : {cohort.name} [{COHORT_CODE}]")
+        print(f"  Cohort    : {cohort.name} [{cohort_code}]")
         print(f"  Learner   : {learner.first_name} {learner.last_name}")
         print(f"  Stage     : {'FULL journey (evidence -> assessment -> outcome)' if full else 'start of journey (drive it live)'}")
         print("\nAccounts (password: " + DEMO_PASSWORD + "):")
