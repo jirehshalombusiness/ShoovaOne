@@ -980,3 +980,52 @@ async def queue_payment_made(
             preheader="Your salary payment has been processed",
         ),
     )
+
+
+async def queue_programme_application_received(
+    db: AsyncSession,
+    *,
+    to: str,
+    applicant_name: str,
+    applicant_email: str,
+    applicant_phone: Optional[str],
+    reference: str,
+    programme_name: str,
+    cohort_name: str,
+    motivation: str,
+    inbox_path: str,
+) -> None:
+    rows = [
+        ("Reference", escape(reference)),
+        ("Programme", escape(programme_name)),
+        ("Cohort", escape(cohort_name)),
+        ("Applicant", escape(applicant_name)),
+        (
+            "Email",
+            f'<a href="mailto:{escape(applicant_email)}" '
+            f'style="color:{BRAND_GREEN};">{escape(applicant_email)}</a>',
+        ),
+    ]
+    if applicant_phone:
+        rows.append(("Phone", escape(applicant_phone)))
+
+    body = (
+        _paragraph(
+            f"{applicant_name} applied to {programme_name} "
+            f"({cohort_name})."
+        )
+        + _details(rows)
+        + _paragraph("Their statement:")
+        + _quoted(motivation)
+        + _button(_app_link(inbox_path), "Review application")
+    )
+    queue_email(
+        db,
+        to=to,
+        subject=f"New application: {applicant_name} — {programme_name}",
+        html=render_layout(
+            title="New programme application",
+            body_html=body,
+            preheader=f"{applicant_name} applied to {programme_name}",
+        ),
+    )

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, timedelta
 
 import pytest
@@ -15,12 +16,15 @@ from starlette.requests import Request
 import app.models.sql  # noqa: F401
 from app.core.database import Base
 from app.models.sql.core.organisation import Department, Organisation, Programme
+from app.models.sql.core.role import Permission, Role, role_permissions, user_roles
+from app.models.sql.core.user import Person, User
 from app.models.sql.programmes.academics import (
     CohortEnrolment,
     ProgrammeCohort,
 )
 from app.models.sql.programmes.public_application import ProgrammeApplication
 from app.api.v1.endpoints.programmes import public_programmes as api
+from app.services.core import email_service
 
 
 @pytest_asyncio.fixture
@@ -222,3 +226,180 @@ async def test_duplicate_application_for_same_cohort_is_rejected(
         )
 
     assert exc.value.status_code == 409
+
+
+async def seed_application_editors(db: AsyncSession) -> User:
+    permission = Permission(resource="programmes", action="edit")
+    db.add(permission)
+    await db.flush()
+
+    role = Role(name="Programme Manager")
+    db.add(role)
+    await db.flush()
+    await db.execute(
+        role_permissions.insert().values(
+            role_id=role.id,
+            permission_id=permission.id,
+        )
+    )
+
+    person = Person(
+        first_name="Kojo",
+        last_name="Manager",
+        email="kojo.manager@example.org",
+    )
+    db.add(person)
+    await db.flush()
+
+    user = User(
+        person_id=person.id,
+        email="kojo.manager@example.org",
+        is_active=True,
+    )
+    db.add(user)
+    await db.flush()
+    await db.execute(
+        user_roles.insert().values(user_id=user.id, role_id=role.id)
+    )
+    return user
+
+
+@pytest.mark.asyncio
+async def test_new_application_emails_programme_lead_and_editors(
+    session: AsyncSession,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        email_service.settings, "EMAIL_TEST_REDIRECT_TO", "", raising=False
+    )
+    programme, cohort = await seed_open_programme(session)
+    await seed_application_editors(session)
+
+    lead = Person(
+        first_name="Adwoa",
+        last_name="Lead",
+        email="adwoa.lead@example.org",
+    )
+    session.add(lead)
+    await session.flush()
+    programme.lead = lead
+    await session.commit()
+
+    sent: list[dict] = []
+
+    async def capture(payloads):
+        sent.extend(payloads)
+
+    monkeypatch.setattr(email_service, "deliver_queued", capture)
+
+    client_ip = "198.51.100.31"
+    await api.application_limiter.reset(f"programme-application:{client_ip}")
+    await api.submit_public_application(
+        programme_id=programme.id,
+        payload=api.PublicApplicationRequest(
+            full_name="Ama Mensah",
+            email="ama.mensah@example.org",
+            cohort_id=cohort.id,
+            motivation="I want to learn practical skills and serve my community.",
+        ),
+        request=request_from(client_ip),
+        db=session,
+    )
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    recipients = {payload["to"] for payload in sent}
+    assert recipients == {
+        "adwoa.lead@example.org",
+        "kojo.manager@example.org",
+    }
+    assert all("Ama Mensah" in payload["subject"] for payload in sent)
+    assert all("ama.mensah@example.org" in payload["html"] for payload in sent)
+    assert f"/programmes/{programme.id}/applications" in sent[0]["html"]
+
+
+@pytest.mark.asyncio
+async def test_new_application_without_audience_sends_nothing(
+    session: AsyncSession,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        email_service.settings, "EMAIL_TEST_REDIRECT_TO", "", raising=False
+    )
+    programme, cohort = await seed_open_programme(session)
+
+    sent: list[dict] = []
+
+    async def capture(payloads):
+        sent.extend(payloads)
+
+    monkeypatch.setattr(email_service, "deliver_queued", capture)
+
+    client_ip = "198.51.100.32"
+    await api.application_limiter.reset(f"programme-application:{client_ip}")
+    await api.submit_public_application(
+        programme_id=programme.id,
+        payload=api.PublicApplicationRequest(
+            full_name="Ama Mensah",
+            email="ama.mensah@example.org",
+            cohort_id=cohort.id,
+            motivation="I want to learn practical skills and serve my community.",
+        ),
+        request=request_from(client_ip),
+        db=session,
+    )
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+
+    assert sent == []
+
+
+@pytest.mark.asyncio
+async def test_rejected_duplicate_does_not_notify_again(
+    session: AsyncSession,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        email_service.settings, "EMAIL_TEST_REDIRECT_TO", "", raising=False
+    )
+    programme, cohort = await seed_open_programme(session)
+    await seed_application_editors(session)
+
+    sent: list[dict] = []
+
+    async def capture(payloads):
+        sent.extend(payloads)
+
+    monkeypatch.setattr(email_service, "deliver_queued", capture)
+
+    client_ip = "198.51.100.33"
+    await api.application_limiter.reset(f"programme-application:{client_ip}")
+    payload = api.PublicApplicationRequest(
+        full_name="Ama Mensah",
+        email="ama.mensah@example.org",
+        cohort_id=cohort.id,
+        motivation="I want to learn practical skills and serve my community.",
+    )
+    request = request_from(client_ip)
+    await api.submit_public_application(
+        programme_id=programme.id,
+        payload=payload,
+        request=request,
+        db=session,
+    )
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+    first_batch = len(sent)
+    assert first_batch == 1
+
+    with pytest.raises(HTTPException) as exc:
+        await api.submit_public_application(
+            programme_id=programme.id,
+            payload=payload,
+            request=request,
+            db=session,
+        )
+    await asyncio.sleep(0)
+
+    assert exc.value.status_code == 409
+    assert len(sent) == first_batch

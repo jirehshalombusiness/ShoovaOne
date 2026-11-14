@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import date, datetime, timezone
+import logging
 import secrets
 from typing import List, Optional
 
@@ -12,14 +13,22 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.rate_limit import SlidingWindowLimiter
+from app.core.security import Permissions
 from app.models.sql.core.organisation import Programme
+from app.models.sql.core.role import Permission, Role
+from app.models.sql.core.user import User
 from app.models.sql.programmes.academics import (
     CohortEnrolment,
     ProgrammeCohort,
 )
 from app.models.sql.programmes.public_application import ProgrammeApplication
+from app.services.core.email_service import (
+    queue_programme_application_received,
+)
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 APPLICATION_IP_LIMIT = 20
 APPLICATION_IP_WINDOW_SECONDS = 3600
@@ -96,6 +105,76 @@ def _open_cohort_filters(today: date):
             ProgrammeCohort.enrolment_closes_on >= today,
         ),
     )
+
+
+async def _application_recipients(
+    db: AsyncSession,
+    programme: Programme,
+) -> List[str]:
+    """Staff who can act on applications: programme lead plus editors."""
+    resource, action = Permissions.PROGRAMMES_EDIT.split(".", 1)
+    emails: set[str] = set()
+
+    if programme.lead and programme.lead.email:
+        emails.add(programme.lead.email.strip().lower())
+
+    role_rows = await db.execute(
+        select(User.email)
+        .join(User.roles)
+        .join(Role.permissions)
+        .where(
+            User.is_active.is_(True),
+            Permission.resource == resource,
+            Permission.action == action,
+        )
+    )
+    direct_rows = await db.execute(
+        select(User.email)
+        .join(User.direct_permissions)
+        .where(
+            User.is_active.is_(True),
+            Permission.resource == resource,
+            Permission.action == action,
+        )
+    )
+    ceo_rows = await db.execute(
+        select(User.email)
+        .join(User.roles)
+        .where(User.is_active.is_(True), Role.name == "ceo")
+    )
+
+    for row in (*role_rows.all(), *direct_rows.all(), *ceo_rows.all()):
+        email = (row[0] or "").strip().lower()
+        if email and "@" in email:
+            emails.add(email)
+
+    return sorted(emails)
+
+
+async def _notify_new_application(
+    db: AsyncSession,
+    *,
+    programme: Programme,
+    cohort: ProgrammeCohort,
+    application: ProgrammeApplication,
+) -> None:
+    recipients = await _application_recipients(db, programme)
+    applicant_email = (application.applicant_email or "").strip().lower()
+    for email in recipients:
+        if email == applicant_email:
+            continue
+        await queue_programme_application_received(
+            db,
+            to=email,
+            applicant_name=application.applicant_name,
+            applicant_email=application.applicant_email,
+            applicant_phone=application.applicant_phone,
+            reference=application.reference,
+            programme_name=programme.name,
+            cohort_name=cohort.name,
+            motivation=application.motivation,
+            inbox_path=f"/programmes/{programme.id}/applications",
+        )
 
 
 async def _public_programmes(
@@ -287,6 +366,20 @@ async def submit_public_application(
         motivation=payload.motivation,
     )
     db.add(application)
+
+    try:
+        await _notify_new_application(
+            db,
+            programme=programme,
+            cohort=cohort,
+            application=application,
+        )
+    except Exception:
+        # A notification problem must never lose the application.
+        logger.exception(
+            "could not queue new-application email for %s",
+            application.reference,
+        )
 
     try:
         await db.commit()
