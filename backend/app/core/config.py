@@ -13,6 +13,9 @@ DEFAULT_APP_SECRET = "dev-secret-key-change-in-production-123456789"
 PRODUCTION_FRONTEND_ORIGINS = [
     "https://shoovainitiative.com",
     "https://www.shoovainitiative.com",
+    "https://shoovainitiative.org",
+    "https://www.shoovainitiative.org",
+    "https://apply.shoovainitiative.org",
     "https://shoovaone.vercel.app",
 ]
 

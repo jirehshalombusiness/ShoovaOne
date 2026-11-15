@@ -17,6 +17,9 @@ from app.models.sql.programmes.academics import (
 )
 from app.models.sql.programmes.public_application import ProgrammeApplication
 from app.services.core.audit_service import AuditService
+from app.services.core.email_service import (
+    queue_programme_application_decision,
+)
 from app.services.core.permission_service import PermissionService
 
 router = APIRouter()
@@ -215,6 +218,17 @@ async def review_programme_application(
         new_values={"status": payload.status},
     )
 
+    if payload.status in {"accepted", "declined"}:
+        await queue_programme_application_decision(
+            db,
+            to=application.applicant_email,
+            applicant_name=application.applicant_name,
+            reference=application.reference,
+            programme_name=programme.name,
+            cohort_name=cohort.name if cohort else "your cohort",
+            status=payload.status,
+        )
+
     await db.commit()
     await db.refresh(application)
 
@@ -254,9 +268,9 @@ async def enrol_accepted_application(
         )
 
     cohort = await db.scalar(
-        select(ProgrammeCohort).where(
-            ProgrammeCohort.id == application.cohort_id
-        )
+        select(ProgrammeCohort)
+        .where(ProgrammeCohort.id == application.cohort_id)
+        .with_for_update()
     )
     if cohort is None:
         raise HTTPException(
@@ -343,6 +357,16 @@ async def enrol_accepted_application(
             "person_id": str(person.id),
             "person_created": person_created,
         },
+    )
+
+    await queue_programme_application_decision(
+        db,
+        to=application.applicant_email,
+        applicant_name=application.applicant_name,
+        reference=application.reference,
+        programme_name=programme.name,
+        cohort_name=cohort.name,
+        status="enrolled",
     )
 
     try:

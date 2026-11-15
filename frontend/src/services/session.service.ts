@@ -48,15 +48,4 @@ export const sessionService = {
   async autoEnd(): Promise<void> {
     await api.post('/sessions/auto-end');
   },
-
-  async checkout(payload: {
-    task_breakdown: Array<{
-      task_id: string | null;
-      hours: number;
-      description?: string;
-    }>;
-  }): Promise<any> {
-    const response = await api.post('/sessions/checkout', payload);
-    return response.data;
-  },
 };

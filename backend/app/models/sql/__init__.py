@@ -10,6 +10,7 @@ from app.models.sql.core.role import (
 )
 from app.models.sql.core.organisation import Organisation, Department, Programme
 from app.models.sql.core.notification import Notification
+from app.models.sql.core.email_outbox import EmailOutbox
 from app.models.sql.core.password_reset_token import PasswordResetToken
 from app.models.sql.core.audit_log import AuditLog
 from app.models.sql.core.document import Document

@@ -12,7 +12,6 @@ import asyncio
 
 from app.core.config import settings
 from app.models.sql.base import Base
-from app.services.core.email_service import QUEUE_KEY
 from app.models.sql.core.organisation import Organisation, Department, Programme  # noqa: F401
 
 # Convert database URL for async
@@ -54,26 +53,31 @@ AsyncSessionLocal = async_sessionmaker(
 # =============================================
 # EMAIL OUTBOX
 # =============================================
-# Services queue messages on the session; they are handed to Resend only
-# once the transaction commits. A rollback drops them, so failed or
-# rolled-back work (smoke tests) never sends mail.
+# queue_email writes email_outbox rows inside the caller's transaction, so
+# a rollback discards them and a crash keeps them. Commit triggers an
+# immediate drain; the scheduler sweeps pending rows every minute as a
+# safety net for restarts and delivery failures.
 # =============================================
 
 def _dispatch_queued_emails(session: Session) -> None:
-    payloads = session.info.pop(QUEUE_KEY, None)
-    if not payloads:
+    from app.services.core.email_service import OUTBOX_DIRTY_KEY
+
+    if not session.info.pop(OUTBOX_DIRTY_KEY, False):
         return
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
+        # No loop (script/import context): the scheduler will drain it.
         return
-    from app.services.core.email_service import deliver_queued
+    from app.services.core.email_service import drain_outbox
 
-    loop.create_task(deliver_queued(payloads))
+    loop.create_task(drain_outbox())
 
 
 def _drop_queued_emails(session: Session) -> None:
-    session.info.pop(QUEUE_KEY, None)
+    from app.services.core.email_service import OUTBOX_DIRTY_KEY
+
+    session.info.pop(OUTBOX_DIRTY_KEY, None)
 
 
 event.listen(Session, "after_commit", _dispatch_queued_emails)

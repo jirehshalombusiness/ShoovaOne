@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /apply
+Allow: /assets/
+Allow: /icons/
+Allow: /favicon.png
+Allow: /manifest.webmanifest
+Disallow: /apply/success
+Disallow: /apply/submissions
+Disallow: /
+
+Sitemap: https://www.shoovainitiative.com/sitemap.xml

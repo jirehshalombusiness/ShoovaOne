@@ -70,8 +70,18 @@ export function PublicProgrammesLayout({
 
       <footer className="mx-auto mt-10 flex max-w-6xl flex-col items-center justify-between gap-3 border-t border-[#e6ebe7] px-5 py-6 text-xs text-[#829087] sm:flex-row sm:px-8 safe-bottom">
         <span>© {new Date().getFullYear()} Shoova Initiative</span>
-        <span className="inline-flex items-center gap-1.5">
-          <ShieldCheck size={14} /> A place to learn, connect, and grow
+        <span className="flex flex-wrap items-center justify-center gap-4">
+          <a
+            href="https://shoovainitiative.org"
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-[#176b4d] hover:text-[#0f513a]"
+          >
+            Main website
+          </a>
+          <span className="inline-flex items-center gap-1.5">
+            <ShieldCheck size={14} /> A place to learn, connect, and grow
+          </span>
         </span>
       </footer>
     </div>

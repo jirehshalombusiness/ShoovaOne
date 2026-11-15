@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, func
+from sqlalchemy import select, or_, func, case
 from sqlalchemy.orm import selectinload
 from datetime import date
 from typing import List, Optional
@@ -100,28 +100,37 @@ async def list_projects(
     result = await db.execute(query)
     projects = result.scalars().all()
 
+    project_ids = [p.id for p in projects]
+    task_counts: dict[str, tuple[int, int]] = {}
+    member_counts: dict[str, int] = {}
+    if project_ids:
+        task_rows = await db.execute(
+            select(
+                Task.project_id,
+                func.count(Task.id),
+                func.sum(case((Task.status == "done", 1), else_=0)),
+            )
+            .where(Task.project_id.in_(project_ids))
+            .group_by(Task.project_id)
+        )
+        for project_id, total, done in task_rows.all():
+            task_counts[str(project_id)] = (total or 0, done or 0)
+
+        member_rows = await db.execute(
+            select(ProjectMember.project_id, func.count(ProjectMember.id))
+            .where(ProjectMember.project_id.in_(project_ids))
+            .group_by(ProjectMember.project_id)
+        )
+        member_counts = {
+            str(project_id): count or 0
+            for project_id, count in member_rows.all()
+        }
+
     # Build response with counts
     responses: List[ProjectResponse] = []
     for p in projects:
-        # Count tasks
-        task_count_result = await db.execute(
-            select(func.count(Task.id)).where(Task.project_id == p.id)
-        )
-        task_count = task_count_result.scalar() or 0
-
-        completed_result = await db.execute(
-            select(func.count(Task.id)).where(
-                Task.project_id == p.id,
-                Task.status == "done",
-            )
-        )
-        completed_count = completed_result.scalar() or 0
-
-        # Member count
-        member_count_result = await db.execute(
-            select(func.count(ProjectMember.id)).where(ProjectMember.project_id == p.id)
-        )
-        member_count = member_count_result.scalar() or 0
+        task_count, completed_count = task_counts.get(str(p.id), (0, 0))
+        member_count = member_counts.get(str(p.id), 0)
 
         responses.append(
             ProjectResponse(

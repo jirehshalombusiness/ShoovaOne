@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { ArrowLeft, ArrowRight, FileText, ShieldCheck } from 'lucide-react';
 import { programmesService } from '@/services/programmes.service';
+import { usePageMeta } from '@/hooks/usePageMeta';
 import { addApplication } from './application-store';
 import { formatDateRange, toProgram } from './display';
 
@@ -27,7 +28,7 @@ export function PublicApplicationPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const { data: publicProgrammes, isLoading } = useQuery({
+  const { data: publicProgrammes, isLoading, isError, refetch } = useQuery({
     queryKey: ['public-programmes'],
     queryFn: () => programmesService.listPublic(),
     staleTime: 30_000,
@@ -40,6 +41,13 @@ export function PublicApplicationPage() {
       ),
     [publicProgrammes, programmeId],
   );
+
+  usePageMeta({
+    title: program ? `Apply — ${program.name}` : 'Apply',
+    description: program?.description ?? undefined,
+    path: `/apply/${programmeId}/apply`,
+    noindex: true,
+  });
 
   const selectedCohort =
     program?.cohorts.find((cohort) => cohort.id === cohortId) ??
@@ -97,6 +105,26 @@ export function PublicApplicationPage() {
       >
         Loading application…
       </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <section className="mx-auto max-w-xl py-16 text-center">
+        <h1 className="text-2xl font-semibold tracking-[-0.03em]">
+          We could not load this application form
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-[#738078]">
+          The service may be temporarily unavailable. Please try again.
+        </p>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#176b4d] px-5 py-3 text-sm font-bold text-white hover:bg-[#0f513a]"
+        >
+          Try again
+        </button>
+      </section>
     );
   }
 

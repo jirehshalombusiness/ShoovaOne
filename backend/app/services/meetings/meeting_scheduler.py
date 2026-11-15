@@ -48,6 +48,13 @@ def start_scheduler() -> AsyncIOScheduler:
         max_instances=1,
     )
     _scheduler.add_job(
+        drain_email_outbox,
+        trigger=IntervalTrigger(seconds=60),
+        id="email_outbox_drain",
+        replace_existing=True,
+        max_instances=1,
+    )
+    _scheduler.add_job(
         close_idle_sessions,
         trigger=IntervalTrigger(minutes=5),
         id="idle_session_sweep",
@@ -67,9 +74,9 @@ def start_scheduler() -> AsyncIOScheduler:
     )
     _scheduler.start()
     print(
-        "[scheduler] Meeting reminders (60s), approval SLA sweep (5m), "
-        "idle session sweep (5m) and past-day attendance checkout "
-        f"(daily 00:05 {settings.ORG_TIMEZONE}) started"
+        "[scheduler] Meeting reminders (60s), email outbox drain (60s), "
+        "approval SLA sweep (5m), idle session sweep (5m) and past-day "
+        f"attendance checkout (daily 00:05 {settings.ORG_TIMEZONE}) started"
     )
     return _scheduler
 
@@ -100,6 +107,16 @@ async def escalate_overdue_approvals() -> None:
 
     if count:
         print(f"[scheduler] Auto-escalated {count} overdue approval(s)")
+
+
+async def drain_email_outbox() -> None:
+    """Deliver queued email, retrying failures with backoff."""
+    from app.services.core.email_service import drain_outbox
+
+    try:
+        await drain_outbox()
+    except Exception:
+        print("[scheduler] email outbox drain failed")
 
 
 async def close_idle_sessions() -> None:

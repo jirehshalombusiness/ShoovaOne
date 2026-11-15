@@ -1,5 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { Check } from 'lucide-react';
+import { usePageMeta } from '../../hooks/usePageMeta';
 import { readApplications } from './application-store';
 
 export function PublicApplicationSuccessPage() {
@@ -8,6 +9,13 @@ export function PublicApplicationSuccessPage() {
   const application = readApplications().find(
     (item) => item.reference === reference,
   );
+
+  usePageMeta({
+    title: 'Application received',
+    description: 'Your application was received.',
+    path: '/apply/success',
+    noindex: true,
+  });
 
   return (
     <section className="mx-auto max-w-xl py-10 text-center sm:py-16">
@@ -22,7 +30,7 @@ export function PublicApplicationSuccessPage() {
       </h1>
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#738078]">
         {application
-          ? `Your application for ${application.programmeName} was received for ${application.cohortName}. Save your reference number. Application status tracking is not available yet.`
+          ? `Your application for ${application.programmeName} was received for ${application.cohortName}. Save your reference number — we will be in touch about the next steps.`
           : 'Your application was received. Save the reference number shown after you submitted.'}
       </p>
       {application ? (

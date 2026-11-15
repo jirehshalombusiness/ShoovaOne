@@ -15,6 +15,7 @@ from starlette.requests import Request
 
 import app.models.sql  # noqa: F401
 from app.core.database import Base
+from app.models.sql.core.email_outbox import EmailOutbox
 from app.models.sql.core.organisation import Department, Organisation, Programme
 from app.models.sql.core.role import Permission, Role, role_permissions, user_roles
 from app.models.sql.core.user import Person, User
@@ -194,7 +195,7 @@ async def test_public_application_is_saved_without_creating_a_student_account(
 
 
 @pytest.mark.asyncio
-async def test_duplicate_application_for_same_cohort_is_rejected(
+async def test_duplicate_application_is_answered_generically(
     session: AsyncSession,
 ):
     programme, cohort = await seed_open_programme(session)
@@ -210,22 +211,27 @@ async def test_duplicate_application_for_same_cohort_is_rejected(
     )
     request = request_from(client_ip)
 
-    await api.submit_public_application(
+    first = await api.submit_public_application(
+        programme_id=programme.id,
+        payload=payload,
+        request=request,
+        db=session,
+    )
+    second = await api.submit_public_application(
         programme_id=programme.id,
         payload=payload,
         request=request,
         db=session,
     )
 
-    with pytest.raises(HTTPException) as exc:
-        await api.submit_public_application(
-            programme_id=programme.id,
-            payload=payload,
-            request=request,
-            db=session,
-        )
-
-    assert exc.value.status_code == 409
+    stored = (
+        await session.execute(select(ProgrammeApplication))
+    ).scalars().all()
+    assert len(stored) == 1
+    assert stored[0].reference == first.reference
+    assert second.reference != first.reference
+    assert second.programme_name == programme.name
+    assert second.cohort_name == cohort.name
 
 
 async def seed_application_editors(db: AsyncSession) -> User:
@@ -285,13 +291,6 @@ async def test_new_application_emails_programme_lead_and_editors(
     programme.lead = lead
     await session.commit()
 
-    sent: list[dict] = []
-
-    async def capture(payloads):
-        sent.extend(payloads)
-
-    monkeypatch.setattr(email_service, "deliver_queued", capture)
-
     client_ip = "198.51.100.31"
     await api.application_limiter.reset(f"programme-application:{client_ip}")
     await api.submit_public_application(
@@ -308,14 +307,29 @@ async def test_new_application_emails_programme_lead_and_editors(
     await asyncio.sleep(0)
     await asyncio.sleep(0)
 
-    recipients = {payload["to"] for payload in sent}
-    assert recipients == {
+    rows = list(
+        (
+            await session.execute(
+                select(EmailOutbox).order_by(EmailOutbox.created_at)
+            )
+        ).scalars().all()
+    )
+    staff = [row for row in rows if row.to_address != "ama.mensah@example.org"]
+    receipt = [
+        row for row in rows if row.to_address == "ama.mensah@example.org"
+    ]
+
+    assert {row.to_address for row in staff} == {
         "adwoa.lead@example.org",
         "kojo.manager@example.org",
     }
-    assert all("Ama Mensah" in payload["subject"] for payload in sent)
-    assert all("ama.mensah@example.org" in payload["html"] for payload in sent)
-    assert f"/programmes/{programme.id}/applications" in sent[0]["html"]
+    assert all("Ama Mensah" in row.subject for row in staff)
+    assert all("ama.mensah@example.org" in row.html for row in staff)
+    assert f"/programmes/{programme.id}/applications" in staff[0].html
+
+    assert len(receipt) == 1
+    assert "We received your application" in receipt[0].subject
+    assert "SH-" in receipt[0].html
 
 
 @pytest.mark.asyncio
@@ -327,13 +341,6 @@ async def test_new_application_without_audience_sends_nothing(
         email_service.settings, "EMAIL_TEST_REDIRECT_TO", "", raising=False
     )
     programme, cohort = await seed_open_programme(session)
-
-    sent: list[dict] = []
-
-    async def capture(payloads):
-        sent.extend(payloads)
-
-    monkeypatch.setattr(email_service, "deliver_queued", capture)
 
     client_ip = "198.51.100.32"
     await api.application_limiter.reset(f"programme-application:{client_ip}")
@@ -351,7 +358,10 @@ async def test_new_application_without_audience_sends_nothing(
     await asyncio.sleep(0)
     await asyncio.sleep(0)
 
-    assert sent == []
+    rows = list(
+        (await session.execute(select(EmailOutbox))).scalars().all()
+    )
+    assert [row.to_address for row in rows] == ["ama.mensah@example.org"]
 
 
 @pytest.mark.asyncio
@@ -364,13 +374,6 @@ async def test_rejected_duplicate_does_not_notify_again(
     )
     programme, cohort = await seed_open_programme(session)
     await seed_application_editors(session)
-
-    sent: list[dict] = []
-
-    async def capture(payloads):
-        sent.extend(payloads)
-
-    monkeypatch.setattr(email_service, "deliver_queued", capture)
 
     client_ip = "198.51.100.33"
     await api.application_limiter.reset(f"programme-application:{client_ip}")
@@ -389,17 +392,142 @@ async def test_rejected_duplicate_does_not_notify_again(
     )
     await asyncio.sleep(0)
     await asyncio.sleep(0)
-    first_batch = len(sent)
-    assert first_batch == 1
+    first_batch = len(
+        (await session.execute(select(EmailOutbox))).scalars().all()
+    )
+    assert first_batch == 2  # applicant receipt + programme editor
+
+    second = await api.submit_public_application(
+        programme_id=programme.id,
+        payload=payload,
+        request=request,
+        db=session,
+    )
+    await asyncio.sleep(0)
+
+    assert second.reference
+    assert (
+        len((await session.execute(select(EmailOutbox))).scalars().all())
+        == first_batch
+    )
+
+
+@pytest.mark.asyncio
+async def test_outbox_retries_a_failed_send_then_succeeds(
+    session: AsyncSession,
+    monkeypatch,
+):
+    calls: list[dict] = []
+
+    async def flaky(payload):
+        calls.append(payload)
+        if len(calls) == 1:
+            return "failed", "resend 500"
+        return "sent", None
+
+    monkeypatch.setattr(email_service, "_send", flaky)
+
+    email_service.queue_email(
+        session,
+        to="someone@example.org",
+        subject="Hello",
+        html="<p>Hello</p>",
+    )
+    await session.commit()
+
+    row = (await session.execute(select(EmailOutbox))).scalars().one()
+    assert row.status == "pending"
+
+    assert await email_service.drain_outbox_rows(session) == 0
+    await session.refresh(row)
+    assert row.status == "pending"
+    assert row.attempts == 1
+    assert row.next_attempt_at is not None
+
+    row.next_attempt_at = None
+    await session.commit()
+
+    assert await email_service.drain_outbox_rows(session) == 1
+    await session.refresh(row)
+    assert row.status == "sent"
+    assert row.sent_at is not None
+    assert row.last_error is None
+
+
+@pytest.mark.asyncio
+async def test_outbox_holds_mail_when_email_is_disabled(
+    session: AsyncSession,
+    monkeypatch,
+):
+    async def skipped(payload):
+        return "skipped", "RESEND_API_KEY not configured"
+
+    monkeypatch.setattr(email_service, "_send", skipped)
+
+    email_service.queue_email(
+        session,
+        to="someone@example.org",
+        subject="Hello",
+        html="<p>Hello</p>",
+    )
+    await session.commit()
+
+    assert await email_service.drain_outbox_rows(session) == 0
+    row = (await session.execute(select(EmailOutbox))).scalars().one()
+    assert row.status == "pending"
+    assert row.attempts == 0
+    assert row.last_error == "RESEND_API_KEY not configured"
+    assert row.next_attempt_at is not None
+
+
+def test_client_ip_ignores_client_supplied_forwarded_values():
+    request = Request(
+        {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "http",
+            "path": "/",
+            "raw_path": b"/",
+            "query_string": b"",
+            "headers": [
+                (b"x-forwarded-for", b"10.0.0.9, 198.51.100.7"),
+            ],
+            "client": ("192.0.2.1", 12345),
+            "server": ("test", 80),
+        }
+    )
+
+    assert api._client_ip(request) == "198.51.100.7"
+
+
+@pytest.mark.asyncio
+async def test_application_email_daily_cap_blocks_abuse(
+    session: AsyncSession,
+    monkeypatch,
+):
+    programme, cohort = await seed_open_programme(session)
+    monkeypatch.setattr(api, "APPLICATION_EMAIL_LIMIT", 0)
+    client_ip = "198.51.100.44"
+    await api.application_limiter.reset(f"programme-application:{client_ip}")
 
     with pytest.raises(HTTPException) as exc:
         await api.submit_public_application(
             programme_id=programme.id,
-            payload=payload,
-            request=request,
+            payload=api.PublicApplicationRequest(
+                full_name="Ama Mensah",
+                email="ama.mensah@example.org",
+                cohort_id=cohort.id,
+                motivation=(
+                    "I want to learn practical skills and serve my community."
+                ),
+            ),
+            request=request_from(client_ip),
             db=session,
         )
-    await asyncio.sleep(0)
 
-    assert exc.value.status_code == 409
-    assert len(sent) == first_batch
+    assert exc.value.status_code == 429
+    assert (
+        await session.execute(select(ProgrammeApplication))
+    ).scalars().all() == []

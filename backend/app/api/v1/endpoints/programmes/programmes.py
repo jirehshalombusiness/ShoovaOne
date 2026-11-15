@@ -443,6 +443,24 @@ async def _load_cohort(
     return cohort
 
 
+async def _lock_cohort(
+    db: AsyncSession,
+    cohort_id: str,
+) -> ProgrammeCohort:
+    """Load a cohort under a row lock so capacity checks cannot race."""
+    cohort = await db.scalar(
+        select(ProgrammeCohort)
+        .where(ProgrammeCohort.id == cohort_id)
+        .with_for_update()
+    )
+    if not cohort:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cohort not found",
+        )
+    return cohort
+
+
 async def _load_enrolment(
     db: AsyncSession,
     enrolment_id: str,
@@ -1256,7 +1274,7 @@ async def enrol_learners(
         require_permission(Permissions.PROGRAMMES_EDIT)
     ),
 ):
-    cohort = await _load_cohort(db, cohort_id)
+    cohort = await _lock_cohort(db, cohort_id)
 
     if cohort.status in {"completed", "cancelled"}:
         raise HTTPException(

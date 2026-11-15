@@ -11,9 +11,17 @@ import {
   Users,
 } from 'lucide-react';
 import { programmesService } from '@/services/programmes.service';
+import { usePageMeta } from '@/hooks/usePageMeta';
 import { toProgram } from './display';
 
 export function PublicProgrammesPage() {
+  usePageMeta({
+    title: 'Programmes open for applications',
+    description:
+      'Browse Shoova Initiative programmes open for applications, compare cohorts and apply online.',
+    path: '/apply',
+  });
+
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All programs');
 

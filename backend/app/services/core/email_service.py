@@ -1,8 +1,9 @@
 """Outbound transactional email (Resend).
 
-Messages are queued on the current SQLAlchemy session and only handed to
-Resend after that session commits. A rollback discards the queue, so smoke
-tests and failed transactions can never deliver email.
+Messages are written to the email_outbox table inside the caller's
+transaction, so a rollback discards them and a crash keeps them. The
+drainer delivers pending rows with backoff: once via the post-commit
+hook for immediacy, and every minute via the scheduler as a safety net.
 
 Set EMAIL_TEST_REDIRECT_TO to funnel every message to a single test inbox
 while seeded accounts still carry placeholder addresses.
@@ -12,21 +13,24 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from html import escape
 from typing import Any, Optional
 
 import resend
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.models.sql.core.email_outbox import EmailOutbox
 from app.models.sql.core.user import Person, User
 
 logger = logging.getLogger(__name__)
 
-QUEUE_KEY = "pending_emails"
+OUTBOX_DIRTY_KEY = "email_outbox_dirty"
+MAX_ATTEMPTS = 5
+RETRY_DELAYS_SECONDS = (60, 300, 900, 3600, 21600)
 
 BRAND_GREEN = "#176b4d"
 BRAND_DARK = "#0f513a"
@@ -218,13 +222,21 @@ def queue_email(
     subject: str,
     html: str,
 ) -> None:
-    """Queue a message for delivery after the current transaction commits."""
+    """Write the message to the outbox inside the caller's transaction.
+
+    Committing delivers it promptly; rolling back (or crashing) keeps it.
+    """
     if not to or "@" not in to:
         return
     to, subject = _redirect(to.strip(), subject)
-    db.info.setdefault(QUEUE_KEY, []).append(
-        {"to": to, "subject": subject, "html": html}
+    db.add(
+        EmailOutbox(
+            to_address=to[:320],
+            subject=subject[:500],
+            html=html,
+        )
     )
+    db.info[OUTBOX_DIRTY_KEY] = True
 
 
 async def person_contact(
@@ -248,25 +260,16 @@ async def person_contact(
     return email, first_name, full_name
 
 
-async def queue_person_email(
-    db: AsyncSession,
-    *,
-    person_id,
-    subject: str,
-    html: str,
-) -> None:
-    email, _, _ = await person_contact(db, person_id)
-    queue_email(db, to=email, subject=subject, html=html)
-
-
-async def _deliver(payload: dict) -> bool:
+async def _send(payload: dict) -> tuple[str, Optional[str]]:
+    """Attempt one delivery. Returns (outcome, error) where outcome is
+    'sent', 'skipped' (configuration) or 'failed' (retryable)."""
     if not settings.EMAIL_ENABLED:
         logger.info(
             "email disabled; skipped to=%s subject=%s",
             payload["to"],
             payload["subject"],
         )
-        return False
+        return "skipped", "email disabled"
 
     if not settings.RESEND_API_KEY:
         logger.warning(
@@ -274,7 +277,7 @@ async def _deliver(payload: dict) -> bool:
             payload["to"],
             payload["subject"],
         )
-        return False
+        return "skipped", "RESEND_API_KEY not configured"
 
     resend.api_key = settings.RESEND_API_KEY
     params: dict[str, Any] = {
@@ -291,25 +294,94 @@ async def _deliver(payload: dict) -> bool:
         logger.info(
             "email sent to=%s subject=%s", payload["to"], payload["subject"]
         )
-        return True
-    except Exception:
+        return "sent", None
+    except Exception as error:
         logger.exception(
             "email delivery failed to=%s subject=%s",
             payload["to"],
             payload["subject"],
         )
-        return False
+        return "failed", str(error)[:500]
 
 
-async def deliver_queued(payloads: list[dict]) -> None:
-    for payload in payloads:
-        await _deliver(payload)
+def _retry_delay(attempts: int) -> timedelta:
+    index = min(attempts - 1, len(RETRY_DELAYS_SECONDS) - 1)
+    return timedelta(seconds=RETRY_DELAYS_SECONDS[max(index, 0)])
+
+
+async def drain_outbox(
+    db: Optional[AsyncSession] = None,
+    *,
+    limit: int = 50,
+) -> int:
+    """Open a session (unless given one) and deliver pending rows."""
+    from app.core.database import AsyncSessionLocal
+
+    owns_session = db is None
+    session = db or AsyncSessionLocal()
+    try:
+        return await drain_outbox_rows(session, limit=limit)
+    finally:
+        if owns_session:
+            await session.close()
+
+
+async def drain_outbox_rows(
+    session: AsyncSession,
+    *,
+    limit: int = 50,
+) -> int:
+    """Deliver pending rows in this session, applying backoff."""
+    now = datetime.now(timezone.utc)
+    rows = (
+        await session.execute(
+            select(EmailOutbox)
+            .where(
+                EmailOutbox.status == "pending",
+                or_(
+                    EmailOutbox.next_attempt_at.is_(None),
+                    EmailOutbox.next_attempt_at <= now,
+                ),
+            )
+            .order_by(EmailOutbox.created_at)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+    ).scalars().all()
+
+    delivered = 0
+    for row in rows:
+        outcome, error = await _send(
+            {
+                "to": row.to_address,
+                "subject": row.subject,
+                "html": row.html,
+            }
+        )
+        if outcome == "sent":
+            row.status = "sent"
+            row.sent_at = now
+            row.last_error = None
+            delivered += 1
+        elif outcome == "skipped":
+            # Configuration problem, not a bad message: wait for a fix.
+            row.last_error = error
+            row.next_attempt_at = now + timedelta(minutes=60)
+        else:
+            row.attempts += 1
+            row.last_error = error
+            if row.attempts >= MAX_ATTEMPTS:
+                row.status = "failed"
+            else:
+                row.next_attempt_at = now + _retry_delay(row.attempts)
+        await session.commit()
+
+    return delivered
 
 
 async def send_now(*, to: str, subject: str, html: str) -> bool:
-    return await _deliver(
-        {"to": to, "subject": subject, "html": html}
-    )
+    outcome, _ = await _send({"to": to, "subject": subject, "html": html})
+    return outcome == "sent"
 
 
 # ============================================================
@@ -1027,5 +1099,137 @@ async def queue_programme_application_received(
             title="New programme application",
             body_html=body,
             preheader=f"{applicant_name} applied to {programme_name}",
+        ),
+    )
+
+
+async def queue_password_reset(
+    db: AsyncSession,
+    *,
+    to: str,
+    first_name: Optional[str],
+    token: str,
+) -> None:
+    body = (
+        _greeting(first_name)
+        + _paragraph(
+            "We received a request to reset your Shoova ONE password. "
+            "Use the button below to choose a new one."
+        )
+        + _button(
+            _app_link(f"/reset-password/{token}"),
+            "Reset password",
+        )
+        + _paragraph(
+            "If you did not request this, you can ignore this email. "
+            "Your password will not change."
+        )
+    )
+    queue_email(
+        db,
+        to=to,
+        subject="Reset your Shoova ONE password",
+        html=render_layout(
+            title="Reset your password",
+            body_html=body,
+            preheader="Choose a new password for your account",
+        ),
+    )
+
+
+async def queue_programme_application_receipt(
+    db: AsyncSession,
+    *,
+    to: str,
+    applicant_name: str,
+    reference: str,
+    programme_name: str,
+    cohort_name: str,
+) -> None:
+    first_name = applicant_name.strip().split(" ")[0] if applicant_name.strip() else ""
+    rows = [
+        ("Reference", escape(reference)),
+        ("Programme", escape(programme_name)),
+        ("Cohort", escape(cohort_name)),
+    ]
+    body = (
+        _greeting(first_name)
+        + _paragraph(
+            f"We received your application to {programme_name} "
+            f"({cohort_name})."
+        )
+        + _details(rows)
+        + _paragraph(
+            "Keep the reference above. The programme team will be in touch "
+            "once your application has been reviewed."
+        )
+    )
+    queue_email(
+        db,
+        to=to,
+        subject=f"We received your application — {programme_name}",
+        html=render_layout(
+            title="Application received",
+            body_html=body,
+            preheader=f"Your reference is {reference}",
+        ),
+    )
+
+
+async def queue_programme_application_decision(
+    db: AsyncSession,
+    *,
+    to: str,
+    applicant_name: str,
+    reference: str,
+    programme_name: str,
+    cohort_name: str,
+    status: str,
+) -> None:
+    first_name = applicant_name.strip().split(" ")[0] if applicant_name.strip() else ""
+    decision = {
+        "accepted": (
+            "Good news — your application has been accepted",
+            "The programme team will contact you with next steps and "
+            "joining details.",
+            "Application accepted",
+        ),
+        "declined": (
+            "An update on your application",
+            "We are unable to offer you a place on this intake. You are "
+            "welcome to apply again for a future cohort.",
+            "Application update",
+        ),
+        "enrolled": (
+            "You are enrolled",
+            "You are now enrolled on this cohort. The programme team will "
+            "share your schedule and joining instructions.",
+            "Enrolment confirmed",
+        ),
+    }.get(status)
+
+    if decision is None:
+        return
+
+    headline, next_step, title = decision
+    rows = [
+        ("Reference", escape(reference)),
+        ("Programme", escape(programme_name)),
+        ("Cohort", escape(cohort_name)),
+    ]
+    body = (
+        _greeting(first_name)
+        + _paragraph(f"{headline}.")
+        + _details(rows)
+        + _paragraph(next_step)
+    )
+    queue_email(
+        db,
+        to=to,
+        subject=f"{headline} — {programme_name}",
+        html=render_layout(
+            title=title,
+            body_html=body,
+            preheader=headline,
         ),
     )

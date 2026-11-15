@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ChevronRight, FileText } from 'lucide-react';
+import { usePageMeta } from '../../hooks/usePageMeta';
 import { readApplications } from './application-store';
 
 const formatSubmitted = (value: string) =>
@@ -12,6 +13,13 @@ const formatSubmitted = (value: string) =>
 
 export function PublicSubmissionsPage() {
   const [applications] = useState(readApplications);
+
+  usePageMeta({
+    title: 'Recent submissions',
+    description: 'Applications submitted from this browser.',
+    path: '/apply/submissions',
+    noindex: true,
+  });
 
   return (
     <section className="mx-auto max-w-4xl">

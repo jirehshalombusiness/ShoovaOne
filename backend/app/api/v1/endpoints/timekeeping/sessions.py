@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 
@@ -328,33 +329,3 @@ async def auto_end_session(
     await db.commit()
 
     return {"ok": True, "message": "Session auto-ended due to inactivity"}
-
-
-# ============================================
-# CHECK OUT (end of day)
-# ============================================
-
-@router.post("/checkout")
-async def session_checkout(
-    payload: dict,
-    db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_active_user),
-):
-    """End the day using the shared checkout implementation."""
-    result = await timekeeping.checkout_day(
-        db,
-        person_id=current_user.person_id,
-        actor=current_user,
-        task_breakdown=payload.get("task_breakdown") or [],
-        notes=payload.get("notes"),
-    )
-
-    return {
-        "total_minutes": result["total_minutes"],
-        "standard_minutes": result["standard_minutes"],
-        "overtime_minutes": result["overtime_minutes"],
-        "elapsed_minutes": result["elapsed_minutes"],
-        "idle_minutes": result["idle_minutes"],
-        "total_hours": result["total_hours"],
-        "check_out": result["check_out"].isoformat(),
-    }

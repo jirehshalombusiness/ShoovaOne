@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import logging
 import secrets
 from typing import List, Optional
@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.net import client_ip
 from app.core.rate_limit import SlidingWindowLimiter
 from app.core.security import Permissions
 from app.models.sql.core.organisation import Programme
@@ -23,6 +24,7 @@ from app.models.sql.programmes.academics import (
 )
 from app.models.sql.programmes.public_application import ProgrammeApplication
 from app.services.core.email_service import (
+    queue_programme_application_receipt,
     queue_programme_application_received,
 )
 
@@ -32,6 +34,8 @@ logger = logging.getLogger(__name__)
 
 APPLICATION_IP_LIMIT = 20
 APPLICATION_IP_WINDOW_SECONDS = 3600
+APPLICATION_EMAIL_LIMIT = 8
+APPLICATION_EMAIL_WINDOW_HOURS = 24
 application_limiter = SlidingWindowLimiter()
 
 
@@ -270,12 +274,26 @@ async def get_open_programme(
 
 
 def _client_ip(request: Request) -> str:
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        first = forwarded_for.split(",")[0].strip()
-        if first:
-            return first
-    return request.client.host if request.client else "unknown"
+    return client_ip(request)
+
+
+def _new_reference(today: date) -> str:
+    return f"SH-{today.year}-{secrets.token_hex(8).upper()}"
+
+
+def _receipt(
+    *,
+    programme: Programme,
+    cohort: ProgrammeCohort,
+    reference: str,
+    submitted_at: datetime,
+) -> PublicApplicationReceipt:
+    return PublicApplicationReceipt(
+        reference=reference,
+        programme_name=programme.name,
+        cohort_name=cohort.name,
+        submitted_at=submitted_at,
+    )
 
 
 @router.post(
@@ -331,17 +349,43 @@ async def submit_public_application(
             detail="Programme or cohort is not currently accepting applications",
         )
 
+    applicant_email = str(payload.email).strip().lower()
+    submitted_at = datetime.now(timezone.utc)
+
+    recent_from_email = await db.scalar(
+        select(func.count(ProgrammeApplication.id)).where(
+            ProgrammeApplication.applicant_email == applicant_email,
+            ProgrammeApplication.created_at
+            >= submitted_at - timedelta(hours=APPLICATION_EMAIL_WINDOW_HOURS),
+        )
+    )
+    if (recent_from_email or 0) >= APPLICATION_EMAIL_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "Too many applications from this email address. "
+                "Please try again tomorrow."
+            ),
+            headers={"Retry-After": "86400"},
+        )
+
     existing = await db.execute(
         select(ProgrammeApplication.id).where(
             ProgrammeApplication.cohort_id == cohort.id,
-            ProgrammeApplication.applicant_email
-            == str(payload.email).strip().lower(),
+            ProgrammeApplication.applicant_email == applicant_email,
         )
     )
     if existing.scalar_one_or_none() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An application from this email already exists for this cohort",
+        # Answer with the same generic receipt as a fresh submission so this
+        # endpoint cannot be used to discover which emails have applied.
+        logger.info(
+            "duplicate public application ignored for cohort %s", cohort.id
+        )
+        return _receipt(
+            programme=programme,
+            cohort=cohort,
+            reference=_new_reference(today),
+            submitted_at=submitted_at,
         )
 
     enrolled_count = await db.scalar(
@@ -357,17 +401,25 @@ async def submit_public_application(
         )
 
     application = ProgrammeApplication(
-        reference=f"SH-{today.year}-{secrets.token_hex(8).upper()}",
+        reference=_new_reference(today),
         programme_id=programme.id,
         cohort_id=cohort.id,
         applicant_name=payload.full_name,
-        applicant_email=str(payload.email).strip().lower(),
+        applicant_email=applicant_email,
         applicant_phone=payload.phone,
         motivation=payload.motivation,
     )
     db.add(application)
 
     try:
+        await queue_programme_application_receipt(
+            db,
+            to=application.applicant_email,
+            applicant_name=application.applicant_name,
+            reference=application.reference,
+            programme_name=programme.name,
+            cohort_name=cohort.name,
+        )
         await _notify_new_application(
             db,
             programme=programme,
@@ -394,16 +446,23 @@ async def submit_public_application(
             )
         )
         if is_duplicate_email:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="An application from this email already exists for this cohort",
-            ) from error
+            # Lost a race with an identical submission: reply generically.
+            logger.info(
+                "concurrent duplicate public application for cohort %s",
+                cohort.id,
+            )
+            return _receipt(
+                programme=programme,
+                cohort=cohort,
+                reference=_new_reference(today),
+                submitted_at=submitted_at,
+            )
         raise
 
     await db.refresh(application)
-    return PublicApplicationReceipt(
+    return _receipt(
+        programme=programme,
+        cohort=cohort,
         reference=application.reference,
-        programme_name=programme.name,
-        cohort_name=cohort.name,
-        submitted_at=application.created_at or datetime.now(timezone.utc),
+        submitted_at=application.created_at or submitted_at,
     )

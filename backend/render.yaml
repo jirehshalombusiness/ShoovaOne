@@ -19,7 +19,17 @@ services:
       - key: JWT_EXPIRATION_MINUTES
         value: "720"
       - key: BACKEND_CORS_ORIGINS
-        value: https://shoovaone.vercel.app,https://www.shoovainitiative.com
+        value: https://shoovaone.vercel.app,https://www.shoovainitiative.com,https://apply.shoovainitiative.org,https://www.shoovainitiative.org
+      - key: FRONTEND_URL
+        value: https://www.shoovainitiative.com
+      - key: EMAIL_ENABLED
+        value: "true"
+      - key: EMAIL_FROM
+        value: Shoova ONE <notifications@shoove.org>
+      - key: EMAIL_REPLY_TO
+        value: people@shoove.org
+      - key: RESEND_API_KEY
+        sync: false
       - key: SECRET_KEY
         generateValue: true
       - key: JWT_SECRET_KEY

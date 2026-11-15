@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.email_utils import normalize_email
+from app.core.net import client_ip
 from app.core.rate_limit import auth_limiter
 from app.core.security import (
     create_access_token,
@@ -29,13 +30,13 @@ from app.models.pydantic.core.user import (
 )
 from app.models.sql.core.role import Role
 from app.models.sql.core.user import User
-from app.services.auth.email_service import send_password_reset_email
 from app.services.auth.password_reset_service import (
     create_password_reset_token,
     get_valid_password_reset_token,
     mark_password_reset_token_used,
 )
 from app.services.core.audit_service import AuditService
+from app.services.core.email_service import queue_password_reset
 from app.services.core.permission_service import PermissionService
 
 
@@ -59,14 +60,7 @@ _DUMMY_PASSWORD_HASH = get_password_hash(secrets.token_urlsafe(32))
 
 
 def _client_ip(request: Request) -> str:
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        first = forwarded_for.split(",")[0].strip()
-        if first:
-            return first
-    if request.client:
-        return request.client.host
-    return "unknown"
+    return client_ip(request)
 
 
 def _too_many_attempts(retry_after: int, detail: str) -> HTTPException:
@@ -443,21 +437,13 @@ async def forgot_password(
         user=user,
     )
 
-    # Get recipient name
-    recipient_name = "there"
-
-    if user.person:
-        recipient_name = user.person.first_name
-
-    # Send reset email
-    try:
-        send_password_reset_email(
-            recipient_email=user.email,
-            recipient_name=recipient_name,
-            reset_token=reset_token,
-        )
-    except Exception as e:
-        print(f"Password reset email error: {e}")
+    await queue_password_reset(
+        db,
+        to=user.email,
+        first_name=user.person.first_name if user.person else None,
+        token=reset_token,
+    )
+    await db.commit()
 
     return {
         "message": "If an account exists for this email, "

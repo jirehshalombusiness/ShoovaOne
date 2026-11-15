@@ -669,20 +669,6 @@ const CohortDashboardPage = lazy(() =>
 // HELPERS
 // ============================================================
 
-function Placeholder({ title }: { title: string }) {
-  return (
-    <div className="p-8">
-      <h1 className="text-xl font-semibold text-gray-900">
-        {title}
-      </h1>
-
-      <p className="text-sm text-gray-500 mt-1">
-        Coming soon.
-      </p>
-    </div>
-  );
-}
-
 function PageLoader() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -1701,9 +1687,7 @@ export function AppRouter() {
 
             <Route
               path="audit-trail"
-              element={
-                <Placeholder title="Financial Audit Trail" />
-              }
+              element={<Navigate to="/audit" replace />}
             />
 
           </Route>
